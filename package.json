@@ -1,0 +1,25 @@
+{
+  "name": "web-vscode",
+  "version": "1.0.0",
+  "description": "Web-based file editor with VSCode-like interface",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "vscode",
+    "editor",
+    "file-manager"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "body-parser": "^2.2.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "multer": "^2.0.2"
+  }
+}
