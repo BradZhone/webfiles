@@ -1,7 +1,7 @@
 {
-  "name": "web-vscode",
+  "name": "webfiles",
   "version": "1.0.0",
-  "description": "Web-based file editor with VSCode-like interface",
+  "description": "A modern web-based file manager with VSCode-like interface",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

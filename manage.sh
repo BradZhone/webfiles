@@ -1,10 +1,10 @@
 #!/bin/bash
-# Web VSCode 管理脚本
+# WebFiles 管理脚本
 #
 # 环境变量配置:
-#   WEB_VSCODE_PORT  - 服务端口 (默认: 8765)
-#   WEB_VSCODE_HOME  - 文件根目录 (默认: $HOME)
-#   WEB_VSCODE_SECRET - Session密钥 (默认: 自动生成)
+#   WEBFILES_PORT   - 服务端口 (默认: 8765)
+#   WEBFILES_HOME   - 文件根目录 (默认: $HOME)
+#   WEBFILES_SECRET - Session密钥 (默认: 自动生成)
 #
 # 或者在 config.json 中配置:
 #   {
@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$SCRIPT_DIR}"
 
 # 配置 (优先使用环境变量)
-PORT="${WEB_VSCODE_PORT:-8765}"
+PORT="${WEBFILES_PORT:-8765}"
 PID_FILE="$PROJECT_DIR/server.pid"
 
 # 显示当前配置
@@ -27,7 +27,7 @@ show_config() {
     echo "当前配置:"
     echo "  项目目录: $PROJECT_DIR"
     echo "  端口: $PORT"
-    echo "  文件根目录: ${WEB_VSCODE_HOME:-$HOME (默认)}"
+    echo "  文件根目录: ${WEBFILES_HOME:-$HOME (默认)}"
     echo ""
 }
 
@@ -118,7 +118,7 @@ case "$1" in
         ;;
 
     *)
-        echo "Web VSCode 管理工具"
+        echo "WebFiles 管理工具"
         echo ""
         echo "用法: $0 {start|stop|restart|status|logs|config}"
         echo ""
@@ -131,9 +131,9 @@ case "$1" in
         echo "  config  - 显示当前配置"
         echo ""
         echo "环境变量:"
-        echo "  WEB_VSCODE_PORT   - 服务端口 (默认: 8765)"
-        echo "  WEB_VSCODE_HOME   - 文件根目录 (默认: \$HOME)"
-        echo "  WEB_VSCODE_SECRET - Session密钥"
+        echo "  WEBFILES_PORT   - 服务端口 (默认: 8765)"
+        echo "  WEBFILES_HOME   - 文件根目录 (默认: \$HOME)"
+        echo "  WEBFILES_SECRET - Session密钥"
         exit 1
         ;;
 esac

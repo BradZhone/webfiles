@@ -1,8 +1,6 @@
-# Web VSCode - Web File Manager
+# WebFiles
 
-A web-based file manager with a VSCode-like interface. Browse, edit, upload, and manage your files through a modern web interface.
-
-![Screenshot](screenshot.png)
+A modern web-based file manager with a VSCode-like interface. Browse, edit, upload, and manage your files through a clean web interface.
 
 ## Features
 
@@ -46,9 +44,9 @@ On first launch, you'll be prompted to set a password.
 ### Method 1: Environment Variables
 
 ```bash
-export WEB_VSCODE_PORT=8765
-export WEB_VSCODE_HOME=/path/to/your/files
-export WEB_VSCODE_SECRET=your-random-secret-string
+export WEBFILES_PORT=8765
+export WEBFILES_HOME=/path/to/your/files
+export WEBFILES_SECRET=your-random-secret-string
 
 npm start
 ```
@@ -86,9 +84,9 @@ echo -n "your-password" | sha256sum
 
 | Variable | Config Key | Default | Description |
 |----------|------------|---------|-------------|
-| `WEB_VSCODE_PORT` | `port` | 8765 | Server port |
-| `WEB_VSCODE_HOME` | `homeDir` | $HOME | Root directory for file access |
-| `WEB_VSCODE_SECRET` | `sessionSecret` | random | Session encryption key |
+| `WEBFILES_PORT` | `port` | 8765 | Server port |
+| `WEBFILES_HOME` | `homeDir` | $HOME | Root directory for file access |
+| `WEBFILES_SECRET` | `sessionSecret` | random | Session encryption key |
 
 ## Management
 
@@ -129,7 +127,7 @@ echo -n "your-password" | sha256sum
 ## Directory Structure
 
 ```
-web-vscode/
+webfiles/
 ├── server.js           # Main server
 ├── package.json        # Dependencies
 ├── manage.sh           # Management script
@@ -148,4 +146,4 @@ web-vscode/
 
 ## License
 
-ISC
+MIT

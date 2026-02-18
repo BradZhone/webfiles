@@ -26,9 +26,9 @@ function loadConfigFile() {
 const configFile = loadConfigFile();
 
 // 优先级：环境变量 > 配置文件 > 默认值
-const PORT = process.env.WEB_VSCODE_PORT || configFile.port || 8765;
-const HOME_DIR = process.env.WEB_VSCODE_HOME || configFile.homeDir || process.env.HOME || '/home/brad';
-const sessionSecret = process.env.WEB_VSCODE_SECRET || configFile.sessionSecret || crypto.randomBytes(32).toString('hex');
+const PORT = process.env.WEBFILES_PORT || configFile.port || 8765;
+const HOME_DIR = process.env.WEBFILES_HOME || configFile.homeDir || process.env.HOME || '/home/brad';
+const sessionSecret = process.env.WEBFILES_SECRET || configFile.sessionSecret || crypto.randomBytes(32).toString('hex');
 
 // 读取或创建配置
 function loadConfig() {
