@@ -1,0 +1,6 @@
+{
+  "passwordHash": "your-sha256-password-hash-here",
+  "sessionSecret": "generate-a-random-secret-string-here",
+  "homeDir": "/path/to/your/files",
+  "port": 8765
+}

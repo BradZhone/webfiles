@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Sensitive configuration (contains password hash)
+config.json
+
+# User data
+favorites.json
+
+# Runtime files
+server.pid
+server.log
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backup files
+*.bak
+*.bak.*
