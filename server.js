@@ -274,12 +274,18 @@ app.post('/login', (req, res) => {
     if (!config) {
         initPassword(password);
         req.session.authenticated = true;
-        return res.redirect('/');
+        return req.session.save((err) => {
+            if (err) console.error('Session save error:', err);
+            res.redirect('/');
+        });
     }
 
     if (verifyPassword(password)) {
         req.session.authenticated = true;
-        return res.redirect('/');
+        return req.session.save((err) => {
+            if (err) console.error('Session save error:', err);
+            res.redirect('/');
+        });
     }
 
     res.redirect('/login?error=' + encodeURIComponent('密码错误'));
@@ -289,6 +295,26 @@ app.post('/login', (req, res) => {
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login');
+});
+
+// API: 修改密码
+app.post('/api/change-password', requireAuth, (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: '请填写所有字段' });
+    }
+
+    if (!verifyPassword(currentPassword)) {
+        return res.status(400).json({ error: '当前密码错误' });
+    }
+
+    if (newPassword.length < 4) {
+        return res.status(400).json({ error: '新密码至少4个字符' });
+    }
+
+    initPassword(newPassword);
+    res.json({ success: true, message: '密码修改成功' });
 });
 
 // API: 获取目录内容
