@@ -699,7 +699,7 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-            z-index: 300;
+            z-index: 1100;
         }
         .modal-overlay.show { display: flex; }
         .modal {
@@ -2572,19 +2572,19 @@
             terminals[terminalId] = { term, fitAddon, ws: null, name, cwd: workDir };
             terminalFitAddons[terminalId] = fitAddon;
 
-            // 连接 WebSocket
-            if (connect !== false) {
-                connectTerminalWebSocket(terminalId, term);
-            }
-
-            // 切换到新终端
-            switchTerminal(terminalId);
-
-            // 自适应大小
+            // 先自适应大小，再连接 WebSocket
             setTimeout(() => {
                 fitAddon.fit();
                 term.focus();
-            }, 100);
+
+                // 连接 WebSocket（在 fit 之后）
+                if (connect !== false) {
+                    connectTerminalWebSocket(terminalId, term);
+                }
+            }, 50);
+
+            // 切换到新终端
+            switchTerminal(terminalId);
 
             updateTerminalEmptyState();
         }
@@ -2621,6 +2621,18 @@
                     terminals[terminalId].ws = ws;
                     // 清除本地缓冲区，让 tmux 内容重新渲染
                     term.clear();
+                    // 发送 resize 确保终端大小正确
+                    const fitAddon = terminals[terminalId].fitAddon;
+                    if (fitAddon) {
+                        setTimeout(() => {
+                            fitAddon.fit();
+                            ws.send(JSON.stringify({
+                                type: 'resize',
+                                cols: term.cols,
+                                rows: term.rows
+                            }));
+                        }, 100);
+                    }
                 }
             };
 
