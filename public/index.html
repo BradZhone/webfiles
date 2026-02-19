@@ -961,6 +961,24 @@
             display: none;
         }
         .terminal-instance.active { display: block; }
+        /* xterm.js 滚动样式 */
+        .terminal-instance .xterm {
+            height: 100%;
+            padding: 0;
+        }
+        .terminal-instance .xterm-viewport::-webkit-scrollbar {
+            width: 8px;
+        }
+        .terminal-instance .xterm-viewport::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
+            background: #484f58;
+            border-radius: 4px;
+        }
+        .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
+            background: #6e7681;
+        }
         /* Mobile terminal optimization */
         @media (max-width: 768px) {
             .terminal-container {
@@ -3714,7 +3732,8 @@
                 fontSize: window.innerWidth < 768 ? 14 : 13,
                 lineHeight: 1.2,
                 allowTransparency: true,
-                scrollback: 10000
+                scrollback: 10000,
+                allowProposedApi: true
             });
             const fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);

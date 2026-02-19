@@ -1006,10 +1006,17 @@ app.post('/api/terminals', requireAuth, (req, res) => {
         // 检查会话是否已存在
         try {
             require('child_process').execSync(`tmux has-session -t ${sessionName} 2>/dev/null`);
-            // 会话已存在
+            // 会话已存在，确保鼠标模式开启
+            try {
+                require('child_process').execSync(`tmux set-option -t ${sessionName} mouse on 2>/dev/null`);
+            } catch {}
         } catch {
             // 创建新的 tmux 会话
             require('child_process').execSync(`tmux new-session -d -s ${sessionName} -c "${workDir}"`, { encoding: 'utf-8' });
+            // 启用鼠标模式，允许滚动
+            try {
+                require('child_process').execSync(`tmux set-option -t ${sessionName} mouse on 2>/dev/null`);
+            } catch {}
         }
 
         // 保存终端配置
