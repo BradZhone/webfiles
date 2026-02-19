@@ -1009,13 +1009,17 @@ app.post('/api/terminals', requireAuth, (req, res) => {
             // 会话已存在，确保鼠标模式开启
             try {
                 require('child_process').execSync(`tmux set-option -t ${sessionName} mouse on 2>/dev/null`);
+                // 启用终端滚动模式 - 让鼠标滚轮直接滚动终端历史
+                require('child_process').execSync(`tmux set-option -t ${sessionName} terminal-overrides 'xterm*:smcup@:rmcup@:*256col*:Tc' 2>/dev/null`);
             } catch {}
         } catch {
             // 创建新的 tmux 会话
             require('child_process').execSync(`tmux new-session -d -s ${sessionName} -c "${workDir}"`, { encoding: 'utf-8' });
-            // 启用鼠标模式，允许滚动
+            // 启用鼠标模式
             try {
                 require('child_process').execSync(`tmux set-option -t ${sessionName} mouse on 2>/dev/null`);
+                // terminal-overrides 禁用 alternate screen，让滚动直接作用于历史缓冲区
+                require('child_process').execSync(`tmux set-option -t ${sessionName} terminal-overrides 'xterm*:smcup@:rmcup@:*256col*:Tc' 2>/dev/null`);
             } catch {}
         }
 

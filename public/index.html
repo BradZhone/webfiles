@@ -954,30 +954,21 @@
             overflow: hidden;
             min-height: 150px;
             background: var(--bg);
+            position: relative;
         }
         .terminal-instance {
             height: 100%;
             width: 100%;
             display: none;
+            flex-direction: column;
+            position: relative;
         }
-        .terminal-instance.active { display: block; }
-        /* xterm.js 滚动样式 */
+        .terminal-instance.active { display: flex; }
+        /* xterm.js 样式 */
         .terminal-instance .xterm {
-            height: 100%;
+            flex: 1;
+            min-height: 0;
             padding: 0;
-        }
-        .terminal-instance .xterm-viewport::-webkit-scrollbar {
-            width: 8px;
-        }
-        .terminal-instance .xterm-viewport::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb {
-            background: #484f58;
-            border-radius: 4px;
-        }
-        .terminal-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
-            background: #6e7681;
         }
         /* Mobile terminal optimization */
         @media (max-width: 768px) {
@@ -1272,8 +1263,8 @@
         </div>
         <div class="bottom-bar">
             <button class="btn-secondary" onclick="closeTerminalView()">返回文件</button>
-            <button class="btn-secondary" onclick="createTerminal()">+ 新建</button>
-            <button class="btn-secondary" onclick="duplicateTerminal()">复制</button>
+            <button class="btn-secondary" onclick="scrollTerminalUp()">▲ 上翻</button>
+            <button class="btn-secondary" onclick="scrollTerminalDown()">▼ 下翻</button>
             <button class="btn-secondary" onclick="showMobileKeyboard()">⌨️</button>
         </div>
     </div>
@@ -3644,6 +3635,35 @@
         function closeTerminalView() {
             showView('listView');
             document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';
+        }
+
+        // 终端翻页
+        function scrollTerminalUp() {
+            const termId = activeTerminalId;
+            if (!termId || !terminals[termId]) return;
+            const term = terminals[termId].term;
+            const ws = terminals[termId].ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const x = Math.floor(term.cols / 2);
+                const y = Math.floor(term.rows / 2);
+                for (let i = 0; i < 10; i++) {
+                    ws.send(JSON.stringify({ type: 'input', data: `\x1b[<64;${x};${y}M` }));
+                }
+            }
+        }
+
+        function scrollTerminalDown() {
+            const termId = activeTerminalId;
+            if (!termId || !terminals[termId]) return;
+            const term = terminals[termId].term;
+            const ws = terminals[termId].ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const x = Math.floor(term.cols / 2);
+                const y = Math.floor(term.rows / 2);
+                for (let i = 0; i < 10; i++) {
+                    ws.send(JSON.stringify({ type: 'input', data: `\x1b[<65;${x};${y}M` }));
+                }
+            }
         }
 
         async function createTerminal(customPath, customName) {
