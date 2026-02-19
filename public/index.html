@@ -7,68 +7,93 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         :root {
-            --bg: #0f0f1a;
-            --card: #1a1a2e;
-            --item: #16213e;
-            --border: #2a3f5f;
-            --text: #e0e0e0;
-            --dim: #666;
-            --accent: #4cc9f0;
-            --danger: #ff6b6b;
-            --success: #4caf50;
-            --warning: #ffa726;
+            --bg: #0d1117;
+            --bg-secondary: #161b22;
+            --card: #21262d;
+            --item: #1c2128;
+            --item-hover: #292e36;
+            --border: #30363d;
+            --border-light: #484f58;
+            --text: #e6edf3;
+            --text-secondary: #b1bac4;
+            --dim: #6e7681;
+            --accent: #58a6ff;
+            --accent-hover: #79b8ff;
+            --accent-subtle: rgba(88, 166, 255, 0.15);
+            --danger: #f85149;
+            --danger-subtle: rgba(248, 81, 73, 0.15);
+            --success: #3fb950;
+            --success-subtle: rgba(63, 185, 80, 0.15);
+            --warning: #d29922;
+            --purple: #a371f7;
+            --gradient-accent: linear-gradient(135deg, #58a6ff 0%, #a371f7 100%);
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             min-height: 100dvh;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* 头部 */
         .header {
-            background: var(--card);
-            padding: 10px 12px;
+            background: var(--bg-secondary);
+            padding: 0 16px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
             border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 100;
+            height: 48px;
         }
         .header-title {
             flex: 1;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            color: var(--text);
         }
         .header-btn {
-            background: none;
+            background: transparent;
             border: none;
-            color: var(--accent);
-            font-size: 18px;
-            padding: 4px 8px;
+            color: var(--text-secondary);
+            font-size: 16px;
+            padding: 8px;
             cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-btn:hover {
+            background: var(--item-hover);
+            color: var(--text);
         }
 
         /* 主视图 */
-        .view { display: none; height: calc(100vh - 52px); height: calc(100dvh - 52px); overflow: hidden; }
+        .view { display: none; height: calc(100vh - 48px); height: calc(100dvh - 48px); overflow: hidden; }
         .view.active { display: flex; flex-direction: column; }
 
         /* 工具栏 */
         .toolbar {
-            background: var(--card);
-            padding: 6px 8px;
+            background: var(--bg);
+            padding: 8px 12px;
             display: flex;
-            gap: 6px;
+            gap: 8px;
             border-bottom: 1px solid var(--border);
             overflow-x: auto;
             flex-shrink: 0;
@@ -77,24 +102,40 @@
         .toolbar-btn {
             background: var(--item);
             border: 1px solid var(--border);
-            color: var(--text);
-            padding: 6px 10px;
-            border-radius: 5px;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
             font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
             white-space: nowrap;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            transition: all 0.15s ease;
         }
-        .toolbar-btn:active { background: var(--border); }
-        .toolbar-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-        .toolbar-btn.danger { color: var(--danger); }
+        .toolbar-btn:hover {
+            background: var(--item-hover);
+            color: var(--text);
+            border-color: var(--border-light);
+        }
+        .toolbar-btn:active { transform: scale(0.98); }
+        .toolbar-btn.active {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .toolbar-btn.danger {
+            color: var(--danger);
+        }
+        .toolbar-btn.danger:hover {
+            background: var(--danger-subtle);
+        }
 
         /* 面包屑 */
         .breadcrumb {
-            background: var(--card);
-            padding: 8px 12px;
+            background: var(--bg-secondary);
+            padding: 10px 16px;
             font-size: 12px;
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
@@ -106,64 +147,113 @@
         }
         .breadcrumb-path { flex: 1; overflow-x: auto; }
         .breadcrumb-path::-webkit-scrollbar { display: none; }
-        .breadcrumb span { color: var(--dim); cursor: pointer; }
+        .breadcrumb span {
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.15s ease;
+        }
         .breadcrumb span:hover { color: var(--accent); }
-        .breadcrumb span:last-child { color: var(--text); }
+        .breadcrumb span:last-child { color: var(--text); font-weight: 500; }
         .breadcrumb-jump {
             background: var(--item);
             border: 1px solid var(--border);
             color: var(--accent);
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
             font-size: 11px;
+            font-weight: 500;
             cursor: pointer;
             white-space: nowrap;
+            transition: all 0.15s ease;
         }
-        .breadcrumb-jump:hover { background: var(--accent); color: #000; }
+        .breadcrumb-jump:hover {
+            background: var(--accent-subtle);
+            border-color: var(--accent);
+        }
 
         /* 文件列表 */
         .file-list {
             flex: 1;
             overflow-y: auto;
-            padding: 6px 8px;
+            padding: 8px;
             -webkit-overflow-scrolling: touch;
         }
+        .file-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .file-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .file-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        .file-list::-webkit-scrollbar-thumb:hover {
+            background: var(--border-light);
+        }
         .file-item {
-            background: var(--item);
+            background: transparent;
             padding: 10px 12px;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: all 0.15s ease;
             position: relative;
+            border: 1px solid transparent;
         }
-        .file-item:active { background: var(--border); }
-        .file-item.selected { background: var(--border); border: 1px solid var(--accent); }
+        .file-item:hover {
+            background: var(--item-hover);
+        }
+        .file-item:active { background: var(--card); }
+        .file-item.selected {
+            background: var(--accent-subtle);
+            border-color: var(--accent);
+        }
         .file-checkbox {
-            width: 18px;
-            height: 18px;
-            min-width: 18px;
-            border: 2px solid var(--accent);
-            border-radius: 3px;
+            width: 16px;
+            height: 16px;
+            min-width: 16px;
+            border: 2px solid var(--border-light);
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            font-size: 12px;
-            color: #000;
+            font-size: 10px;
+            color: var(--bg);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s ease;
         }
         .file-checkbox.hidden { opacity: 0; pointer-events: none; width: 0; border: none; margin: 0; }
+        .file-checkbox:hover { border-color: var(--accent); }
         .file-checkbox.checked { background: var(--accent); border-color: var(--accent); }
-        .file-icon { font-size: 20px; width: 26px; text-align: center; }
+        .file-icon { font-size: 18px; width: 24px; text-align: center; opacity: 0.9; }
         .file-info { flex: 1; min-width: 0; }
-        .file-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .file-meta { font-size: 11px; color: var(--dim); margin-top: 2px; }
-        .file-arrow { color: var(--dim); font-size: 16px; padding: 4px; }
+        .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text);
+        }
+        .file-meta {
+            font-size: 11px;
+            color: var(--dim);
+            margin-top: 2px;
+        }
+        .file-arrow {
+            color: var(--dim);
+            font-size: 14px;
+            padding: 6px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        .file-item:hover .file-arrow { opacity: 1; }
+        .file-arrow:hover { color: var(--text); }
 
         /* 收藏夹侧边栏 */
         .sidebar {
@@ -172,58 +262,82 @@
             left: 0;
             width: 280px;
             height: 100%;
-            background: var(--card);
+            background: var(--bg-secondary);
             z-index: 200;
             transform: translateX(-100%);
-            transition: transform 0.3s;
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
         }
         .sidebar.open { transform: translateX(0); }
         .sidebar-header {
-            padding: 15px;
+            padding: 16px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .sidebar-header h3 { font-size: 16px; }
+        .sidebar-header h3 { font-size: 14px; font-weight: 600; color: var(--text); }
         .sidebar-close {
             background: none;
             border: none;
             color: var(--dim);
-            font-size: 24px;
+            font-size: 20px;
             cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
         }
-        .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; }
+        .sidebar-close:hover { color: var(--text); background: var(--item-hover); }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
         .sidebar-item {
-            padding: 12px 15px;
-            background: var(--item);
-            border-radius: 8px;
-            margin-bottom: 8px;
+            padding: 10px 12px;
+            background: transparent;
+            border-radius: 6px;
+            margin-bottom: 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 10px;
+            transition: all 0.15s ease;
+            font-size: 13px;
         }
-        .sidebar-item:active { background: var(--border); }
+        .sidebar-item:hover { background: var(--item-hover); }
+        .sidebar-item:active { background: var(--card); }
         .sidebar-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sidebar-item .remove { color: var(--danger); font-size: 18px; }
-        .sidebar-empty { text-align: center; color: var(--dim); padding: 40px 20px; }
+        .sidebar-item .remove {
+            color: var(--dim);
+            font-size: 16px;
+            opacity: 0;
+            transition: all 0.15s ease;
+        }
+        .sidebar-item:hover .remove { opacity: 1; }
+        .sidebar-item .remove:hover { color: var(--danger); }
+        .sidebar-empty {
+            text-align: center;
+            color: var(--dim);
+            padding: 40px 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
 
         /* 遮罩 */
         .overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
             z-index: 150;
             display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
-        .overlay.show { display: block; }
+        .overlay.show { display: block; opacity: 1; }
 
         /* 搜索视图 */
         .search-view {
-            padding: 15px;
+            padding: 16px;
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
@@ -231,47 +345,78 @@
         .search-input-wrap {
             display: flex;
             gap: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
             position: sticky;
             top: 0;
             background: var(--bg);
-            padding-bottom: 10px;
+            padding-bottom: 12px;
             z-index: 10;
         }
         .search-input-wrap input {
             flex: 1;
-            padding: 12px 15px;
-            background: var(--card);
-            border: 2px solid var(--border);
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text);
-            font-size: 16px;
+            font-size: 14px;
+            transition: all 0.15s ease;
         }
-        .search-input-wrap input:focus { outline: none; border-color: var(--accent); }
-        .search-results { margin-top: 10px; }
-        .search-info { color: var(--dim); font-size: 13px; margin-bottom: 10px; position: sticky; top: 60px; background: var(--bg); }
+        .search-input-wrap input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-subtle);
+        }
+        .search-input-wrap input::placeholder { color: var(--dim); }
+        .search-results { margin-top: 12px; }
+        .search-info {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 12px;
+            position: sticky;
+            top: 60px;
+            background: var(--bg);
+            padding: 4px 0;
+        }
 
         /* 编辑器 */
         .editor-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         .editor-header {
-            background: var(--card);
-            padding: 10px 15px;
+            background: var(--bg-secondary);
+            padding: 10px 16px;
             display: flex;
             align-items: center;
             gap: 10px;
             border-bottom: 1px solid var(--border);
         }
-        .editor-title { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .editor-status { font-size: 12px; padding: 3px 8px; border-radius: 4px; }
-        .editor-status.modified { background: var(--accent); color: #000; }
-        .editor-status.saved { background: var(--success); color: #fff; }
+        .editor-title {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .editor-status {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        .editor-status.modified { background: var(--accent-subtle); color: var(--accent); }
+        .editor-status.saved { background: var(--success-subtle); color: var(--success); }
         .CodeMirror {
             flex: 1;
             height: 100% !important;
-            font-size: 14px;
-            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Menlo', monospace;
+            line-height: 1.6;
         }
-        .CodeMirror-gutters { background: var(--bg) !important; border-right: 1px solid var(--border) !important; }
+        .CodeMirror-gutters {
+            background: var(--bg) !important;
+            border-right: 1px solid var(--border) !important;
+        }
+        .CodeMirror-linenumber { color: var(--dim) !important; }
 
         /* 媒体预览 */
         .media-view {
@@ -280,14 +425,127 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
+            justify-content: center;
+            padding: 24px;
             -webkit-overflow-scrolling: touch;
+            background: var(--bg-secondary);
         }
         .media-view img {
             max-width: 100%;
             max-height: 60vh;
             border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            cursor: zoom-in;
+            transition: transform 0.15s ease;
+        }
+        .media-view img:hover {
+            transform: scale(1.02);
+        }
+
+        /* 图片放大查看器 */
+        .image-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            animation: fadeIn 0.2s ease;
+        }
+        .image-viewer.show {
+            display: flex;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .image-viewer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--text);
+            font-size: 13px;
+        }
+        .image-viewer-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .image-viewer-zoom {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 16px;
+        }
+        .image-viewer-zoom button {
+            background: var(--item);
+            border: 1px solid var(--border);
+            color: var(--text);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+        .image-viewer-zoom button:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .image-viewer-zoom span {
+            min-width: 50px;
+            text-align: center;
+        }
+        .image-viewer-close {
+            background: var(--danger);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .image-viewer-container {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            touch-action: none;
+        }
+        .image-viewer-container:active {
+            cursor: grabbing;
+        }
+        .image-viewer-container img {
+            max-width: none;
+            max-height: none;
+            transition: transform 0.1s ease-out;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .image-viewer-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--dim);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .image-viewer.show .image-viewer-hint {
+            opacity: 1;
         }
         .media-view video {
             max-width: 100%;
@@ -301,10 +559,10 @@
             margin: 20px 0;
         }
         .media-info {
-            margin-top: 15px;
+            margin-top: 16px;
             text-align: center;
             color: var(--dim);
-            font-size: 13px;
+            font-size: 12px;
         }
 
         /* HTML 预览 */
@@ -319,33 +577,65 @@
         .markdown-view {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 24px;
             -webkit-overflow-scrolling: touch;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
         }
         .markdown-body {
             background: transparent !important;
             color: var(--text) !important;
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.7;
         }
         .markdown-body a { color: var(--accent) !important; }
-        .markdown-body code { background: var(--item) !important; padding: 2px 6px; border-radius: 4px; }
-        .markdown-body pre { background: var(--card) !important; border-radius: 8px; padding: 15px; overflow-x: auto; }
-        .markdown-body pre code { background: transparent !important; padding: 0; }
-        .markdown-body blockquote { border-left: 4px solid var(--accent) !important; background: var(--item) !important; padding: 10px 15px; margin: 15px 0; border-radius: 0 8px 8px 0; }
-        .markdown-body img { max-width: 100%; border-radius: 8px; }
-
-        .view-toggle { display: flex; gap: 5px; }
-        .toggle-btn {
-            padding: 5px 12px;
+        .markdown-body code {
+            background: var(--item) !important;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .markdown-body pre {
+            background: var(--bg-secondary) !important;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
             border: 1px solid var(--border);
+        }
+        .markdown-body pre code { background: transparent !important; padding: 0; }
+        .markdown-body blockquote {
+            border-left: 3px solid var(--accent) !important;
+            background: var(--bg-secondary) !important;
+            padding: 12px 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+            color: var(--text-secondary) !important;
+        }
+        .markdown-body img { max-width: 100%; border-radius: 8px; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-top: 24px;
+        }
+
+        .view-toggle { display: flex; gap: 4px; background: var(--item); padding: 3px; border-radius: 6px; }
+        .toggle-btn {
+            padding: 4px 12px;
+            border: none;
             background: transparent;
             color: var(--dim);
-            border-radius: 6px;
+            border-radius: 4px;
             font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.15s ease;
         }
-        .toggle-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+        .toggle-btn:hover { color: var(--text); }
+        .toggle-btn.active {
+            background: var(--accent);
+            color: var(--bg);
+        }
 
         /* 二进制文件 */
         .binary-notice {
@@ -355,13 +645,14 @@
             align-items: center;
             justify-content: center;
             color: var(--dim);
-            gap: 15px;
+            gap: 16px;
+            background: var(--bg-secondary);
         }
-        .binary-notice .icon { font-size: 64px; opacity: 0.5; }
+        .binary-notice .icon { font-size: 56px; opacity: 0.4; }
 
         /* 底部操作栏 */
         .bottom-bar {
-            background: var(--card);
+            background: var(--bg-secondary);
             padding: 8px 12px;
             display: flex;
             gap: 8px;
@@ -374,18 +665,36 @@
             border: none;
             border-radius: 6px;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.15s ease;
         }
-        .btn-primary { background: var(--accent); color: #000; }
-        .btn-secondary { background: var(--item); color: var(--text); border: 1px solid var(--border); }
-        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary {
+            background: var(--item);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: var(--item-hover);
+            border-color: var(--border-light);
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-danger:hover { filter: brightness(1.1); }
 
         /* 模态框 */
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
             display: none;
             align-items: center;
             justify-content: center;
@@ -394,28 +703,49 @@
         }
         .modal-overlay.show { display: flex; }
         .modal {
-            background: var(--card);
-            border-radius: 16px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
             padding: 20px;
             width: 100%;
-            max-width: 320px;
+            max-width: 360px;
             max-height: 80vh;
             overflow-y: auto;
+            border: 1px solid var(--border);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+            animation: modalIn 0.2s ease;
         }
-        .modal h3 { margin-bottom: 15px; font-size: 18px; }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal h3 { margin-bottom: 16px; font-size: 16px; font-weight: 600; }
         .modal input, .modal textarea {
             width: 100%;
-            padding: 12px;
+            padding: 10px 12px;
             background: var(--bg);
-            border: 2px solid var(--border);
+            border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text);
-            font-size: 16px;
-            margin-bottom: 15px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            transition: all 0.15s ease;
         }
-        .modal input:focus, .modal textarea:focus { outline: none; border-color: var(--accent); }
+        .modal input:focus, .modal textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-subtle);
+        }
         .modal-btns { display: flex; gap: 10px; }
-        .modal-btns button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+        .modal-btns button {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
 
         /* 操作菜单 */
         .action-menu {
@@ -423,32 +753,38 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: var(--card);
-            border-radius: 20px 20px 0 0;
-            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 16px 16px 0 0;
+            padding: 12px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
             transform: translateY(100%);
-            transition: transform 0.3s;
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 300;
             max-height: 70vh;
             overflow-y: auto;
+            border-top: 1px solid var(--border);
         }
         .action-menu.show { transform: translateY(0); }
         .action-menu-item {
-            padding: 15px;
+            padding: 12px 14px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            font-size: 16px;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
-            border-radius: 10px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
         }
-        .action-menu-item:active { background: var(--item); }
+        .action-menu-item:hover { background: var(--item-hover); }
+        .action-menu-item:active { background: var(--card); }
         .action-menu-item.danger { color: var(--danger); }
         .action-menu-close {
             text-align: center;
-            padding: 15px;
+            padding: 12px;
             color: var(--dim);
-            margin-top: 10px;
+            font-size: 14px;
+            margin-top: 8px;
         }
 
         /* Toast */
@@ -458,25 +794,37 @@
             left: 50%;
             transform: translateX(-50%);
             background: var(--card);
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
             z-index: 400;
-            animation: toastIn 0.3s;
+            animation: toastIn 0.2s ease;
             border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
-        .toast.error { border-color: var(--danger); }
-        .toast.success { border-color: var(--success); }
-        @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } }
+        .toast.error { border-color: var(--danger); color: var(--danger); }
+        .toast.success { border-color: var(--success); color: var(--success); }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translate(-50%, 10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
 
         /* 加载 */
         .loading { display: flex; justify-content: center; padding: 40px; }
-        .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* 空状态 */
         .empty { text-align: center; padding: 60px 20px; color: var(--dim); }
-        .empty-icon { font-size: 48px; margin-bottom: 15px; opacity: 0.5; }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
 
         /* 上传进度 */
         .upload-progress {
@@ -485,16 +833,273 @@
             left: 50%;
             transform: translateX(-50%);
             background: var(--card);
-            padding: 15px 20px;
-            border-radius: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
             border: 1px solid var(--accent);
             z-index: 400;
             display: none;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
         .upload-progress.show { display: block; }
 
         /* 隐藏文件上传 input */
         #fileInput { display: none; }
+
+        /* 终端视图 */
+        .terminal-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+            min-height: 0;
+            overflow: hidden;
+        }
+        .terminal-tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 8px;
+            overflow-x: auto;
+            flex-shrink: 0;
+            min-height: 40px;
+        }
+        .terminal-tabs::-webkit-scrollbar { display: none; }
+        .terminal-tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            touch-action: manipulation;
+        }
+        .terminal-tab:hover { color: var(--text); background: var(--item-hover); }
+        .terminal-tab.active {
+            color: var(--text);
+            border-bottom-color: var(--accent);
+        }
+        .terminal-tab-close {
+            font-size: 16px;
+            opacity: 0.6;
+            transition: opacity 0.15s ease;
+            padding: 0 4px;
+        }
+        .terminal-tab:hover .terminal-tab-close { opacity: 1; }
+        .terminal-tab-close:hover { color: var(--danger); }
+        .terminal-add-btn {
+            padding: 10px 14px;
+            font-size: 18px;
+            color: var(--dim);
+            cursor: pointer;
+            background: none;
+            border: none;
+            touch-action: manipulation;
+        }
+        .terminal-add-btn:hover { color: var(--accent); }
+        .terminal-container {
+            flex: 1;
+            padding: 4px;
+            overflow: hidden;
+            min-height: 150px;
+            background: var(--bg);
+        }
+        .terminal-instance {
+            height: 100%;
+            width: 100%;
+            display: none;
+        }
+        .terminal-instance.active { display: block; }
+        /* Mobile terminal optimization */
+        @media (max-width: 768px) {
+            .terminal-container {
+                padding: 2px;
+            }
+            .terminal-tab {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            .terminal-add-btn {
+                padding: 8px 12px;
+                font-size: 16px;
+            }
+        }
+        /* Mobile keyboard handling - compact design */
+        .terminal-keyboard-helper {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 6px 8px;
+            padding-bottom: max(6px, env(safe-area-inset-bottom));
+            display: none;
+            z-index: 1000;
+        }
+        .terminal-keyboard-helper.active {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .terminal-keyboard-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .terminal-keyboard-input {
+            flex: 1;
+            background: var(--item);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+        .terminal-keyboard-input:focus {
+            border-color: var(--accent);
+        }
+        .terminal-keyboard-btns {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .terminal-keyboard-btn {
+            background: var(--item);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            touch-action: manipulation;
+            min-width: 40px;
+            text-align: center;
+            transition: all 0.1s ease;
+            user-select: none;
+        }
+        .terminal-keyboard-btn:active {
+            background: var(--accent-subtle);
+            border-color: var(--accent);
+            transform: scale(0.95);
+        }
+        .terminal-keyboard-btn.accent {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg);
+            font-weight: 500;
+        }
+        .terminal-keyboard-btn.danger {
+            color: var(--danger);
+            background: var(--danger-subtle);
+        }
+        .terminal-keyboard-btn.large {
+            min-width: 60px;
+        }
+        .terminal-keyboard-btn.close-btn {
+            background: var(--danger);
+            color: #fff;
+            min-width: 50px;
+        }
+        /* Sticky modifier keys (Shift, Ctrl) */
+        .terminal-keyboard-btn.modifier-key {
+            color: var(--warning);
+            font-weight: 500;
+        }
+        .terminal-keyboard-btn.modifier-key.active {
+            background: var(--warning);
+            color: var(--bg);
+            border-color: var(--warning);
+            box-shadow: 0 0 8px rgba(210, 153, 34, 0.5);
+        }
+        /* Arrow keys layout */
+        .arrow-keys {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            max-width: 140px;
+        }
+        .arrow-keys .terminal-keyboard-btn {
+            padding: 10px;
+            font-size: 16px;
+        }
+        .arrow-keys .up-key { grid-column: 2; }
+        .arrow-keys .left-key { grid-column: 1; grid-row: 2; }
+        .arrow-keys .down-key { grid-column: 2; grid-row: 2; }
+        .arrow-keys .right-key { grid-column: 3; grid-row: 2; }
+        .terminal-keyboard-row {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .terminal-keyboard-row-label {
+            font-size: 10px;
+            color: var(--dim);
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .terminal-keyboard-config-btn {
+            font-size: 10px;
+            color: var(--accent);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 2px 6px;
+        }
+        /* Custom shortcut modal */
+        .shortcut-config-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .shortcut-config-item:last-child {
+            border-bottom: none;
+        }
+        .shortcut-config-name {
+            flex: 1;
+            font-size: 13px;
+        }
+        .shortcut-config-input {
+            width: 100px;
+            padding: 6px 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 12px;
+        }
+        .shortcut-config-delete {
+            color: var(--danger);
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .terminal-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+        }
+        .terminal-toolbar button {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
     </style>
 </head>
 <body>
@@ -537,6 +1142,7 @@
             <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">☑️ 多选</button>
             <button class="toolbar-btn" onclick="showNewModal('file')">📄 新建</button>
             <button class="toolbar-btn" onclick="showNewModal('folder')">📁 文件夹</button>
+            <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">💻 终端</button>
         </div>
         <!-- 批量操作栏 -->
         <div class="toolbar" id="batchToolbar" style="display:none">
@@ -582,6 +1188,126 @@
         </div>
     </div>
 
+    <!-- 终端视图 -->
+    <div class="view" id="terminalView">
+        <div class="terminal-view">
+            <div class="terminal-tabs" id="terminalTabs">
+                <button class="terminal-add-btn" onclick="createTerminal()" title="新建终端">+</button>
+            </div>
+            <div class="terminal-container" id="terminalContainer">
+                <div class="empty" id="terminalEmpty">
+                    <div class="empty-icon">💻</div>
+                    <div>点击 + 创建终端</div>
+                    <div style="margin-top:12px;font-size:12px;">终端会话将持久保存，刷新页面后仍可访问</div>
+                </div>
+            </div>
+        </div>
+        <div class="bottom-bar">
+            <button class="btn-secondary" onclick="closeTerminalView()">返回文件</button>
+            <button class="btn-secondary" onclick="createTerminal()">+ 新建</button>
+            <button class="btn-secondary" onclick="duplicateTerminal()">复制</button>
+            <button class="btn-secondary" onclick="showMobileKeyboard()">⌨️</button>
+        </div>
+    </div>
+
+    <!-- Mobile keyboard helper for terminal - compact design -->
+    <div class="terminal-keyboard-helper" id="mobileKeyboardHelper">
+        <!-- Row 1: Input + Send + Close -->
+        <div class="terminal-keyboard-header">
+            <input type="text" class="terminal-keyboard-input" id="mobileTerminalInput" placeholder="输入命令..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <button class="terminal-keyboard-btn accent" onclick="sendMobileInput()">发送</button>
+            <button class="terminal-keyboard-btn close-btn" onclick="hideMobileKeyboard()">✕</button>
+        </div>
+
+        <!-- Row 2: Direction keys + Essential controls -->
+        <div class="terminal-keyboard-row">
+            <!-- Arrow keys in a grid layout -->
+            <div class="arrow-keys">
+                <button class="terminal-keyboard-btn up-key" onclick="sendMobileKey('ArrowUp')">↑</button>
+                <button class="terminal-keyboard-btn left-key" onclick="sendMobileKey('ArrowLeft')">←</button>
+                <button class="terminal-keyboard-btn down-key" onclick="sendMobileKey('ArrowDown')">↓</button>
+                <button class="terminal-keyboard-btn right-key" onclick="sendMobileKey('ArrowRight')">→</button>
+            </div>
+            <!-- Essential shortcuts -->
+            <div class="terminal-keyboard-btns" style="flex:1;">
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Tab')">Tab</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('BackTab')">⇧Tab</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Escape')">Esc</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Enter')">⏎</button>
+                <button class="terminal-keyboard-btn danger" onclick="sendMobileKey('Control+C')">^C</button>
+            </div>
+        </div>
+
+        <!-- Row 3: Ctrl shortcuts + Edit keys -->
+        <div class="terminal-keyboard-row">
+            <div class="terminal-keyboard-btns" style="flex:1;">
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+V')">^V</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+D')">^D</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+Z')">^Z</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+L')">^L</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+R')">^R</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+A')">^A</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+E')">^E</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Control+W')">^W</button>
+            </div>
+        </div>
+
+        <!-- Row 4: Modifier keys (Shift, Ctrl) -->
+        <div class="terminal-keyboard-row">
+            <div class="terminal-keyboard-btns" style="flex:1;">
+                <button class="terminal-keyboard-btn modifier-key" id="stickyShift" onclick="toggleModifier('Shift')">⇧ Shift</button>
+                <button class="terminal-keyboard-btn modifier-key" id="stickyCtrl" onclick="toggleModifier('Ctrl')">^ Ctrl</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Backspace')">⌫</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Delete')">Del</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('Home')">Home</button>
+                <button class="terminal-keyboard-btn" onclick="sendMobileKey('End')">End</button>
+                <button class="terminal-keyboard-btn large" onclick="sendMobileKey('Space')">Space</button>
+            </div>
+        </div>
+
+        <!-- Row 5: Custom shortcuts (dynamic) -->
+        <div class="terminal-keyboard-row" id="customShortcutsRow" style="display:none;">
+            <div class="terminal-keyboard-btns" style="flex:1;" id="customShortcuts">
+                <!-- 动态加载 -->
+            </div>
+            <button class="terminal-keyboard-config-btn" onclick="showShortcutConfig()">⚙️</button>
+        </div>
+    </div>
+
+    <!-- 快捷键配置模态框 -->
+    <div class="modal-overlay" id="shortcutConfigModal">
+        <div class="modal" style="max-width: 400px;">
+            <h3>⚙️ 快捷键配置</h3>
+            <div style="margin-bottom: 12px;">
+                <div class="terminal-keyboard-row-label">添加新快捷键</div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="newShortcutName" placeholder="名称 (如: 2xCtrl+C)" style="flex:1">
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="newShortcutSequence" placeholder="按键序列 (如: ctrl+c,ctrl+c)" style="flex:1">
+                    <select id="newShortcutDelay" style="width: 80px;">
+                        <option value="0">无延迟</option>
+                        <option value="50">50ms</option>
+                        <option value="100" selected>100ms</option>
+                        <option value="200">200ms</option>
+                        <option value="500">500ms</option>
+                    </select>
+                </div>
+                <button class="btn-secondary" onclick="addCustomShortcut()" style="width:100%">添加快捷键</button>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+                <div class="terminal-keyboard-row-label">已保存的快捷键</div>
+                <div id="savedShortcutsList" style="max-height: 200px; overflow-y: auto;">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+            <div class="modal-btns" style="margin-top: 16px;">
+                <button class="btn-secondary" onclick="resetShortcuts()">重置</button>
+                <button class="btn-primary" onclick="hideShortcutConfig()">完成</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 操作菜单 -->
     <div class="action-menu" id="actionMenu">
         <div class="action-menu-item" onclick="doAction('open')">📂 打开</div>
@@ -599,6 +1325,7 @@
         <div class="action-menu-item" onclick="showJumpModal()">📁 跳转路径</div>
         <div class="action-menu-item" onclick="showUploadModal()">📤 上传文件</div>
         <div class="action-menu-item" onclick="showSearchView()">🔍 搜索</div>
+        <div class="action-menu-item" onclick="hideMainMenu(); showTerminalView()">💻 终端</div>
         <div class="action-menu-item" onclick="location.href='/logout'">🚪 退出登录</div>
         <div class="action-menu-close" onclick="hideMainMenu()">取消</div>
     </div>
@@ -651,8 +1378,38 @@
         </div>
     </div>
 
+    <!-- 图片放大查看器 -->
+    <div class="image-viewer" id="imageViewer">
+        <div class="image-viewer-header">
+            <span class="image-viewer-title" id="imageViewerTitle">图片预览</span>
+            <div class="image-viewer-zoom">
+                <button onclick="imageViewerZoomOut()" title="缩小">−</button>
+                <span id="imageViewerZoomLevel">100%</span>
+                <button onclick="imageViewerZoomIn()" title="放大">+</button>
+                <button onclick="imageViewerReset()" title="重置" style="width:auto;padding:0 12px;">重置</button>
+            </div>
+            <button class="image-viewer-close" onclick="closeImageViewer()">关闭</button>
+        </div>
+        <div class="image-viewer-container" id="imageViewerContainer">
+            <img id="imageViewerImg" src="" alt="">
+        </div>
+        <div class="image-viewer-hint">双指缩放 · 滚轮缩放 · 拖拽移动 · 双击重置</div>
+    </div>
+
     <!-- 隐藏的文件上传 -->
     <input type="file" id="fileInputHidden" multiple style="display:none">
+
+    <!-- 终端路径模态框 -->
+    <div class="modal-overlay" id="terminalPathModal">
+        <div class="modal">
+            <h3>📁 终端工作目录</h3>
+            <input type="text" id="terminalPathInput" placeholder="输入路径">
+            <div class="modal-btns">
+                <button class="btn-secondary" onclick="hideTerminalPathModal()">取消</button>
+                <button class="btn-primary" onclick="confirmTerminalPath()">确定</button>
+            </div>
+        </div>
+    </div>
 
     <!-- CodeMirror & Marked -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
@@ -670,6 +1427,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/xml/xml.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/sql/sql.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 
     <script>
         const HOME = '/home/brad';
@@ -686,6 +1445,13 @@
         let selectedFiles = new Set();
         let favorites = [];
         let uploadFiles = [];
+
+        // 终端相关变量
+        let terminals = {};
+        let activeTerminalId = null;
+        let terminalSocket = null;
+        let terminalFitAddons = {};
+        let terminalPathCallback = null;
 
         const modes = {
             js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
@@ -892,7 +1658,8 @@
                 const wrap = document.getElementById('editorWrap');
 
                 if (data.type === 'image') {
-                    wrap.innerHTML = `<div class="media-view"><img src="data:${data.mime};base64,${data.data}" alt="${name}"><div class="media-info">${formatSize(data.size)}</div></div>`;
+                    const imgSrc = `data:${data.mime};base64,${data.data}`;
+                    wrap.innerHTML = `<div class="media-view"><img src="${imgSrc}" alt="${name}" onclick="openImageViewer('${imgSrc}', '${name.replace(/'/g, "\\'")}')"><div class="media-info">${formatSize(data.size)} · 点击放大</div></div>`;
                     return;
                 }
 
@@ -1463,6 +2230,152 @@
             }
         }
 
+        // ========== 图片放大查看器 ==========
+        let imageViewerZoom = 1;
+        let imageViewerPanX = 0;
+        let imageViewerPanY = 0;
+        let imageViewerIsDragging = false;
+        let imageViewerLastX = 0;
+        let imageViewerLastY = 0;
+        let imageViewerStartDist = 0;
+        let imageViewerStartZoom = 1;
+
+        function openImageViewer(src, name) {
+            const viewer = document.getElementById('imageViewer');
+            const img = document.getElementById('imageViewerImg');
+            const title = document.getElementById('imageViewerTitle');
+
+            title.textContent = name || '图片预览';
+            img.src = src;
+            viewer.classList.add('show');
+
+            // 重置状态
+            imageViewerZoom = 1;
+            imageViewerPanX = 0;
+            imageViewerPanY = 0;
+            updateImageViewerTransform();
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageViewer() {
+            document.getElementById('imageViewer').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        function updateImageViewerTransform() {
+            const img = document.getElementById('imageViewerImg');
+            img.style.transform = `translate(${imageViewerPanX}px, ${imageViewerPanY}px) scale(${imageViewerZoom})`;
+            document.getElementById('imageViewerZoomLevel').textContent = Math.round(imageViewerZoom * 100) + '%';
+        }
+
+        function imageViewerZoomIn() {
+            imageViewerZoom = Math.min(imageViewerZoom + 0.25, 10);
+            updateImageViewerTransform();
+        }
+
+        function imageViewerZoomOut() {
+            imageViewerZoom = Math.max(imageViewerZoom - 0.25, 0.1);
+            updateImageViewerTransform();
+        }
+
+        function imageViewerReset() {
+            imageViewerZoom = 1;
+            imageViewerPanX = 0;
+            imageViewerPanY = 0;
+            updateImageViewerTransform();
+        }
+
+        // 图片查看器事件
+        const imageViewerContainer = document.getElementById('imageViewerContainer');
+
+        // 鼠标滚轮缩放
+        imageViewerContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            imageViewerZoom = Math.max(0.1, Math.min(10, imageViewerZoom + delta));
+            updateImageViewerTransform();
+        });
+
+        // 鼠标拖拽
+        imageViewerContainer.addEventListener('mousedown', (e) => {
+            imageViewerIsDragging = true;
+            imageViewerLastX = e.clientX;
+            imageViewerLastY = e.clientY;
+            imageViewerContainer.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!imageViewerIsDragging) return;
+            const dx = e.clientX - imageViewerLastX;
+            const dy = e.clientY - imageViewerLastY;
+            imageViewerPanX += dx;
+            imageViewerPanY += dy;
+            imageViewerLastX = e.clientX;
+            imageViewerLastY = e.clientY;
+            updateImageViewerTransform();
+        });
+
+        document.addEventListener('mouseup', () => {
+            imageViewerIsDragging = false;
+            imageViewerContainer.style.cursor = 'grab';
+        });
+
+        // 触摸事件 - 双指缩放
+        imageViewerContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                imageViewerStartDist = Math.sqrt(dx * dx + dy * dy);
+                imageViewerStartZoom = imageViewerZoom;
+            } else if (e.touches.length === 1) {
+                imageViewerIsDragging = true;
+                imageViewerLastX = e.touches[0].clientX;
+                imageViewerLastY = e.touches[0].clientY;
+            }
+        });
+
+        imageViewerContainer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                imageViewerZoom = Math.max(0.1, Math.min(10, imageViewerStartZoom * (dist / imageViewerStartDist)));
+                updateImageViewerTransform();
+            } else if (e.touches.length === 1 && imageViewerIsDragging) {
+                const dx = e.touches[0].clientX - imageViewerLastX;
+                const dy = e.touches[0].clientY - imageViewerLastY;
+                imageViewerPanX += dx;
+                imageViewerPanY += dy;
+                imageViewerLastX = e.touches[0].clientX;
+                imageViewerLastY = e.touches[0].clientY;
+                updateImageViewerTransform();
+            }
+        }, { passive: false });
+
+        imageViewerContainer.addEventListener('touchend', () => {
+            imageViewerIsDragging = false;
+        });
+
+        // 双击重置
+        imageViewerContainer.addEventListener('dblclick', () => {
+            imageViewerReset();
+        });
+
+        // 点击查看器背景关闭 (不是图片)
+        document.getElementById('imageViewer').addEventListener('click', (e) => {
+            if (e.target.id === 'imageViewerContainer' || e.target.id === 'imageViewer') {
+                closeImageViewer();
+            }
+        });
+
+        // ESC 关闭
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('imageViewer').classList.contains('show')) {
+                closeImageViewer();
+            }
+        });
+
         // 路径跳转
         function showJumpModal() {
             showModald('📁 跳转到路径', currentPath, (newPath) => {
@@ -1515,6 +2428,642 @@
             loadFiles(currentPath);
         }
 
+        // ========== 终端功能 ==========
+        let terminalList = []; // 服务器上的终端列表
+
+        async function showTerminalView() {
+            showView('terminalView');
+            document.getElementById('headerTitle').textContent = '终端';
+            document.getElementById('viewToggle').style.display = 'none';
+
+            // 加载已存在的终端
+            await loadExistingTerminals();
+
+            // 如果没有终端，自动创建一个
+            if (Object.keys(terminals).length === 0) {
+                createTerminal();
+            }
+        }
+
+        async function loadExistingTerminals() {
+            try {
+                const res = await fetch('/api/terminals');
+                const data = await res.json();
+                terminalList = data.terminals || [];
+
+                // 为每个已存在的终端创建 UI 并连接 WebSocket
+                for (const term of terminalList) {
+                    if (!terminals[term.id]) {
+                        await createTerminalUI(term.id, term.name, term.cwd, true);
+                    }
+                }
+
+                updateTerminalEmptyState();
+            } catch (e) {
+                console.error('加载终端列表失败', e);
+            }
+        }
+
+        function updateTerminalEmptyState() {
+            const emptyMsg = document.getElementById('terminalEmpty');
+            if (emptyMsg) {
+                emptyMsg.style.display = Object.keys(terminals).length === 0 ? 'block' : 'none';
+            }
+        }
+
+        function closeTerminalView() {
+            showView('listView');
+            document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';
+        }
+
+        async function createTerminal(customPath, customName) {
+            const workDir = customPath || currentPath;
+            const terminalId = 'term_' + Date.now();
+            const name = customName || workDir.split('/').pop() || 'Terminal';
+
+            try {
+                // 先在服务器创建终端
+                const res = await fetch('/api/terminals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: terminalId, cwd: workDir, name })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                await createTerminalUI(terminalId, name, workDir, true);
+
+            } catch (e) {
+                showToast('创建终端失败: ' + e.message, 'error');
+            }
+        }
+
+        async function createTerminalUI(terminalId, name, workDir, connect) {
+            // 创建终端标签
+            const tabsContainer = document.getElementById('terminalTabs');
+            const addBtn = tabsContainer.querySelector('.terminal-add-btn');
+            const tab = document.createElement('div');
+            tab.className = 'terminal-tab';
+            tab.id = 'tab_' + terminalId;
+            tab.innerHTML = `
+                <span class="terminal-tab-name" ondblclick="renameTerminal('${terminalId}')">${name}</span>
+                <span class="terminal-tab-close" onclick="event.stopPropagation(); closeTerminal('${terminalId}')">×</span>
+            `;
+            tab.onclick = () => switchTerminal(terminalId);
+            tabsContainer.insertBefore(tab, addBtn);
+
+            // 创建终端容器
+            const container = document.getElementById('terminalContainer');
+            const emptyMsg = document.getElementById('terminalEmpty');
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const termDiv = document.createElement('div');
+            termDiv.className = 'terminal-instance';
+            termDiv.id = 'instance_' + terminalId;
+            container.appendChild(termDiv);
+
+            // 初始化 xterm
+            const term = new Terminal({
+                theme: {
+                    background: '#0d1117',
+                    foreground: '#e6edf3',
+                    cursor: '#58a6ff',
+                    cursorAccent: '#0d1117',
+                    selectionBackground: 'rgba(88, 166, 255, 0.3)',
+                    black: '#484f58',
+                    red: '#f85149',
+                    green: '#3fb950',
+                    yellow: '#d29922',
+                    blue: '#58a6ff',
+                    magenta: '#a371f7',
+                    cyan: '#39c5cf',
+                    white: '#b1bac4',
+                    brightBlack: '#6e7681',
+                    brightRed: '#f85149',
+                    brightGreen: '#3fb950',
+                    brightYellow: '#d29922',
+                    brightBlue: '#58a6ff',
+                    brightMagenta: '#a371f7',
+                    brightCyan: '#39c5cf',
+                    brightWhite: '#e6edf3'
+                },
+                fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
+                fontSize: window.innerWidth < 768 ? 14 : 13,
+                lineHeight: 1.2,
+                allowTransparency: true,
+                scrollback: 10000
+            });
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(termDiv);
+
+            terminals[terminalId] = { term, fitAddon, ws: null, name, cwd: workDir };
+            terminalFitAddons[terminalId] = fitAddon;
+
+            // 连接 WebSocket
+            if (connect !== false) {
+                connectTerminalWebSocket(terminalId, term);
+            }
+
+            // 切换到新终端
+            switchTerminal(terminalId);
+
+            // 自适应大小
+            setTimeout(() => {
+                fitAddon.fit();
+                term.focus();
+            }, 100);
+
+            updateTerminalEmptyState();
+        }
+
+        function connectTerminalWebSocket(terminalId, term) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/terminal/${terminalId}`;
+
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                if (terminals[terminalId]) {
+                    terminals[terminalId].ws = ws;
+                    // 清除本地缓冲区，让 tmux 内容重新渲染
+                    term.clear();
+                }
+            };
+
+            ws.onmessage = (event) => {
+                term.write(event.data);
+            };
+
+            ws.onclose = () => {
+                if (terminals[terminalId]) {
+                    terminals[terminalId].ws = null;
+                }
+            };
+
+            ws.onerror = () => {
+                showToast('终端连接错误', 'error');
+            };
+
+            term.onData((data) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'input', data }));
+                }
+            });
+
+            term.onResize(({ cols, rows }) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+                }
+            });
+        }
+
+        function switchTerminal(terminalId) {
+            activeTerminalId = terminalId;
+
+            // 更新标签状态
+            document.querySelectorAll('.terminal-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.id === 'tab_' + terminalId);
+            });
+
+            // 更新终端显示
+            document.querySelectorAll('.terminal-instance').forEach(inst => {
+                inst.classList.toggle('active', inst.id === 'instance_' + terminalId);
+            });
+
+            // 自适应大小并聚焦
+            if (terminalFitAddons[terminalId]) {
+                setTimeout(() => {
+                    terminalFitAddons[terminalId].fit();
+                    if (terminals[terminalId] && terminals[terminalId].term) {
+                        terminals[terminalId].term.focus();
+                    }
+                }, 50);
+            }
+        }
+
+        async function closeTerminal(terminalId) {
+            if (!confirm('确定关闭此终端？终端内容将被清除。')) return;
+
+            try {
+                await fetch('/api/terminals/' + terminalId, { method: 'DELETE' });
+            } catch (e) {}
+
+            // 关闭 WebSocket
+            if (terminals[terminalId] && terminals[terminalId].ws) {
+                terminals[terminalId].ws.close();
+            }
+
+            // 移除标签
+            const tab = document.getElementById('tab_' + terminalId);
+            if (tab) tab.remove();
+
+            // 移除终端容器
+            const inst = document.getElementById('instance_' + terminalId);
+            if (inst) inst.remove();
+
+            // 清理
+            delete terminals[terminalId];
+            delete terminalFitAddons[terminalId];
+
+            updateTerminalEmptyState();
+
+            if (activeTerminalId === terminalId) {
+                activeTerminalId = null;
+                // 切换到另一个终端
+                const remainingIds = Object.keys(terminals);
+                if (remainingIds.length > 0) {
+                    switchTerminal(remainingIds[0]);
+                }
+            }
+        }
+
+        async function renameTerminal(terminalId) {
+            const term = terminals[terminalId];
+            if (!term) return;
+
+            const newName = prompt('输入新名称:', term.name);
+            if (newName && newName.trim()) {
+                term.name = newName.trim();
+
+                // 更新标签显示
+                const tab = document.getElementById('tab_' + terminalId);
+                if (tab) {
+                    const nameSpan = tab.querySelector('.terminal-tab-name');
+                    if (nameSpan) nameSpan.textContent = newName.trim();
+                }
+
+                // 保存到服务器
+                try {
+                    await fetch('/api/terminals/' + terminalId, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: newName.trim() })
+                    });
+                } catch (e) {}
+            }
+        }
+
+        function duplicateTerminal() {
+            if (!activeTerminalId || !terminals[activeTerminalId]) return;
+            const term = terminals[activeTerminalId];
+            createTerminal(term.cwd, term.name + ' (副本)');
+        }
+
+        function showTerminalPathModal() {
+            document.getElementById('terminalPathInput').value = currentPath;
+            document.getElementById('terminalPathModal').classList.add('show');
+            document.getElementById('terminalPathInput').focus();
+        }
+
+        function hideTerminalPathModal() {
+            document.getElementById('terminalPathModal').classList.remove('show');
+        }
+
+        function confirmTerminalPath() {
+            const path = document.getElementById('terminalPathInput').value.trim();
+            hideTerminalPathModal();
+            if (path) {
+                createTerminal(path);
+            }
+        }
+
+        // 终端路径模态框事件
+        document.getElementById('terminalPathModal').onclick = (e) => {
+            if (e.target.id === 'terminalPathModal') hideTerminalPathModal();
+        };
+        document.getElementById('terminalPathInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmTerminalPath();
+            if (e.key === 'Escape') hideTerminalPathModal();
+        });
+
+        // 窗口大小变化时重新适应终端
+        window.addEventListener('resize', () => {
+            Object.keys(terminalFitAddons).forEach(id => {
+                if (terminalFitAddons[id]) {
+                    terminalFitAddons[id].fit();
+                }
+            });
+        });
+
+        // Mobile keyboard helper functions
+        let customShortcuts = [];
+
+        // Load custom shortcuts from localStorage
+        function loadCustomShortcuts() {
+            try {
+                const saved = localStorage.getItem('terminalCustomShortcuts');
+                if (saved) {
+                    customShortcuts = JSON.parse(saved);
+                }
+            } catch (e) {
+                customShortcuts = [];
+            }
+            renderCustomShortcuts();
+        }
+
+        // Save custom shortcuts to localStorage
+        function saveCustomShortcuts() {
+            localStorage.setItem('terminalCustomShortcuts', JSON.stringify(customShortcuts));
+        }
+
+        // Render custom shortcuts buttons
+        function renderCustomShortcuts() {
+            const container = document.getElementById('customShortcuts');
+            const row = document.getElementById('customShortcutsRow');
+            if (!container) return;
+
+            if (customShortcuts.length === 0) {
+                container.innerHTML = '';
+                if (row) row.style.display = 'none';
+                return;
+            }
+
+            container.innerHTML = customShortcuts.map((s, i) =>
+                `<button class="terminal-keyboard-btn" onclick="executeCustomShortcut(${i})">${s.name}</button>`
+            ).join('');
+            if (row) row.style.display = 'flex';
+        }
+
+        // Execute custom shortcut sequence
+        async function executeCustomShortcut(index) {
+            const shortcut = customShortcuts[index];
+            if (!shortcut || !activeTerminalId || !terminals[activeTerminalId]) return;
+
+            const ws = terminals[activeTerminalId].ws;
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+            const keys = shortcut.sequence.split(',').map(k => k.trim());
+            for (let i = 0; i < keys.length; i++) {
+                const data = getKeyCode(keys[i]);
+                ws.send(JSON.stringify({ type: 'input', data }));
+                if (shortcut.delay > 0 && i < keys.length - 1) {
+                    await new Promise(r => setTimeout(r, shortcut.delay));
+                }
+            }
+        }
+
+        // Get terminal escape code for a key
+        function getKeyCode(keyName) {
+            const keyMap = {
+                // Special keys
+                'Tab': '\t',
+                'Shift+Tab': '\x1b[Z',
+                'BackTab': '\x1b[Z',  // Alias for Shift+Tab
+                'Escape': '\x1b',
+                'Enter': '\r',
+                'Space': ' ',
+                'Backspace': '\x7f',
+                'Delete': '\x1b[3~',
+                'Insert': '\x1b[2~',
+                'Home': '\x1b[H',
+                'End': '\x1b[F',
+
+                // Arrow keys
+                'ArrowUp': '\x1b[A',
+                'ArrowDown': '\x1b[B',
+                'ArrowRight': '\x1b[C',
+                'ArrowLeft': '\x1b[D',
+
+                // Shift + Arrow keys (for selection)
+                'Shift+ArrowUp': '\x1b[1;2A',
+                'Shift+ArrowDown': '\x1b[1;2B',
+                'Shift+ArrowRight': '\x1b[1;2C',
+                'Shift+ArrowLeft': '\x1b[1;2D',
+
+                // Ctrl + Arrow keys (word navigation)
+                'Ctrl+ArrowUp': '\x1b[1;5A',
+                'Ctrl+ArrowDown': '\x1b[1;5B',
+                'Ctrl+ArrowRight': '\x1b[1;5C',
+                'Ctrl+ArrowLeft': '\x1b[1;5D',
+
+                // Function keys
+                'F1': '\x1bOP',
+                'F2': '\x1bOQ',
+                'F3': '\x1bOR',
+                'F4': '\x1bOS',
+                'F5': '\x1b[15~',
+                'F6': '\x1b[17~',
+                'F7': '\x1b[18~',
+                'F8': '\x1b[19~',
+                'F9': '\x1b[20~',
+                'F10': '\x1b[21~',
+                'F11': '\x1b[23~',
+                'F12': '\x1b[24~',
+
+                // Ctrl combinations
+                'Ctrl+A': '\x01', 'Ctrl+B': '\x02', 'Ctrl+C': '\x03', 'Ctrl+D': '\x04',
+                'Ctrl+E': '\x05', 'Ctrl+F': '\x06', 'Ctrl+G': '\x07', 'Ctrl+H': '\x08',
+                'Ctrl+I': '\x09', 'Ctrl+J': '\x0a', 'Ctrl+K': '\x0b', 'Ctrl+L': '\x0c',
+                'Ctrl+M': '\x0d', 'Ctrl+N': '\x0e', 'Ctrl+O': '\x0f', 'Ctrl+P': '\x10',
+                'Ctrl+Q': '\x11', 'Ctrl+R': '\x12', 'Ctrl+S': '\x13', 'Ctrl+T': '\x14',
+                'Ctrl+U': '\x15', 'Ctrl+V': '\x16', 'Ctrl+W': '\x17', 'Ctrl+X': '\x18',
+                'Ctrl+Y': '\x19', 'Ctrl+Z': '\x1a',
+
+                // Alt combinations (ESC + key)
+                'Alt+A': '\x1ba', 'Alt+B': '\x1bb', 'Alt+C': '\x1bc', 'Alt+D': '\x1bd',
+                'Alt+F': '\x1bf', 'Alt+N': '\x1bn', 'Alt+P': '\x1bp', 'Alt+Q': '\x1bq',
+                'Alt+R': '\x1br', 'Alt+S': '\x1bs', 'Alt+T': '\x1bt', 'Alt+U': '\x1bu',
+                'Alt+W': '\x1bw', 'Alt+Y': '\x1by', 'Alt+.': '\x1b.',
+
+                // Alternative naming
+                'Control+A': '\x01', 'Control+B': '\x02', 'Control+C': '\x03', 'Control+D': '\x04',
+                'Control+E': '\x05', 'Control+F': '\x06', 'Control+G': '\x07', 'Control+H': '\x08',
+                'Control+I': '\x09', 'Control+J': '\x0a', 'Control+K': '\x0b', 'Control+L': '\x0c',
+                'Control+M': '\x0d', 'Control+N': '\x0e', 'Control+O': '\x0f', 'Control+P': '\x10',
+                'Control+Q': '\x11', 'Control+R': '\x12', 'Control+S': '\x13', 'Control+T': '\x14',
+                'Control+U': '\x15', 'Control+V': '\x16', 'Control+W': '\x17', 'Control+X': '\x18',
+                'Control+Y': '\x19', 'Control+Z': '\x1a',
+
+                // ctrl+a = ctrl+A (lowercase aliases)
+                'ctrl+a': '\x01', 'ctrl+b': '\x02', 'ctrl+c': '\x03', 'ctrl+d': '\x04',
+                'ctrl+e': '\x05', 'ctrl+f': '\x06', 'ctrl+g': '\x07', 'ctrl+h': '\x08',
+                'ctrl+i': '\x09', 'ctrl+j': '\x0a', 'ctrl+k': '\x0b', 'ctrl+l': '\x0c',
+                'ctrl+m': '\x0d', 'ctrl+n': '\x0e', 'ctrl+o': '\x0f', 'ctrl+p': '\x10',
+                'ctrl+q': '\x11', 'ctrl+r': '\x12', 'ctrl+s': '\x13', 'ctrl+t': '\x14',
+                'ctrl+u': '\x15', 'ctrl+v': '\x16', 'ctrl+w': '\x17', 'ctrl+x': '\x18',
+                'ctrl+y': '\x19', 'ctrl+z': '\x1a',
+            };
+
+            // Check if it's a single character
+            if (keyName.length === 1) {
+                return keyName;
+            }
+
+            return keyMap[keyName] || keyName;
+        }
+
+        function showMobileKeyboard() {
+            const helper = document.getElementById('mobileKeyboardHelper');
+            helper.classList.add('active');
+            loadCustomShortcuts();
+            document.getElementById('mobileTerminalInput').focus();
+        }
+
+        function hideMobileKeyboard() {
+            const helper = document.getElementById('mobileKeyboardHelper');
+            helper.classList.remove('active');
+            document.getElementById('mobileTerminalInput').value = '';
+        }
+
+        function sendMobileInput() {
+            const input = document.getElementById('mobileTerminalInput');
+            const text = input.value;
+            if (!text || !activeTerminalId || !terminals[activeTerminalId]) return;
+
+            const term = terminals[activeTerminalId];
+            const ws = term.ws;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'input', data: text + '\r' }));
+            }
+
+            input.value = '';
+            input.focus();
+        }
+
+        // Sticky modifier key state
+        let activeModifier = null; // null, 'Shift', or 'Ctrl'
+
+        function toggleModifier(mod) {
+            const btn = document.getElementById('sticky' + mod);
+            if (activeModifier === mod) {
+                // Deactivate if already active
+                activeModifier = null;
+                btn.classList.remove('active');
+            } else {
+                // Deactivate previous modifier first
+                if (activeModifier) {
+                    document.getElementById('sticky' + activeModifier).classList.remove('active');
+                }
+                // Activate new modifier
+                activeModifier = mod;
+                btn.classList.add('active');
+            }
+        }
+
+        function clearActiveModifier() {
+            if (activeModifier) {
+                document.getElementById('sticky' + activeModifier).classList.remove('active');
+                activeModifier = null;
+            }
+        }
+
+        function sendMobileKey(key) {
+            if (!activeTerminalId || !terminals[activeTerminalId]) return;
+
+            const term = terminals[activeTerminalId];
+            const ws = term.ws;
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+            // Handle sticky modifier combinations
+            let finalKey = key;
+            if (activeModifier && key !== 'Shift' && key !== 'Ctrl') {
+                // Combine modifier with key
+                if (activeModifier === 'Shift') {
+                    // Shift + key: mostly for uppercase letters
+                    if (key.length === 1 && /[a-z]/.test(key)) {
+                        finalKey = key.toUpperCase();
+                    } else if (key === 'Tab') {
+                        finalKey = 'Shift+Tab';
+                    } else if (key.startsWith('Arrow')) {
+                        // Shift + Arrow for selection in some apps
+                        finalKey = 'Shift+' + key;
+                    }
+                } else if (activeModifier === 'Ctrl') {
+                    // Ctrl + key
+                    if (key.length === 1) {
+                        finalKey = 'Ctrl+' + key.toUpperCase();
+                    } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+                        finalKey = 'Ctrl+' + key;
+                    }
+                }
+                // Clear modifier after use
+                clearActiveModifier();
+            }
+
+            const data = getKeyCode(finalKey);
+            ws.send(JSON.stringify({ type: 'input', data }));
+        }
+
+        // Shortcut configuration modal
+        function showShortcutConfig() {
+            loadCustomShortcuts();
+            renderSavedShortcutsList();
+            document.getElementById('shortcutConfigModal').classList.add('show');
+        }
+
+        function hideShortcutConfig() {
+            document.getElementById('shortcutConfigModal').classList.remove('show');
+        }
+
+        function renderSavedShortcutsList() {
+            const container = document.getElementById('savedShortcutsList');
+            if (!container) return;
+
+            if (customShortcuts.length === 0) {
+                container.innerHTML = '<div style="color: var(--dim); font-size: 12px; text-align: center; padding: 20px;">暂无自定义快捷键</div>';
+                return;
+            }
+
+            container.innerHTML = customShortcuts.map((s, i) => `
+                <div class="shortcut-config-item">
+                    <span class="shortcut-config-name">${s.name}</span>
+                    <span style="color: var(--dim); font-size: 11px; font-family: monospace;">${s.sequence}</span>
+                    <span class="shortcut-config-delete" onclick="deleteCustomShortcut(${i})">✕</span>
+                </div>
+            `).join('');
+        }
+
+        function addCustomShortcut() {
+            const nameInput = document.getElementById('newShortcutName');
+            const seqInput = document.getElementById('newShortcutSequence');
+            const delaySelect = document.getElementById('newShortcutDelay');
+
+            const name = nameInput.value.trim();
+            const sequence = seqInput.value.trim();
+            const delay = parseInt(delaySelect.value) || 0;
+
+            if (!name || !sequence) {
+                showToast('请填写名称和按键序列', 'error');
+                return;
+            }
+
+            customShortcuts.push({ name, sequence, delay });
+            saveCustomShortcuts();
+            renderSavedShortcutsList();
+            renderCustomShortcuts();
+
+            nameInput.value = '';
+            seqInput.value = '';
+            showToast('快捷键已添加', 'success');
+        }
+
+        function deleteCustomShortcut(index) {
+            customShortcuts.splice(index, 1);
+            saveCustomShortcuts();
+            renderSavedShortcutsList();
+            renderCustomShortcuts();
+        }
+
+        function resetShortcuts() {
+            if (!confirm('确定要重置所有自定义快捷键吗？')) return;
+            customShortcuts = [];
+            saveCustomShortcuts();
+            renderSavedShortcutsList();
+            renderCustomShortcuts();
+            showToast('已重置', 'success');
+        }
+
+        // Mobile terminal input enter key
+        document.getElementById('mobileTerminalInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMobileInput();
+            }
+        });
+
         // 事件绑定
         document.getElementById('backBtn').onclick = goBack;
         document.getElementById('menuBtn').onclick = showMainMenu;
@@ -1522,6 +3071,7 @@
         document.getElementById('uploadModal').onclick = (e) => { if (e.target.id === 'uploadModal') hideUploadModal(); };
         document.getElementById('actionMenu').onclick = (e) => { if (e.target.classList.contains('action-menu-close')) hideActionMenu(); };
         document.getElementById('mainMenu').onclick = (e) => { if (e.target.classList.contains('action-menu-close')) hideMainMenu(); };
+        document.getElementById('shortcutConfigModal').onclick = (e) => { if (e.target.id === 'shortcutConfigModal') hideShortcutConfig(); };
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && document.getElementById('modal').classList.contains('show')) confirmModal();
@@ -1530,6 +3080,7 @@
                 hideActionMenu();
                 hideMainMenu();
                 hideUploadModal();
+                hideShortcutConfig();
                 closeAllPanels();
             }
             if (e.ctrlKey && e.key === 's' && editor) {

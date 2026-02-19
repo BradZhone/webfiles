@@ -7,8 +7,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const http = require('http');
+const { WebSocketServer } = require('ws');
+const os = require('os');
+const pty = require('node-pty');
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 // 配置文件
 const CONFIG_FILE = path.join(__dirname, 'config.json');
@@ -701,6 +707,236 @@ app.get('/', requireAuth, (req, res) => {
 // 静态文件
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-app.listen(PORT, '0.0.0.0', () => {
+// ========== 终端管理 ==========
+const TERMINALS_FILE = path.join(__dirname, 'terminals.json');
+const terminalConnections = new Map(); // 存储活跃的 WebSocket 连接
+
+// 加载终端配置
+function loadTerminalsConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(TERMINALS_FILE, 'utf-8'));
+    } catch {
+        return { terminals: {} };
+    }
+}
+
+// 保存终端配置
+function saveTerminalsConfig(config) {
+    fs.writeFileSync(TERMINALS_FILE, JSON.stringify(config, null, 2));
+}
+
+// 获取 tmux 会话列表
+function getTmuxSessions() {
+    try {
+        const result = require('child_process').execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""', { encoding: 'utf-8' });
+        return result.trim().split('\n').filter(s => s.startsWith('webfiles_'));
+    } catch {
+        return [];
+    }
+}
+
+// API: 获取终端列表（合并 tmux 会话和保存的配置）
+app.get('/api/terminals', requireAuth, (req, res) => {
+    const config = loadTerminalsConfig();
+    const tmuxSessions = getTmuxSessions();
+
+    const terminalList = [];
+    for (const sessionName of tmuxSessions) {
+        const id = sessionName.replace('webfiles_', '');
+        const savedInfo = config.terminals[id] || {};
+        terminalList.push({
+            id,
+            name: savedInfo.name || id.split('_')[0] || 'Terminal',
+            cwd: savedInfo.cwd || HOME_DIR,
+            createdAt: savedInfo.createdAt || Date.now()
+        });
+    }
+
+    res.json({ terminals: terminalList });
+});
+
+// API: 创建终端
+app.post('/api/terminals', requireAuth, (req, res) => {
+    const { id, cwd, name } = req.body;
+    const terminalId = id || 'term_' + Date.now();
+    const sessionName = `webfiles_${terminalId}`;
+    const workDir = cwd && cwd.startsWith(HOME_DIR) ? cwd : HOME_DIR;
+    const terminalName = name || workDir.split('/').pop() || 'Terminal';
+
+    try {
+        // 检查 tmux 是否已安装
+        require('child_process').execSync('which tmux', { encoding: 'utf-8' });
+
+        // 检查会话是否已存在
+        try {
+            require('child_process').execSync(`tmux has-session -t ${sessionName} 2>/dev/null`);
+            // 会话已存在
+        } catch {
+            // 创建新的 tmux 会话
+            require('child_process').execSync(`tmux new-session -d -s ${sessionName} -c "${workDir}"`, { encoding: 'utf-8' });
+        }
+
+        // 保存终端配置
+        const config = loadTerminalsConfig();
+        config.terminals[terminalId] = {
+            name: terminalName,
+            cwd: workDir,
+            createdAt: Date.now()
+        };
+        saveTerminalsConfig(config);
+
+        res.json({ success: true, id: terminalId, sessionName, name: terminalName, cwd: workDir });
+    } catch (e) {
+        res.json({ success: true, id: terminalId, sessionName, name: terminalName, cwd: workDir, fallback: true });
+    }
+});
+
+// API: 重命名终端
+app.put('/api/terminals/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    const config = loadTerminalsConfig();
+    if (config.terminals[id]) {
+        config.terminals[id].name = name;
+        saveTerminalsConfig(config);
+        res.json({ success: true });
+    } else {
+        config.terminals[id] = { name, cwd: HOME_DIR, createdAt: Date.now() };
+        saveTerminalsConfig(config);
+        res.json({ success: true });
+    }
+});
+
+// API: 关闭终端
+app.delete('/api/terminals/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const sessionName = `webfiles_${id}`;
+
+    // 关闭 tmux 会话
+    try {
+        require('child_process').execSync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`, { encoding: 'utf-8' });
+    } catch {}
+
+    // 从配置中删除
+    const config = loadTerminalsConfig();
+    delete config.terminals[id];
+    saveTerminalsConfig(config);
+
+    // 关闭所有相关连接
+    if (terminalConnections.has(id)) {
+        const connections = terminalConnections.get(id);
+        connections.forEach(ws => {
+            if (ws.readyState === 1) ws.close();
+        });
+        terminalConnections.delete(id);
+    }
+
+    res.json({ success: true });
+});
+
+// WebSocket 处理
+wss.on('connection', (ws, req) => {
+    const match = req.url.match(/\/terminal\/(.+)/);
+    if (!match) {
+        ws.close();
+        return;
+    }
+
+    const terminalId = match[1];
+    const sessionName = `webfiles_${terminalId}`;
+    const config = loadTerminalsConfig();
+    const terminalInfo = config.terminals[terminalId] || {};
+    const workDir = terminalInfo.cwd || HOME_DIR;
+
+    // 存储连接
+    if (!terminalConnections.has(terminalId)) {
+        terminalConnections.set(terminalId, new Set());
+    }
+    terminalConnections.get(terminalId).add(ws);
+
+    // 使用 node-pty 创建真正的伪终端
+    let ptyProcess;
+    let useTmux = false;
+
+    try {
+        // 检查 tmux 会话是否存在
+        require('child_process').execSync(`tmux has-session -t ${sessionName} 2>/dev/null`);
+        useTmux = true;
+
+        // attach 到 tmux 会话
+        ptyProcess = pty.spawn('tmux', ['attach', '-t', sessionName], {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 24,
+            cwd: workDir,
+            env: { ...process.env, TERM: 'xterm-256color' }
+        });
+    } catch {
+        // tmux 会话不存在，创建普通 shell（非持久化）
+        ptyProcess = pty.spawn(os.platform() === 'win32' ? 'powershell.exe' : 'bash', [], {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 24,
+            cwd: workDir,
+            env: { ...process.env, TERM: 'xterm-256color' }
+        });
+    }
+
+    // 发送输出到所有连接的客户端
+    ptyProcess.onData((data) => {
+        const connections = terminalConnections.get(terminalId);
+        if (connections) {
+            connections.forEach(clientWs => {
+                if (clientWs.readyState === 1) {
+                    clientWs.send(data);
+                }
+            });
+        }
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+        const connections = terminalConnections.get(terminalId);
+        if (connections) {
+            connections.forEach(clientWs => {
+                if (clientWs.readyState === 1) {
+                    clientWs.send(`\r\n\x1b[33m终端已退出 (code: ${exitCode})\x1b[0m\r\n`);
+                }
+            });
+        }
+        if (terminalConnections.has(terminalId)) {
+            terminalConnections.get(terminalId).delete(ws);
+        }
+    });
+
+    // 接收 WebSocket 输入
+    ws.on('message', (data) => {
+        try {
+            const msg = JSON.parse(data);
+            if (msg.type === 'input') {
+                ptyProcess.write(msg.data);
+            } else if (msg.type === 'resize') {
+                try {
+                    ptyProcess.resize(msg.cols, msg.rows);
+                } catch {}
+            }
+        } catch (e) {
+            console.error('Terminal message error:', e);
+        }
+    });
+
+    ws.on('close', () => {
+        // 移除连接
+        if (terminalConnections.has(terminalId)) {
+            terminalConnections.get(terminalId).delete(ws);
+        }
+        // 只在非 tmux 模式下关闭 pty
+        if (!useTmux) {
+            try { ptyProcess.kill(); } catch {}
+        }
+    });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  文件管理器已启动\n  http://<服务器IP>:${PORT}\n  Home: ${HOME_DIR}\n`);
 });

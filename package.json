@@ -20,6 +20,11 @@
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }
