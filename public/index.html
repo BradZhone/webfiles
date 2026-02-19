@@ -389,6 +389,52 @@
             gap: 10px;
             border-bottom: 1px solid var(--border);
         }
+        /* 多标签编辑 */
+        .editor-tabs {
+            display: flex;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            flex-shrink: 0;
+            min-height: 36px;
+        }
+        .editor-tabs::-webkit-scrollbar { display: none; }
+        .editor-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: var(--dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            background: transparent;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+            border-right: 1px solid var(--border);
+        }
+        .editor-tab:hover { background: var(--item-hover); color: var(--text); }
+        .editor-tab.active {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border-bottom-color: var(--accent);
+        }
+        .editor-tab-modified {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .editor-tab-close {
+            font-size: 14px;
+            opacity: 0.6;
+            margin-left: 4px;
+            transition: opacity 0.15s ease;
+        }
+        .editor-tab:hover .editor-tab-close { opacity: 1; }
+        .editor-tab-close:hover { color: var(--danger); }
+        .editor-tab-icon { font-size: 12px; }
         .editor-title {
             flex: 1;
             font-size: 13px;
@@ -1150,6 +1196,8 @@
             <button class="toolbar-btn" onclick="cancelSelect()">取消</button>
             <button class="toolbar-btn" onclick="showBatchMoveModal()">📁 移动</button>
             <button class="toolbar-btn" onclick="showBatchCopyModal()">📋 复制</button>
+            <button class="toolbar-btn" onclick="showBatchRenameModal()">✏️ 重命名</button>
+            <button class="toolbar-btn" onclick="batchCompress()">📦 压缩</button>
             <button class="toolbar-btn danger" onclick="batchDelete()">🗑️ 删除</button>
         </div>
         <div class="file-list" id="fileList"><div class="loading"><div class="spinner"></div></div></div>
@@ -1176,9 +1224,11 @@
 
     <!-- 编辑器视图 -->
     <div class="view" id="editorView">
+        <div class="editor-tabs" id="editorTabs"></div>
         <div class="editor-header">
             <div class="editor-title" id="editorTitle">-</div>
             <div class="editor-status" id="editorStatus"></div>
+            <button class="btn-secondary" style="margin-left:auto;padding:4px 10px;font-size:11px;" onclick="formatCode()" id="formatBtn">✨ 格式化</button>
         </div>
         <div class="editor-wrap" id="editorWrap"></div>
         <div class="bottom-bar" id="editorBar">
@@ -1314,8 +1364,10 @@
         <div class="action-menu-item" onclick="doAction('open')">📂 打开</div>
         <div class="action-menu-item" onclick="doAction('download')">⬇️ 下载</div>
         <div class="action-menu-item" onclick="doAction('copyPath')">📋 复制路径</div>
+        <div class="action-menu-item" onclick="doAction('share')">🔗 分享</div>
         <div class="action-menu-item" onclick="doAction('favorite')">⭐ 收藏</div>
         <div class="action-menu-item" onclick="doAction('rename')">✏️ 重命名</div>
+        <div class="action-menu-item" onclick="doAction('unzip')">📦 解压</div>
         <div class="action-menu-item danger" onclick="doAction('delete')">🗑️ 删除</div>
         <div class="action-menu-close" onclick="hideActionMenu()">取消</div>
     </div>
@@ -1327,8 +1379,22 @@
         <div class="action-menu-item" onclick="showUploadModal()">📤 上传文件</div>
         <div class="action-menu-item" onclick="showSearchView()">🔍 搜索</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showTerminalView()">💻 终端</div>
+        <div class="action-menu-item" onclick="showOpenFilesPanel()">📑 已打开文件 (<span id="openFilesCount">0</span>)</div>
         <div class="action-menu-item" onclick="location.href='/logout'">🚪 退出登录</div>
         <div class="action-menu-close" onclick="hideMainMenu()">取消</div>
+    </div>
+
+    <!-- 已打开文件面板 -->
+    <div class="modal-overlay" id="openFilesPanel">
+        <div class="modal" style="max-width: 400px;">
+            <h3>📑 已打开的文件</h3>
+            <div id="openFilesList" style="max-height: 400px; overflow-y: auto; margin: 12px 0;">
+            </div>
+            <div class="modal-btns">
+                <button class="btn-secondary" onclick="closeAllOpenFiles()">关闭全部</button>
+                <button class="btn-secondary" onclick="hideOpenFilesPanel()">关闭</button>
+            </div>
+        </div>
     </div>
 
     <!-- 模态框 -->
@@ -1379,6 +1445,96 @@
         </div>
     </div>
 
+    <!-- 批量重命名模态框 -->
+    <div class="modal-overlay" id="batchRenameModal">
+        <div class="modal" style="max-width: 480px;">
+            <h3>✏️ 批量重命名</h3>
+            <p style="color:var(--dim);margin-bottom:12px;font-size:12px;">已选择 <span id="renameCount">0</span> 个文件（可组合多种规则）</p>
+
+            <div style="margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;">
+                    <input type="checkbox" id="renameReplaceEnabled" onchange="updateRenamePreview()">
+                    <span>查找替换</span>
+                </label>
+                <div style="display:flex;gap:8px;margin-left:22px;margin-bottom:10px;">
+                    <input type="text" id="renameFind" placeholder="查找内容" style="flex:1;" oninput="updateRenamePreview()">
+                    <input type="text" id="renameReplace" placeholder="替换为" style="flex:1;" oninput="updateRenamePreview()">
+                </div>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;">
+                    <input type="checkbox" id="renamePrefixEnabled" onchange="updateRenamePreview()">
+                    <span>添加前缀/后缀</span>
+                </label>
+                <div style="display:flex;gap:8px;margin-left:22px;margin-bottom:10px;">
+                    <input type="text" id="renamePrefix" placeholder="前缀" style="flex:1;" oninput="updateRenamePreview()">
+                    <input type="text" id="renameSuffix" placeholder="后缀" style="flex:1;" oninput="updateRenamePreview()">
+                </div>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;">
+                    <input type="checkbox" id="renameRegexEnabled" onchange="updateRenamePreview()">
+                    <span>正则表达式</span>
+                </label>
+                <div style="display:flex;gap:8px;margin-left:22px;margin-bottom:10px;">
+                    <input type="text" id="renameRegex" placeholder="正则表达式 (如: \.txt$)" style="flex:1;" oninput="updateRenamePreview()">
+                    <input type="text" id="renameRegexReplace" placeholder="替换为 ($1, $2...)" style="flex:1;" oninput="updateRenamePreview()">
+                </div>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;">
+                    <input type="checkbox" id="renameCaseEnabled" onchange="updateRenamePreview()">
+                    <span>大小写转换</span>
+                </label>
+                <div style="margin-left:22px;margin-bottom:10px;">
+                    <select id="renameCaseMode" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);width:100%;" onchange="updateRenamePreview()">
+                        <option value="lower">全部小写</option>
+                        <option value="upper">全部大写</option>
+                        <option value="title">首字母大写</option>
+                        <option value="sentence">句首大写</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">预览: <span id="renamePreviewCount">0</span> 个文件将改变</div>
+                <div id="renamePreview" style="max-height:180px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-family:monospace;">
+                </div>
+            </div>
+
+            <div class="modal-btns">
+                <button class="btn-secondary" onclick="hideBatchRenameModal()">取消</button>
+                <button class="btn-primary" onclick="confirmBatchRename()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件分享模态框 -->
+    <div class="modal-overlay" id="shareModal">
+        <div class="modal">
+            <h3>🔗 文件分享</h3>
+            <p style="color:var(--dim);margin-bottom:12px;font-size:13px;" id="shareFileName">-</p>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:6px;">有效期</label>
+                <select id="shareExpiry" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+                    <option value="3600">1 小时</option>
+                    <option value="86400" selected>24 小时</option>
+                    <option value="604800">7 天</option>
+                    <option value="2592000">30 天</option>
+                    <option value="0">永久有效</option>
+                </select>
+            </div>
+            <div id="shareLinkContainer" style="display:none;margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:6px;">分享链接</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="shareLink" readonly style="flex:1;font-size:12px;">
+                    <button class="btn-secondary" onclick="copyShareLink()" style="padding:8px 12px;">复制</button>
+                </div>
+            </div>
+            <div class="modal-btns">
+                <button class="btn-secondary" onclick="hideShareModal()">关闭</button>
+                <button class="btn-primary" onclick="generateShareLink()" id="generateShareBtn">生成链接</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 图片放大查看器 -->
     <div class="image-viewer" id="imageViewer">
         <div class="image-viewer-header">
@@ -1413,6 +1569,7 @@
     </div>
 
     <!-- CodeMirror & Marked -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.11/beautifier.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/typescript/typescript.min.js"></script>
@@ -1490,6 +1647,10 @@
         let selectedFiles = new Set();
         let favorites = [];
         let uploadFiles = [];
+
+        // 多标签编辑相关
+        let openFiles = {}; // { path: { content, cursor, modified, editor, fileType, name } }
+        let activeFilePath = null;
 
         // 终端相关变量
         let terminals = {};
@@ -1686,9 +1847,12 @@
         }
 
         function goBack() {
-            if (modified && !confirm('有未保存的更改，确定返回？')) return;
+            // 检查是否有未保存的文件
+            const modifiedFiles = Object.keys(openFiles).filter(p => openFiles[p].modified);
+            if (modifiedFiles.length > 0 && !confirm(`有 ${modifiedFiles.length} 个文件未保存，确定返回？`)) return;
+
             showView('listView');
-            document.getElementById('headerTitle').textContent = '文件管理器';
+            document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';
             document.getElementById('viewToggle').style.display = 'none';
         }
 
@@ -1818,6 +1982,13 @@
         // 打开文件
         async function openFile(path, type) {
             const name = path.split('/').pop();
+
+            // 检查文件是否已打开
+            if (openFiles[path]) {
+                switchToFileTab(path);
+                return;
+            }
+
             document.getElementById('headerTitle').textContent = name;
             document.getElementById('editorTitle').textContent = name;
             document.getElementById('editorStatus').textContent = '';
@@ -1851,30 +2022,39 @@
                 if (data.type === 'image') {
                     const imgSrc = `data:${data.mime};base64,${data.data}`;
                     wrap.innerHTML = `<div class="media-view"><img src="${imgSrc}" alt="${name}" onclick="openImageViewer('${imgSrc}', '${name.replace(/'/g, "\\'")}')"><div class="media-info">${formatSize(data.size)} · 点击放大</div></div>`;
+                    // 媒体文件也加入标签
+                    addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'audio') {
                     wrap.innerHTML = `<div class="media-view"><div style="font-size:64px;margin-bottom:20px">🎵</div><audio controls src="data:${data.mime};base64,${data.data}"></audio><div class="media-info">${name}<br>${formatSize(data.size)}</div></div>`;
+                    addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'video') {
                     wrap.innerHTML = `<div class="media-view"><video controls src="data:${data.mime};base64,${data.data}"></video><div class="media-info">${formatSize(data.size)}</div></div>`;
+                    addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'pdf') {
                     wrap.innerHTML = `<div class="media-view" style="padding:0"><iframe class="html-preview" src="data:application/pdf;base64,${data.data}"></iframe></div>`;
+                    addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.isBinary) {
                     wrap.innerHTML = `<div class="binary-notice"><div class="icon">📦</div><div>二进制文件</div><div style="font-size:12px;color:var(--dim)">${formatSize(data.size)}</div></div>`;
+                    addFileTab(path, name, 'binary', false);
                     return;
                 }
 
                 fileContent = data.content || '';
+
+                // 添加到标签（文本文件）
+                addFileTab(path, name, data.type, false, fileContent);
 
                 // HTML 文件 - 默认预览 (使用 API 返回的类型)
                 if (data.type === 'html' || isHtml) {
@@ -1896,7 +2076,7 @@
                         document.querySelectorAll('.toggle-btn').forEach((btn, i) => {
                             btn.classList.toggle('active', i === 0);
                         });
-                        initEditor('', name);
+                        initEditor('', name, path);
                     } else {
                         currentView = 'preview';
                         document.querySelectorAll('.toggle-btn').forEach((btn, i) => {
@@ -1905,7 +2085,7 @@
                         wrap.innerHTML = `<div class="markdown-view"><div class="markdown-body">${marked.parse(data.content)}</div></div>`;
                     }
                 } else {
-                    initEditor(data.content || '', name);
+                    initEditor(data.content || '', name, path);
                 }
 
             } catch (e) {
@@ -1914,13 +2094,229 @@
             }
         }
 
-        function initEditor(content, name) {
-            const wrap = document.getElementById('editorWrap');
-            wrap.innerHTML = '<textarea id="code"></textarea>';
-            const ta = document.getElementById('code');
-            ta.value = content;
+        // 多标签功能
+        function addFileTab(path, name, fileType, isModified, content = '') {
+            if (openFiles[path]) {
+                switchToFileTab(path);
+                return;
+            }
 
-            editor = CodeMirror.fromTextArea(ta, {
+            // 获取文件图标
+            const icon = getFileIcon(name, false, fileType);
+
+            // 创建标签
+            const tabsContainer = document.getElementById('editorTabs');
+            const tab = document.createElement('div');
+            tab.className = 'editor-tab';
+            tab.id = 'editorTab_' + path.replace(/[^a-zA-Z0-9]/g, '_');
+            tab.dataset.path = path;
+            tab.innerHTML = `
+                <span class="editor-tab-icon">${icon}</span>
+                <span class="editor-tab-name">${name}</span>
+                <span class="editor-tab-modified" style="display:none;"></span>
+                <span class="editor-tab-close" onclick="event.stopPropagation(); closeFileTab('${escapeJs(path)}')">×</span>
+            `;
+            tab.onclick = () => switchToFileTab(path);
+            tabsContainer.appendChild(tab);
+
+            // 保存文件信息
+            openFiles[path] = {
+                name,
+                content,
+                fileType,
+                modified: false,
+                editor: null,
+                cursor: null
+            };
+
+            switchToFileTab(path);
+            updateFormatButton(fileType);
+            updateOpenFilesCount();
+        }
+
+        function switchToFileTab(path) {
+            if (!openFiles[path]) return;
+
+            const fileData = openFiles[path];
+            activeFilePath = path;
+            currentFile = path;
+            currentFileType = fileData.fileType;
+
+            // 更新标签状态
+            document.querySelectorAll('.editor-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.path === path);
+            });
+
+            // 更新标题
+            document.getElementById('headerTitle').textContent = fileData.name;
+            document.getElementById('editorTitle').textContent = fileData.name;
+
+            // 更新状态
+            const statusEl = document.getElementById('editorStatus');
+            if (fileData.modified) {
+                statusEl.textContent = '已修改';
+                statusEl.className = 'editor-status modified';
+            } else {
+                statusEl.textContent = '';
+                statusEl.className = 'editor-status';
+            }
+
+            // 更新视图切换按钮
+            const isMd = fileData.fileType === 'markdown';
+            const isHtml = fileData.fileType === 'html';
+            document.getElementById('viewToggle').style.display = (isMd || isHtml) ? 'flex' : 'none';
+
+            // 更新底部栏
+            const bar = document.getElementById('editorBar');
+            if (['image', 'audio', 'video', 'pdf', 'binary'].includes(fileData.fileType)) {
+                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button>';
+            } else {
+                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button><button class="btn-primary" onclick="saveFile()">保存</button>';
+            }
+
+            // 渲染内容
+            const wrap = document.getElementById('editorWrap');
+
+            if (fileData.editor) {
+                // 已有编辑器实例，切换显示
+                wrap.innerHTML = '';
+                const textarea = document.createElement('textarea');
+                textarea.id = 'code_' + path.replace(/[^a-zA-Z0-9]/g, '_');
+                wrap.appendChild(textarea);
+                textarea.value = fileData.content;
+
+                fileData.editor = CodeMirror.fromTextArea(textarea, {
+                    mode: getMode(fileData.name),
+                    theme: 'dracula',
+                    lineNumbers: true,
+                    tabSize: 4,
+                    indentWithTabs: false,
+                    lineWrapping: true
+                });
+
+                if (fileData.cursor) {
+                    fileData.editor.setCursor(fileData.cursor);
+                }
+
+                fileData.editor.on('change', () => {
+                    markFileModified(path);
+                    fileData.content = fileData.editor.getValue();
+                    fileContent = fileData.content;
+                });
+
+                editor = fileData.editor;
+
+                // HTML 预览
+                if (isHtml && currentView === 'preview') {
+                    const blob = new Blob([fileData.content], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    wrap.innerHTML = `<iframe class="html-preview" src="${url}" style="border:none;width:100%;flex:1;background:#fff;"></iframe>`;
+                }
+            } else if (['image', 'audio', 'video', 'pdf', 'binary'].includes(fileData.fileType)) {
+                // 媒体文件需要重新加载
+                loadMediaContent(path, fileData);
+            } else {
+                // 文本文件
+                initEditor(fileData.content || '', fileData.name, path);
+            }
+
+            updateFormatButton(fileData.fileType);
+            showView('editorView');
+        }
+
+        async function loadMediaContent(path, fileData) {
+            const wrap = document.getElementById('editorWrap');
+            wrap.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const res = await fetch('/api/file?path=' + encodeURIComponent(path));
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                if (data.type === 'image') {
+                    const imgSrc = `data:${data.mime};base64,${data.data}`;
+                    wrap.innerHTML = `<div class="media-view"><img src="${imgSrc}" alt="${fileData.name}" onclick="openImageViewer('${imgSrc}', '${fileData.name.replace(/'/g, "\\'")}')"><div class="media-info">${formatSize(data.size)} · 点击放大</div></div>`;
+                } else if (data.type === 'audio') {
+                    wrap.innerHTML = `<div class="media-view"><div style="font-size:64px;margin-bottom:20px">🎵</div><audio controls src="data:${data.mime};base64,${data.data}"></audio><div class="media-info">${fileData.name}<br>${formatSize(data.size)}</div></div>`;
+                } else if (data.type === 'video') {
+                    wrap.innerHTML = `<div class="media-view"><video controls src="data:${data.mime};base64,${data.data}"></video><div class="media-info">${formatSize(data.size)}</div></div>`;
+                } else if (data.type === 'pdf') {
+                    wrap.innerHTML = `<div class="media-view" style="padding:0"><iframe class="html-preview" src="data:application/pdf;base64,${data.data}"></iframe></div>`;
+                } else if (data.isBinary) {
+                    wrap.innerHTML = `<div class="binary-notice"><div class="icon">📦</div><div>二进制文件</div><div style="font-size:12px;color:var(--dim)">${formatSize(data.size)}</div></div>`;
+                }
+            } catch (e) {
+                wrap.innerHTML = `<div class="binary-notice"><div class="icon" style="color:var(--danger)">⚠️</div><div>加载失败</div></div>`;
+            }
+        }
+
+        function closeFileTab(path) {
+            const fileData = openFiles[path];
+            if (!fileData) return;
+
+            // 检查是否有未保存的更改
+            if (fileData.modified && !confirm(`${fileData.name} 有未保存的更改，确定关闭？`)) {
+                return;
+            }
+
+            // 移除标签
+            const tab = document.getElementById('editorTab_' + path.replace(/[^a-zA-Z0-9]/g, '_'));
+            if (tab) tab.remove();
+
+            // 清理编辑器
+            if (fileData.editor) {
+                fileData.editor.toTextArea();
+            }
+
+            delete openFiles[path];
+            updateOpenFilesCount();
+
+            // 如果关闭的是当前活动文件
+            if (activeFilePath === path) {
+                const remaining = Object.keys(openFiles);
+                if (remaining.length > 0) {
+                    switchToFileTab(remaining[remaining.length - 1]);
+                } else {
+                    // 没有打开的文件了，返回文件列表
+                    activeFilePath = null;
+                    currentFile = null;
+                    editor = null;
+                    goBack();
+                }
+            }
+        }
+
+        function markFileModified(path) {
+            if (!openFiles[path]) return;
+            if (!openFiles[path].modified) {
+                openFiles[path].modified = true;
+                modified = true;
+
+                // 更新标签显示
+                const tabId = 'editorTab_' + path.replace(/[^a-zA-Z0-9]/g, '_');
+                const tab = document.getElementById(tabId);
+                if (tab) {
+                    const dot = tab.querySelector('.editor-tab-modified');
+                    if (dot) dot.style.display = 'inline-block';
+                }
+
+                // 更新状态栏
+                const st = document.getElementById('editorStatus');
+                st.textContent = '已修改';
+                st.className = 'editor-status modified';
+            }
+        }
+
+        function initEditor(content, name, path) {
+            const wrap = document.getElementById('editorWrap');
+            wrap.innerHTML = '';
+
+            const textarea = document.createElement('textarea');
+            textarea.id = 'code_' + (path ? path.replace(/[^a-zA-Z0-9]/g, '_') : 'current');
+            wrap.appendChild(textarea);
+            textarea.value = content;
+
+            const cm = CodeMirror.fromTextArea(textarea, {
                 mode: getMode(name),
                 theme: 'dracula',
                 lineNumbers: true,
@@ -1929,32 +2325,157 @@
                 lineWrapping: true
             });
 
-            editor.on('change', () => {
-                if (!modified) {
-                    modified = true;
-                    const st = document.getElementById('editorStatus');
-                    st.textContent = '已修改';
-                    st.className = 'editor-status modified';
+            editor = cm;
+            fileContent = content;
+
+            // 保存到 openFiles
+            if (path && openFiles[path]) {
+                openFiles[path].editor = cm;
+                openFiles[path].content = content;
+
+                // 恢复光标位置
+                if (openFiles[path].cursor) {
+                    cm.setCursor(openFiles[path].cursor);
                 }
-                fileContent = editor.getValue();
+            }
+
+            cm.on('change', () => {
+                if (path) {
+                    markFileModified(path);
+                    openFiles[path].content = cm.getValue();
+                }
+                fileContent = cm.getValue();
             });
+
+            // 保存光标位置
+            cm.on('cursorActivity', () => {
+                if (path && openFiles[path]) {
+                    openFiles[path].cursor = cm.getCursor();
+                }
+            });
+        }
+
+        // 更新格式化按钮
+        function updateFormatButton(fileType) {
+            const btn = document.getElementById('formatBtn');
+            if (!btn) return;
+
+            const supportedTypes = ['javascript', 'typescript', 'html', 'css', 'json', 'markdown'];
+            const isSupported = supportedTypes.some(t => fileType && fileType.includes(t));
+            btn.style.display = isSupported ? 'block' : 'none';
+        }
+
+        // 代码格式化
+        function formatCode() {
+            if (!editor || !activeFilePath) return;
+
+            const fileData = openFiles[activeFilePath];
+            if (!fileData) return;
+
+            const content = editor.getValue();
+            const ext = fileData.name.split('.').pop().toLowerCase();
+            let formatted = content;
+
+            try {
+                if (['js', 'javascript', 'ts', 'typescript', 'jsx', 'tsx'].includes(ext)) {
+                    formatted = beautifier.js(content, {
+                        indent_size: 2,
+                        indent_char: ' ',
+                        max_preserve_newlines: 2,
+                        preserve_newlines: true,
+                        keep_array_indentation: false,
+                        break_chained_methods: false,
+                        brace_style: 'collapse',
+                        space_before_conditional: true,
+                        unescape_strings: false,
+                        jslint_happy: false,
+                        end_with_newline: true,
+                        wrap_line_length: 0,
+                        e4x: false,
+                        comma_first: false,
+                        operator_position: 'before-newline'
+                    });
+                } else if (['html', 'htm', 'vue', 'svelte'].includes(ext)) {
+                    formatted = beautifier.html(content, {
+                        indent_size: 2,
+                        indent_char: ' ',
+                        max_preserve_newlines: 2,
+                        preserve_newlines: true,
+                        indent_inner_html: true,
+                        wrap_line_length: 0,
+                        wrap_attributes: 'auto',
+                        wrap_attributes_indent_size: 2,
+                        end_with_newline: true
+                    });
+                } else if (['css', 'scss', 'sass', 'less'].includes(ext)) {
+                    formatted = beautifier.css(content, {
+                        indent_size: 2,
+                        indent_char: ' ',
+                        max_preserve_newlines: 2,
+                        preserve_newlines: true,
+                        selector_separator_newline: true,
+                        end_with_newline: true
+                    });
+                } else if (['json', 'jsonc'].includes(ext)) {
+                    // JSON 格式化
+                    try {
+                        const obj = JSON.parse(content);
+                        formatted = JSON.stringify(obj, null, 2);
+                    } catch (e) {
+                        showToast('JSON 解析错误: ' + e.message, 'error');
+                        return;
+                    }
+                } else if (['md', 'markdown'].includes(ext)) {
+                    // Markdown 简单格式化
+                    formatted = content
+                        .replace(/\n{3,}/g, '\n\n')  // 最多两个空行
+                        .replace(/[ \t]+$/gm, '')    // 移除行尾空格
+                        .trim() + '\n';
+                } else {
+                    showToast('不支持此文件类型的格式化', 'error');
+                    return;
+                }
+
+                if (formatted !== content) {
+                    editor.setValue(formatted);
+                    showToast('格式化完成', 'success');
+                } else {
+                    showToast('代码已经格式化', 'success');
+                }
+            } catch (e) {
+                showToast('格式化失败: ' + e.message, 'error');
+            }
         }
 
         // 保存文件
         async function saveFile() {
-            if (!currentFile) return;
-            const content = editor ? editor.getValue() : fileContent;
+            if (!currentFile && !activeFilePath) return;
+            const filePath = activeFilePath || currentFile;
+            const fileData = openFiles[filePath];
+            const content = editor ? editor.getValue() : (fileData ? fileData.content : fileContent);
 
             try {
                 const res = await fetch('/api/file', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: currentFile, content })
+                    body: JSON.stringify({ path: filePath, content })
                 });
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
 
+                // 更新状态
                 modified = false;
+                if (fileData) {
+                    fileData.modified = false;
+                    // 更新标签显示
+                    const tabId = 'editorTab_' + filePath.replace(/[^a-zA-Z0-9]/g, '_');
+                    const tab = document.getElementById(tabId);
+                    if (tab) {
+                        const dot = tab.querySelector('.editor-tab-modified');
+                        if (dot) dot.style.display = 'none';
+                    }
+                }
+
                 const st = document.getElementById('editorStatus');
                 st.textContent = '已保存';
                 st.className = 'editor-status saved';
@@ -1962,6 +2483,39 @@
             } catch (e) {
                 showToast(e.message, 'error');
             }
+        }
+
+        // 保存所有文件
+        async function saveAllFiles() {
+            const paths = Object.keys(openFiles).filter(p => openFiles[p].modified);
+            if (paths.length === 0) {
+                showToast('没有需要保存的文件', 'success');
+                return;
+            }
+
+            for (const path of paths) {
+                const fileData = openFiles[path];
+                try {
+                    const res = await fetch('/api/file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path, content: fileData.content })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    fileData.modified = false;
+                    const tabId = 'editorTab_' + path.replace(/[^a-zA-Z0-9]/g, '_');
+                    const tab = document.getElementById(tabId);
+                    if (tab) {
+                        const dot = tab.querySelector('.editor-tab-modified');
+                        if (dot) dot.style.display = 'none';
+                    }
+                } catch (e) {
+                    showToast(`保存 ${fileData.name} 失败: ${e.message}`, 'error');
+                }
+            }
+            showToast('已保存所有文件', 'success');
         }
 
         // 多选模式
@@ -2120,6 +2674,229 @@
                 loadFiles(currentPath);
             } catch (e) {
                 showToast(e.message, 'error');
+            }
+        }
+
+        // 批量重命名功能
+        let renamePreviewData = [];
+        let renameFilesList = []; // 保存待重命名的文件列表
+
+        function showBatchRenameModal() {
+            if (selectedFiles.size === 0) {
+                showToast('请选择文件', 'error');
+                return;
+            }
+
+            // 保存当前选中的文件列表
+            renameFilesList = Array.from(selectedFiles);
+
+            document.getElementById('renameCount').textContent = renameFilesList.length;
+
+            // 重置所有输入
+            document.getElementById('renameFind').value = '';
+            document.getElementById('renameReplace').value = '';
+            document.getElementById('renamePrefix').value = '';
+            document.getElementById('renameSuffix').value = '';
+            document.getElementById('renameRegex').value = '';
+            document.getElementById('renameRegexReplace').value = '';
+
+            // 重置复选框
+            document.getElementById('renameReplaceEnabled').checked = false;
+            document.getElementById('renamePrefixEnabled').checked = false;
+            document.getElementById('renameRegexEnabled').checked = false;
+            document.getElementById('renameCaseEnabled').checked = false;
+
+            updateRenamePreview();
+            document.getElementById('batchRenameModal').classList.add('show');
+        }
+
+        function hideBatchRenameModal() {
+            document.getElementById('batchRenameModal').classList.remove('show');
+        }
+
+        function updateRenamePreview() {
+            const files = renameFilesList;
+            renamePreviewData = [];
+
+            // 获取所有规则设置
+            const replaceEnabled = document.getElementById('renameReplaceEnabled')?.checked || false;
+            const prefixEnabled = document.getElementById('renamePrefixEnabled')?.checked || false;
+            const regexEnabled = document.getElementById('renameRegexEnabled')?.checked || false;
+            const caseEnabled = document.getElementById('renameCaseEnabled')?.checked || false;
+
+            const find = document.getElementById('renameFind')?.value || '';
+            const replace = document.getElementById('renameReplace')?.value || '';
+            const prefix = document.getElementById('renamePrefix')?.value || '';
+            const suffix = document.getElementById('renameSuffix')?.value || '';
+            const regex = document.getElementById('renameRegex')?.value || '';
+            const regexReplace = document.getElementById('renameRegexReplace')?.value || '';
+            const caseMode = document.getElementById('renameCaseMode')?.value || 'lower';
+
+            let hasError = false;
+            let hasConflict = false;
+            const newNames = new Set();
+            let changedCount = 0;
+
+            for (const filePath of files) {
+                const oldName = filePath.split('/').pop();
+                let newName = oldName;
+                let nameWithoutExt = oldName;
+                let ext = '';
+
+                // 分离文件名和扩展名
+                const dotIndex = oldName.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    nameWithoutExt = oldName.substring(0, dotIndex);
+                    ext = oldName.substring(dotIndex);
+                }
+
+                try {
+                    // 1. 查找替换
+                    if (replaceEnabled && find) {
+                        newName = newName.split(find).join(replace);
+                    }
+
+                    // 2. 前缀后缀
+                    if (prefixEnabled) {
+                        // 对文件名部分添加前缀后缀，保留扩展名
+                        if (dotIndex > 0) {
+                            const newNamePart = prefix + newName.substring(0, newName.lastIndexOf('.')) + suffix;
+                            newName = newNamePart + ext;
+                        } else {
+                            newName = prefix + newName + suffix;
+                        }
+                    }
+
+                    // 3. 正则表达式
+                    if (regexEnabled && regex) {
+                        const re = new RegExp(regex, 'g');
+                        newName = newName.replace(re, regexReplace);
+                    }
+
+                    // 4. 大小写转换
+                    if (caseEnabled) {
+                        if (dotIndex > 0) {
+                            const namePart = newName.substring(0, newName.lastIndexOf('.'));
+                            ext = newName.substring(newName.lastIndexOf('.'));
+                            switch (caseMode) {
+                                case 'lower':
+                                    newName = namePart.toLowerCase() + ext;
+                                    break;
+                                case 'upper':
+                                    newName = namePart.toUpperCase() + ext;
+                                    break;
+                                case 'title':
+                                    newName = namePart.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()) + ext;
+                                    break;
+                                case 'sentence':
+                                    newName = namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase() + ext;
+                                    break;
+                            }
+                        } else {
+                            switch (caseMode) {
+                                case 'lower':
+                                    newName = newName.toLowerCase();
+                                    break;
+                                case 'upper':
+                                    newName = newName.toUpperCase();
+                                    break;
+                                case 'title':
+                                    newName = newName.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                                    break;
+                                case 'sentence':
+                                    newName = newName.charAt(0).toUpperCase() + newName.slice(1).toLowerCase();
+                                    break;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    hasError = true;
+                    newName = oldName + ' (错误)';
+                }
+
+                const changed = oldName !== newName;
+                if (changed) changedCount++;
+
+                // 检查冲突
+                if (newNames.has(newName)) {
+                    hasConflict = true;
+                }
+                newNames.add(newName);
+
+                renamePreviewData.push({
+                    path: filePath,
+                    oldName,
+                    newName,
+                    changed
+                });
+            }
+
+            // 更新计数
+            const countEl = document.getElementById('renamePreviewCount');
+            if (countEl) countEl.textContent = changedCount;
+
+            // 渲染预览
+            const previewEl = document.getElementById('renamePreview');
+            if (!previewEl) return;
+
+            previewEl.innerHTML = renamePreviewData.map(item => {
+                const color = item.changed ? 'var(--success)' : 'var(--dim)';
+                const icon = item.changed ? '→' : '=';
+                return `<div style="color:${color};padding:2px 0;">
+                    <span style="color:var(--text-secondary)">${escapeHtml(item.oldName)}</span>
+                    <span style="color:var(--dim)"> ${icon} </span>
+                    <span>${escapeHtml(item.newName)}</span>
+                </div>`;
+            }).join('');
+
+            if (hasError) {
+                previewEl.innerHTML += '<div style="color:var(--danger);margin-top:8px;">⚠️ 正则表达式错误</div>';
+            }
+            if (hasConflict) {
+                previewEl.innerHTML += '<div style="color:var(--warning);margin-top:8px;">⚠️ 存在重名冲突</div>';
+            }
+        }
+
+        async function confirmBatchRename() {
+            const changedItems = renamePreviewData.filter(item => item.changed);
+            if (changedItems.length === 0) {
+                showToast('没有需要重命名的文件', 'error');
+                return;
+            }
+
+            // 检查冲突
+            const newNames = new Set();
+            for (const item of changedItems) {
+                if (newNames.has(item.newName)) {
+                    showToast('存在重名冲突，请修改后重试', 'error');
+                    return;
+                }
+                newNames.add(item.newName);
+            }
+
+            try {
+                const res = await fetch('/api/batch-rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: changedItems.map(item => ({
+                            oldPath: item.path,
+                            newName: item.newName
+                        }))
+                    })
+                });
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                const success = data.results?.filter(r => r.success).length || 0;
+                showToast(`已重命名 ${success} 个文件`, 'success');
+
+                hideBatchRenameModal();
+                cancelSelect();
+                loadFiles(currentPath);
+            } catch (e) {
+                showToast('重命名失败: ' + e.message, 'error');
             }
         }
 
@@ -2342,6 +3119,73 @@
             document.getElementById('mainMenu').classList.remove('show');
         }
 
+        // 已打开文件面板
+        function updateOpenFilesCount() {
+            const count = Object.keys(openFiles).length;
+            const countEl = document.getElementById('openFilesCount');
+            if (countEl) countEl.textContent = count;
+        }
+
+        function showOpenFilesPanel() {
+            hideMainMenu();
+            renderOpenFilesList();
+            document.getElementById('openFilesPanel').classList.add('show');
+        }
+
+        function hideOpenFilesPanel() {
+            document.getElementById('openFilesPanel').classList.remove('show');
+        }
+
+        function renderOpenFilesList() {
+            const listEl = document.getElementById('openFilesList');
+            const files = Object.entries(openFiles);
+
+            if (files.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; color: var(--dim); padding: 40px 20px;">暂无打开的文件<br><br>点击文件列表中的文件即可打开</div>';
+                return;
+            }
+
+            listEl.innerHTML = files.map(([path, data]) => {
+                const icon = getFileIcon(data.name, false, data.fileType);
+                const modifiedMark = data.modified ? '<span style="color: var(--accent);"> ●</span>' : '';
+                return `
+                    <div class="file-item" style="padding: 10px 12px;" onclick="switchToOpenFile('${escapeJs(path)}')">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(data.name)}${modifiedMark}</div>
+                            <div class="file-meta" style="font-size: 11px;">${escapeHtml(path)}</div>
+                        </div>
+                        <div class="file-arrow" onclick="event.stopPropagation(); closeOpenFile('${escapeJs(path)}')">×</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function switchToOpenFile(path) {
+            hideOpenFilesPanel();
+            switchToFileTab(path);
+        }
+
+        function closeOpenFile(path) {
+            closeFileTab(path);
+            renderOpenFilesList();
+            updateOpenFilesCount();
+        }
+
+        function closeAllOpenFiles() {
+            const paths = Object.keys(openFiles);
+            for (const path of paths) {
+                if (openFiles[path]?.modified) {
+                    if (!confirm(`${openFiles[path].name} 有未保存的更改，确定关闭？`)) {
+                        continue;
+                    }
+                }
+                closeFileTab(path);
+            }
+            renderOpenFilesList();
+            updateOpenFilesCount();
+        }
+
         async function doAction(action) {
             hideActionMenu();
             if (!actionTarget) return;
@@ -2368,6 +3212,8 @@
                     document.body.removeChild(input);
                     showToast('路径已复制', 'success');
                 }
+            } else if (action === 'share') {
+                showShareModal(actionTarget.path, actionTarget.name);
             } else if (action === 'favorite') {
                 await addFavorite(actionTarget.path, actionTarget.name);
             } else if (action === 'rename') {
@@ -2386,6 +3232,8 @@
                         showToast(e.message, 'error');
                     }
                 });
+            } else if (action === 'unzip') {
+                await unzipFile(actionTarget.path);
             } else if (action === 'delete') {
                 if (!confirm('确定删除 ' + actionTarget.name + '？')) return;
                 try {
@@ -2401,6 +3249,119 @@
                 } catch (e) {
                     showToast(e.message, 'error');
                 }
+            }
+        }
+
+        // 文件分享功能
+        let shareFilePath = null; // 保存待分享的文件路径
+
+        function showShareModal(path, name) {
+            shareFilePath = path; // 保存路径到变量
+            document.getElementById('shareFileName').textContent = name;
+            document.getElementById('shareLinkContainer').style.display = 'none';
+            document.getElementById('generateShareBtn').style.display = 'inline-block';
+            document.getElementById('shareModal').classList.add('show');
+        }
+
+        function hideShareModal() {
+            document.getElementById('shareModal').classList.remove('show');
+            shareFilePath = null;
+        }
+
+        async function generateShareLink() {
+            if (!shareFilePath) {
+                showToast('文件路径丢失，请重试', 'error');
+                return;
+            }
+
+            const expiry = document.getElementById('shareExpiry').value;
+
+            try {
+                const res = await fetch('/api/share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: shareFilePath, expiry: parseInt(expiry) })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                const shareUrl = window.location.origin + '/s/' + data.shareId;
+                document.getElementById('shareLink').value = shareUrl;
+                document.getElementById('shareLinkContainer').style.display = 'block';
+                document.getElementById('generateShareBtn').style.display = 'none';
+                showToast('分享链接已生成', 'success');
+            } catch (e) {
+                showToast('生成分享链接失败: ' + e.message, 'error');
+            }
+        }
+
+        function copyShareLink() {
+            const input = document.getElementById('shareLink');
+            input.select();
+            document.execCommand('copy');
+            showToast('链接已复制', 'success');
+        }
+
+        // 压缩/解压功能
+        async function batchCompress() {
+            if (selectedFiles.size === 0) {
+                showToast('请选择文件', 'error');
+                return;
+            }
+
+            const zipName = currentPath.split('/').pop() || 'archive';
+            const defaultName = zipName + '.zip';
+
+            const name = prompt('请输入压缩包名称:', defaultName);
+            if (!name) return;
+
+            let finalName = name.trim();
+            if (!finalName.endsWith('.zip')) finalName += '.zip';
+            const outputPath = currentPath + '/' + finalName;
+
+            try {
+                showToast('正在压缩...', 'success');
+                const res = await fetch('/api/compress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paths: Array.from(selectedFiles),
+                        outputPath
+                    })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                showToast(`已创建 ${finalName}`, 'success');
+                cancelSelect();
+                loadFiles(currentPath);
+            } catch (e) {
+                showToast('压缩失败: ' + e.message, 'error');
+            }
+        }
+
+        async function unzipFile(filePath) {
+            const ext = filePath.split('.').pop().toLowerCase();
+            if (!['zip', 'tar', 'gz', 'tgz', 'tar.gz'].includes(ext)) {
+                showToast('不支持的压缩格式', 'error');
+                return;
+            }
+
+            if (!confirm('确定解压 ' + filePath.split('/').pop() + '？')) return;
+
+            try {
+                const res = await fetch('/api/unzip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: filePath })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                showToast('解压成功', 'success');
+                loadFiles(currentPath);
+            } catch (e) {
+                showToast(e.message, 'error');
             }
         }
 
@@ -3308,6 +4269,9 @@
         document.getElementById('actionMenu').onclick = (e) => { if (e.target.classList.contains('action-menu-close')) hideActionMenu(); };
         document.getElementById('mainMenu').onclick = (e) => { if (e.target.classList.contains('action-menu-close')) hideMainMenu(); };
         document.getElementById('shortcutConfigModal').onclick = (e) => { if (e.target.id === 'shortcutConfigModal') hideShortcutConfig(); };
+        document.getElementById('batchRenameModal').onclick = (e) => { if (e.target.id === 'batchRenameModal') hideBatchRenameModal(); };
+        document.getElementById('shareModal').onclick = (e) => { if (e.target.id === 'shareModal') hideShareModal(); };
+        document.getElementById('openFilesPanel').onclick = (e) => { if (e.target.id === 'openFilesPanel') hideOpenFilesPanel(); };
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && document.getElementById('modal').classList.contains('show')) confirmModal();
@@ -3317,11 +4281,45 @@
                 hideMainMenu();
                 hideUploadModal();
                 hideShortcutConfig();
+                hideBatchRenameModal();
+                hideShareModal();
                 closeAllPanels();
             }
-            if (e.ctrlKey && e.key === 's' && editor) {
-                e.preventDefault();
-                saveFile();
+
+            // 全局快捷键（仅在编辑器视图有效）
+            const isEditorView = document.getElementById('editorView').classList.contains('active');
+
+            if (e.ctrlKey || e.metaKey) {
+                // Ctrl+S 保存
+                if (e.key === 's' && editor) {
+                    e.preventDefault();
+                    saveFile();
+                }
+                // Ctrl+Shift+S 保存所有
+                if (e.key === 'S' && editor) {
+                    e.preventDefault();
+                    saveAllFiles();
+                }
+                // Ctrl+Shift+F 格式化
+                if (e.key === 'F' && editor) {
+                    e.preventDefault();
+                    formatCode();
+                }
+                // Ctrl+W 关闭当前标签
+                if (e.key === 'w' && isEditorView && activeFilePath) {
+                    e.preventDefault();
+                    closeFileTab(activeFilePath);
+                }
+                // Ctrl+Tab 切换到下一个标签
+                if (e.key === 'Tab' && isEditorView) {
+                    e.preventDefault();
+                    const paths = Object.keys(openFiles);
+                    if (paths.length > 1) {
+                        const currentIndex = paths.indexOf(activeFilePath);
+                        const nextIndex = (currentIndex + 1) % paths.length;
+                        switchToFileTab(paths[nextIndex]);
+                    }
+                }
             }
         });
 

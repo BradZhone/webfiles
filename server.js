@@ -11,6 +11,8 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const os = require('os');
 const pty = require('node-pty');
+const unzipper = require('unzipper');
+const tar = require('tar');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +21,7 @@ const wss = new WebSocketServer({ server });
 // 配置文件
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 const FAVORITES_FILE = path.join(__dirname, 'favorites.json');
+const SHARES_FILE = path.join(__dirname, 'shares.json');
 
 // 加载配置文件（如果存在）
 function loadConfigFile() {
@@ -62,6 +65,38 @@ function loadFavorites() {
 function saveFavorites(favorites) {
     fs.writeFileSync(FAVORITES_FILE, JSON.stringify(favorites, null, 2));
 }
+
+// 分享链接管理
+function loadShares() {
+    try {
+        return JSON.parse(fs.readFileSync(SHARES_FILE, 'utf-8'));
+    } catch {
+        return {};
+    }
+}
+
+function saveShares(shares) {
+    fs.writeFileSync(SHARES_FILE, JSON.stringify(shares, null, 2));
+}
+
+// 清理过期的分享链接
+function cleanExpiredShares() {
+    const shares = loadShares();
+    const now = Date.now();
+    let changed = false;
+
+    for (const [id, share] of Object.entries(shares)) {
+        if (share.expiry && share.expiry < now) {
+            delete shares[id];
+            changed = true;
+        }
+    }
+
+    if (changed) saveShares(shares);
+}
+
+// 启动时清理过期分享
+cleanExpiredShares();
 
 // 初始化密码
 function initPassword(password) {
@@ -697,6 +732,207 @@ app.delete('/api/favorites', requireAuth, (req, res) => {
 
     saveFavorites(favorites);
     res.json({ success: true, favorites });
+});
+
+// API: 批量重命名
+app.post('/api/batch-rename', requireAuth, (req, res) => {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: '参数不完整' });
+    }
+
+    const results = [];
+    for (const item of items) {
+        const { oldPath, newName } = item;
+        if (!oldPath || !newName) {
+            results.push({ path: oldPath, success: false, error: '参数不完整' });
+            continue;
+        }
+
+        const resolvedOldPath = path.resolve(oldPath);
+        if (!resolvedOldPath.startsWith(HOME_DIR) || resolvedOldPath === HOME_DIR) {
+            results.push({ path: oldPath, success: false, error: '无权操作' });
+            continue;
+        }
+
+        try {
+            const newPath = path.join(path.dirname(resolvedOldPath), newName);
+            // 检查目标是否已存在
+            if (fs.existsSync(newPath)) {
+                results.push({ path: oldPath, success: false, error: '目标名称已存在' });
+                continue;
+            }
+            fs.renameSync(resolvedOldPath, newPath);
+            results.push({ path: oldPath, success: true, newPath });
+        } catch (error) {
+            results.push({ path: oldPath, success: false, error: error.message });
+        }
+    }
+
+    res.json({ results });
+});
+
+// API: 文件分享
+app.post('/api/share', requireAuth, (req, res) => {
+    const { path: filePath, expiry } = req.body;
+    if (!filePath) return res.status(400).json({ error: '缺少路径' });
+
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+
+    // 检查文件是否存在
+    if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: '文件不存在' });
+    }
+
+    // 生成唯一分享ID
+    const shareId = crypto.randomBytes(8).toString('hex');
+    const shares = loadShares();
+
+    shares[shareId] = {
+        path: resolvedPath,
+        name: path.basename(resolvedPath),
+        createdAt: Date.now(),
+        expiry: expiry > 0 ? Date.now() + expiry * 1000 : null
+    };
+
+    saveShares(shares);
+    res.json({ success: true, shareId });
+});
+
+// API: 访问分享文件
+app.get('/s/:shareId', (req, res) => {
+    const { shareId } = req.params;
+    const shares = loadShares();
+    const share = shares[shareId];
+
+    if (!share) {
+        return res.status(404).send('分享链接不存在或已过期');
+    }
+
+    // 检查是否过期
+    if (share.expiry && share.expiry < Date.now()) {
+        delete shares[shareId];
+        saveShares(shares);
+        return res.status(410).send('分享链接已过期');
+    }
+
+    // 检查文件是否存在
+    if (!fs.existsSync(share.path)) {
+        return res.status(404).send('文件不存在');
+    }
+
+    const stats = fs.statSync(share.path);
+
+    if (stats.isDirectory()) {
+        // 压缩文件夹后下载
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(share.name)}.zip`);
+
+        const archive = archiver('zip', { zlib: { level: 5 } });
+        archive.pipe(res);
+        archive.directory(share.path, share.name);
+        archive.finalize();
+    } else {
+        // 直接下载文件
+        res.download(share.path, share.name);
+    }
+});
+
+// API: 批量压缩
+app.post('/api/compress', requireAuth, (req, res) => {
+    const { paths, outputPath } = req.body;
+    if (!paths || !Array.isArray(paths) || !outputPath) {
+        return res.status(400).json({ error: '参数错误' });
+    }
+
+    const resolvedOutput = path.resolve(outputPath);
+    if (!resolvedOutput.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+
+    // 检查输出路径是否已存在
+    if (fs.existsSync(resolvedOutput)) {
+        return res.status(400).json({ error: '目标文件已存在' });
+    }
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    const output = fs.createWriteStream(resolvedOutput);
+
+    output.on('close', () => {
+        res.json({ success: true, size: archive.pointer() });
+    });
+
+    archive.on('error', (err) => {
+        res.status(500).json({ error: err.message });
+    });
+
+    archive.pipe(output);
+
+    for (const itemPath of paths) {
+        const resolvedPath = path.resolve(itemPath);
+        if (!resolvedPath.startsWith(HOME_DIR)) continue;
+
+        try {
+            const stats = fs.statSync(resolvedPath);
+            const name = path.basename(resolvedPath);
+
+            if (stats.isDirectory()) {
+                archive.directory(resolvedPath, name);
+            } else {
+                archive.file(resolvedPath, { name });
+            }
+        } catch (e) {
+            console.error('压缩失败:', itemPath, e.message);
+        }
+    }
+
+    archive.finalize();
+});
+
+// API: 解压文件
+app.post('/api/unzip', requireAuth, async (req, res) => {
+    const { path: filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: '缺少路径' });
+
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: '文件不存在' });
+    }
+
+    const ext = resolvedPath.split('.').pop().toLowerCase();
+    const dirPath = path.dirname(resolvedPath);
+    const baseName = path.basename(resolvedPath, path.extname(resolvedPath));
+    const outputDir = path.join(dirPath, baseName);
+
+    try {
+        if (ext === 'zip') {
+            // 解压 ZIP
+            fs.mkdirSync(outputDir, { recursive: true });
+            fs.createReadStream(resolvedPath)
+                .pipe(unzipper.Extract({ path: outputDir }))
+                .on('close', () => res.json({ success: true, outputDir }))
+                .on('error', (err) => res.status(500).json({ error: err.message }));
+        } else if (ext === 'tar' || ext === 'gz' || ext === 'tgz') {
+            // 解压 TAR/TAR.GZ
+            fs.mkdirSync(outputDir, { recursive: true });
+            await tar.x({
+                file: resolvedPath,
+                cwd: outputDir
+            });
+            res.json({ success: true, outputDir });
+        } else {
+            res.status(400).json({ error: '不支持的压缩格式' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // 主页面
