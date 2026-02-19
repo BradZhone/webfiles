@@ -883,26 +883,16 @@ wss.on('connection', (ws, req) => {
         });
     }
 
-    // 发送输出到所有连接的客户端
+    // 发送输出到当前客户端（不广播，避免重复）
     ptyProcess.onData((data) => {
-        const connections = terminalConnections.get(terminalId);
-        if (connections) {
-            connections.forEach(clientWs => {
-                if (clientWs.readyState === 1) {
-                    clientWs.send(data);
-                }
-            });
+        if (ws.readyState === 1) {
+            ws.send(data);
         }
     });
 
     ptyProcess.onExit(({ exitCode }) => {
-        const connections = terminalConnections.get(terminalId);
-        if (connections) {
-            connections.forEach(clientWs => {
-                if (clientWs.readyState === 1) {
-                    clientWs.send(`\r\n\x1b[33m终端已退出 (code: ${exitCode})\x1b[0m\r\n`);
-                }
-            });
+        if (ws.readyState === 1) {
+            ws.send(`\r\n\x1b[33m终端已退出 (code: ${exitCode})\x1b[0m\r\n`);
         }
         if (terminalConnections.has(terminalId)) {
             terminalConnections.get(terminalId).delete(ws);

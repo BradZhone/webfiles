@@ -1252,7 +1252,7 @@
             </div>
         </div>
 
-        <!-- Row 4: Modifier keys (Shift, Ctrl) -->
+        <!-- Row 4: Modifier keys (Shift, Ctrl) + Edit keys -->
         <div class="terminal-keyboard-row">
             <div class="terminal-keyboard-btns" style="flex:1;">
                 <button class="terminal-keyboard-btn modifier-key" id="stickyShift" onclick="toggleModifier('Shift')">⇧ Shift</button>
@@ -1262,6 +1262,7 @@
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Home')">Home</button>
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('End')">End</button>
                 <button class="terminal-keyboard-btn large" onclick="sendMobileKey('Space')">Space</button>
+                <button class="terminal-keyboard-btn" onclick="showShortcutConfig()" title="自定义快捷键">⚙️</button>
             </div>
         </div>
 
@@ -2499,6 +2500,17 @@
         }
 
         async function createTerminalUI(terminalId, name, workDir, connect) {
+            // 检查终端是否已存在
+            if (terminals[terminalId]) {
+                console.log('Terminal already exists:', terminalId);
+                // 只重新连接 WebSocket
+                if (connect !== false && !terminals[terminalId].ws) {
+                    connectTerminalWebSocket(terminalId, terminals[terminalId].term);
+                }
+                switchTerminal(terminalId);
+                return;
+            }
+
             // 创建终端标签
             const tabsContainer = document.getElementById('terminalTabs');
             const addBtn = tabsContainer.querySelector('.terminal-add-btn');
@@ -2578,8 +2590,29 @@
         }
 
         function connectTerminalWebSocket(terminalId, term) {
+            // 确保 terminals[terminalId] 存在
+            if (!terminals[terminalId]) {
+                console.error('Terminal not found:', terminalId);
+                return;
+            }
+
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/terminal/${terminalId}`;
+
+            // 先关闭现有连接
+            if (terminals[terminalId].ws) {
+                const oldWs = terminals[terminalId].ws;
+                // 移除旧的 onData 监听器
+                if (terminals[terminalId].dataDisposable) {
+                    terminals[terminalId].dataDisposable.dispose();
+                    terminals[terminalId].dataDisposable = null;
+                }
+                if (terminals[terminalId].resizeDisposable) {
+                    terminals[terminalId].resizeDisposable.dispose();
+                    terminals[terminalId].resizeDisposable = null;
+                }
+                oldWs.close();
+            }
 
             const ws = new WebSocket(wsUrl);
 
@@ -2605,13 +2638,14 @@
                 showToast('终端连接错误', 'error');
             };
 
-            term.onData((data) => {
+            // 保存 disposable 以便后续清理
+            terminals[terminalId].dataDisposable = term.onData((data) => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'input', data }));
                 }
             });
 
-            term.onResize(({ cols, rows }) => {
+            terminals[terminalId].resizeDisposable = term.onResize(({ cols, rows }) => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'resize', cols, rows }));
                 }
