@@ -1,100 +1,82 @@
 # WebFiles
 
-A modern web-based file manager with a VSCode-like interface. Browse, edit, upload, and manage your files through a clean web interface.
+A modern web-based file manager with a VSCode-like interface.
+
+![](screenshot.png)
 
 ## Features
 
-- **File Browsing** - Navigate directories with breadcrumb navigation
-- **Code Editing** - Syntax highlighting for 50+ languages via CodeMirror
-- **Multi-tab Editing** - Open multiple files in tabs
-- **Code Formatting** - Auto-format code with Prettier
-- **Markdown Preview** - Live preview with GitHub-style rendering
-- **HTML Preview** - Live preview in iframe
-- **Media Support** - Preview images, audio, video, and PDF files
-- **File Upload** - Drag & drop or select multiple files (up to 100MB each)
-- **Batch Operations** - Multi-select for copy, move, delete
-- **Batch Rename** - Rename multiple files with patterns
-- **File Search** - Recursive search by filename
-- **Favorites** - Bookmark frequently used directories
-- **Path Jump** - Direct navigation to any path
-- **File Sharing** - Create time-limited share links
-- **Compression** - Create and extract zip/tar.gz archives
-- **Terminal** - Built-in terminal with tmux backend and persistent sessions
-- **Docker Support** - View container logs and exec into containers
-- **Mobile Friendly** - Responsive design with touch-optimized terminal controls
-- **Session Persistence** - 30-day login sessions
-- **Password Change** - Change password from settings
+| Category | Features |
+|----------|----------|
+| **File Management** | Browse, upload, download, rename, delete, search |
+| **Editing** | Multi-tab editor with syntax highlighting (50+ languages), code formatting |
+| **Preview** | Markdown, HTML, images, audio, video, PDF |
+| **Batch Operations** | Multi-select, batch copy/move/delete/rename |
+| **Archives** | Create and extract zip/tar.gz files |
+| **Terminal** | Built-in terminal with tmux backend, persistent sessions |
+| **Docker** | View container logs, exec into containers |
+| **Sharing** | Time-limited share links |
+| **Mobile** | Responsive design with touch-optimized controls |
+| **Security** | Password protection, 30-day sessions, path restriction |
 
 ## Quick Start
 
-### 1. Install Dependencies
-
 ```bash
+# 1. Clone and install
+git clone https://github.com/BradZhone/webfiles.git
+cd webfiles
 npm install
-```
 
-### 2. Start the Server
-
-```bash
-npm start
-# or
+# 2. Start server
 ./manage.sh start
+
+# 3. Open browser
+# http://localhost:8765
+# On first visit, you'll be asked to set a password
 ```
-
-### 3. Access the Interface
-
-Open `http://<your-server-ip>:8765` in your browser.
-
-On first launch, you'll be prompted to set a password.
 
 ## Configuration
 
-### Method 1: Environment Variables
+### Zero Config
+
+WebFiles works out of the box. Just start it and open the URL. On first visit, set your password through the web interface - no manual configuration needed.
+
+### Optional: Environment Variables
 
 ```bash
-export WEBFILES_PORT=8765
-export WEBFILES_HOME=/path/to/your/files
-export WEBFILES_SECRET=your-random-secret-string
+# Change port
+WEBFILES_PORT=9000 ./manage.sh start
 
-npm start
+# Restrict file access to specific directory
+WEBFILES_HOME=/data/files ./manage.sh start
+
+# Custom session secret (for multi-instance deployments)
+WEBFILES_SECRET=your-random-string ./manage.sh start
 ```
 
-### Method 2: config.json
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WEBFILES_PORT` | `8765` | Server port |
+| `WEBFILES_HOME` | `$HOME` | Root directory for file access |
+| `WEBFILES_SECRET` | auto-generated | Session encryption key |
 
-Copy the example config and edit:
+### Optional: config.json
 
-```bash
-cp config.example.json config.json
-```
-
-Edit `config.json`:
+For persistent configuration, create `config.json` in the project root:
 
 ```json
 {
   "port": 8765,
-  "homeDir": "/path/to/your/files",
-  "sessionSecret": "generate-a-random-string-here",
-  "passwordHash": "sha256-hash-of-your-password"
+  "homeDir": "/path/to/files",
+  "sessionSecret": "your-random-string"
 }
 ```
 
-#### Generate Password Hash
+> **Note:** Password is set through the web interface on first visit. Do not manually set `passwordHash`.
 
-```bash
-echo -n "your-password" | sha256sum
-```
+### Change Password
 
-### Configuration Priority
-
-1. Environment variables (highest priority)
-2. config.json
-3. Default values
-
-| Variable | Config Key | Default | Description |
-|----------|------------|---------|-------------|
-| `WEBFILES_PORT` | `port` | 8765 | Server port |
-| `WEBFILES_HOME` | `homeDir` | $HOME | Root directory for file access |
-| `WEBFILES_SECRET` | `sessionSecret` | random | Session encryption key |
+Click the ⚙️ (settings) icon in the top-right corner to change your password.
 
 ## Management
 
@@ -103,66 +85,73 @@ echo -n "your-password" | sha256sum
 ./manage.sh stop     # Stop server
 ./manage.sh restart  # Restart server
 ./manage.sh status   # Check status
-./manage.sh logs     # View logs
-./manage.sh config   # Show configuration
+./manage.sh logs     # View logs (Ctrl+C to exit)
 ```
 
-## Security Notes
+## Requirements
 
-1. **config.json is excluded from git** - Your password hash and session secret won't be committed
-2. **First-time password setup** - Access the web interface to set your initial password
-3. **Change password** - Use the settings (⚙️) button to change your password
-4. **Session persistence** - Sessions last 30 days by default
-5. **Path restriction** - Users can only access files within the configured home directory
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Node.js | 18+ | |
+| Linux/macOS | | Windows not supported |
+| tmux | | Required for terminal feature |
+| Docker | | Optional, for container features |
 
-## API Endpoints
+### Install tmux (if needed)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/files` | List directory contents |
-| GET | `/api/file` | Get file content |
-| POST | `/api/file` | Save file content |
-| POST | `/api/create` | Create file or folder |
-| DELETE | `/api/file` | Delete file or folder |
-| PUT | `/api/rename` | Rename file or folder |
-| POST | `/api/upload` | Upload files |
-| GET | `/api/download` | Download file or folder (zip) |
-| GET | `/api/search` | Search files by name |
-| POST | `/api/batch-delete` | Delete multiple items |
-| POST | `/api/batch-copy` | Copy multiple items |
-| POST | `/api/batch-move` | Move multiple items |
-| POST | `/api/batch-rename` | Rename multiple items |
-| POST | `/api/compress` | Create zip/tar.gz archive |
-| POST | `/api/extract` | Extract archive |
-| GET/POST/DELETE | `/api/favorites` | Manage favorites |
-| GET/POST/DELETE | `/api/share` | Manage file shares |
-| GET/POST | `/api/terminals` | Manage terminal sessions |
-| GET | `/api/containers` | List Docker containers |
-| POST | `/api/change-password` | Change password |
+```bash
+# Ubuntu/Debian
+sudo apt install tmux
 
-## Directory Structure
+# CentOS/RHEL
+sudo yum install tmux
+
+# macOS
+brew install tmux
+```
+
+## Security
+
+- **Password**: Set via web interface, stored as SHA-256 hash
+- **Session**: 30-day persistence with secure cookies
+- **Path restriction**: Users can only access files within `WEBFILES_HOME`
+- **Config exclusion**: `config.json` is excluded from git
+
+## File Structure
 
 ```
 webfiles/
 ├── server.js           # Main server
 ├── package.json        # Dependencies
 ├── manage.sh           # Management script
-├── config.example.json # Configuration template
-├── config.json         # Your config (gitignored)
-├── favorites.json      # User favorites (gitignored)
-├── shares.json         # File shares (gitignored)
-├── terminals.json      # Terminal sessions (gitignored)
 ├── public/
-│   └── index.html      # Web interface
-└── README.md           # This file
+│   └── index.html      # Web interface (single-file app)
+├── config.json         # Your config (auto-created, gitignored)
+├── favorites.json      # Bookmarks (gitignored)
+├── shares.json         # Share links (gitignored)
+└── terminals.json      # Terminal sessions (gitignored)
 ```
 
-## Requirements
+## API
 
-- Node.js 18+
-- Linux/macOS
-- tmux (for terminal feature)
-- Docker (optional, for container features)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/files` | List directory |
+| `GET/POST` | `/api/file` | Read/save file |
+| `POST` | `/api/create` | Create file/folder |
+| `DELETE` | `/api/file` | Delete file/folder |
+| `PUT` | `/api/rename` | Rename |
+| `POST` | `/api/upload` | Upload files |
+| `GET` | `/api/download` | Download file/folder |
+| `GET` | `/api/search` | Search files |
+| `POST` | `/api/batch-*` | Batch operations |
+| `POST` | `/api/compress` | Create archive |
+| `POST` | `/api/extract` | Extract archive |
+| `POST` | `/api/change-password` | Change password |
+| `*` | `/api/favorites` | Manage bookmarks |
+| `*` | `/api/share` | Manage shares |
+| `*` | `/api/terminals` | Manage terminals |
+| `GET` | `/api/containers` | List Docker containers |
 
 ## License
 
