@@ -6,6 +6,7 @@ config.json
 
 # User data
 favorites.json
+terminals.json
 
 # Runtime files
 server.pid
