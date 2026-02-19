@@ -747,7 +747,7 @@
             padding: 20px;
             z-index: 1100;
         }
-        .modal-overlay.show { display: flex; }
+        .modal-overlay.show, .modal-overlay.active { display: flex; }
         .modal {
             background: var(--bg-secondary);
             border-radius: 12px;
@@ -1167,6 +1167,7 @@
             <button class="toggle-btn" onclick="switchEditorView('preview')">预览</button>
         </div>
         <button class="header-btn" onclick="toggleSidebar()" id="favBtn">⭐</button>
+        <button class="header-btn" onclick="showSettingsModal()" id="settingsBtn">⚙️</button>
         <button class="header-btn" id="menuBtn">⋮</button>
     </div>
 
@@ -1364,6 +1365,33 @@
             <div class="modal-btns" style="margin-top: 16px;">
                 <button class="btn-secondary" onclick="resetShortcuts()">重置</button>
                 <button class="btn-primary" onclick="hideShortcutConfig()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal" style="max-width: 400px;">
+            <h3>⚙️ 设置</h3>
+            <div style="margin-bottom: 16px;">
+                <div class="terminal-keyboard-row-label">终端翻页行数</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="range" id="scrollLinesSlider" min="1" max="20" value="3" style="flex:1" oninput="updateScrollLinesDisplay()">
+                    <span id="scrollLinesValue" style="width: 40px; text-align: center;">3</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">每次点击翻页按钮滚动的行数</div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 16px;">
+                <div class="terminal-keyboard-row-label">修改密码</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="password" id="currentPassword" placeholder="当前密码" style="width: 100%">
+                    <input type="password" id="newPassword" placeholder="新密码" style="width: 100%">
+                    <input type="password" id="confirmPassword" placeholder="确认新密码" style="width: 100%">
+                    <button class="btn-secondary" onclick="changePassword()" style="width:100%">修改密码</button>
+                </div>
+            </div>
+            <div class="modal-btns">
+                <button class="btn-primary" onclick="hideSettingsModal()">完成</button>
             </div>
         </div>
     </div>
@@ -1853,6 +1881,7 @@
             document.getElementById(id).classList.add('active');
             document.getElementById('backBtn').style.display = id === 'listView' ? 'none' : 'block';
             document.getElementById('favBtn').style.display = id === 'listView' ? 'block' : 'none';
+            document.getElementById('settingsBtn').style.display = id === 'listView' ? 'block' : 'none';
         }
 
         function goBack() {
@@ -3637,6 +3666,9 @@
             document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';
         }
 
+        // 终端翻页行数设置
+        let scrollLines = parseInt(localStorage.getItem('scrollLines')) || 3;
+
         // 终端翻页
         function scrollTerminalUp() {
             const termId = activeTerminalId;
@@ -3646,7 +3678,7 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 const x = Math.floor(term.cols / 2);
                 const y = Math.floor(term.rows / 2);
-                for (let i = 0; i < 10; i++) {
+                for (let i = 0; i < scrollLines; i++) {
                     ws.send(JSON.stringify({ type: 'input', data: `\x1b[<64;${x};${y}M` }));
                 }
             }
@@ -3660,9 +3692,72 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 const x = Math.floor(term.cols / 2);
                 const y = Math.floor(term.rows / 2);
-                for (let i = 0; i < 10; i++) {
+                for (let i = 0; i < scrollLines; i++) {
                     ws.send(JSON.stringify({ type: 'input', data: `\x1b[<65;${x};${y}M` }));
                 }
+            }
+        }
+
+        // 设置模态框
+        function showSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('active');
+            document.getElementById('scrollLinesSlider').value = scrollLines;
+            document.getElementById('scrollLinesValue').textContent = scrollLines;
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+
+        function hideSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function updateScrollLinesDisplay() {
+            const value = document.getElementById('scrollLinesSlider').value;
+            document.getElementById('scrollLinesValue').textContent = value;
+            scrollLines = parseInt(value);
+            localStorage.setItem('scrollLines', scrollLines);
+        }
+
+        async function changePassword() {
+            const currentPwd = document.getElementById('currentPassword').value;
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+
+            if (!currentPwd || !newPwd || !confirmPwd) {
+                showToast('请填写所有密码字段', 'error');
+                return;
+            }
+
+            if (newPwd !== confirmPwd) {
+                showToast('新密码两次输入不一致', 'error');
+                return;
+            }
+
+            if (newPwd.length < 4) {
+                showToast('新密码至少4个字符', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    showToast('密码修改成功', 'success');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                }
+            } catch (e) {
+                showToast('修改密码失败: ' + e.message, 'error');
             }
         }
 
