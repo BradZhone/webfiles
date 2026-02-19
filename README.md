@@ -5,17 +5,25 @@ A modern web-based file manager with a VSCode-like interface. Browse, edit, uplo
 ## Features
 
 - **File Browsing** - Navigate directories with breadcrumb navigation
-- **Code Editing** - Syntax highlighting for 20+ languages via CodeMirror
+- **Code Editing** - Syntax highlighting for 50+ languages via CodeMirror
+- **Multi-tab Editing** - Open multiple files in tabs
+- **Code Formatting** - Auto-format code with Prettier
 - **Markdown Preview** - Live preview with GitHub-style rendering
 - **HTML Preview** - Live preview in iframe
 - **Media Support** - Preview images, audio, video, and PDF files
 - **File Upload** - Drag & drop or select multiple files (up to 100MB each)
 - **Batch Operations** - Multi-select for copy, move, delete
+- **Batch Rename** - Rename multiple files with patterns
 - **File Search** - Recursive search by filename
 - **Favorites** - Bookmark frequently used directories
 - **Path Jump** - Direct navigation to any path
-- **Mobile Friendly** - Responsive design for phones and tablets
+- **File Sharing** - Create time-limited share links
+- **Compression** - Create and extract zip/tar.gz archives
+- **Terminal** - Built-in terminal with tmux backend and persistent sessions
+- **Docker Support** - View container logs and exec into containers
+- **Mobile Friendly** - Responsive design with touch-optimized terminal controls
 - **Session Persistence** - 30-day login sessions
+- **Password Change** - Change password from settings
 
 ## Quick Start
 
@@ -103,8 +111,9 @@ echo -n "your-password" | sha256sum
 
 1. **config.json is excluded from git** - Your password hash and session secret won't be committed
 2. **First-time password setup** - Access the web interface to set your initial password
-3. **Session persistence** - Sessions last 30 days by default
-4. **Path restriction** - Users can only access files within the configured home directory
+3. **Change password** - Use the settings (⚙️) button to change your password
+4. **Session persistence** - Sessions last 30 days by default
+5. **Path restriction** - Users can only access files within the configured home directory
 
 ## API Endpoints
 
@@ -122,7 +131,14 @@ echo -n "your-password" | sha256sum
 | POST | `/api/batch-delete` | Delete multiple items |
 | POST | `/api/batch-copy` | Copy multiple items |
 | POST | `/api/batch-move` | Move multiple items |
+| POST | `/api/batch-rename` | Rename multiple items |
+| POST | `/api/compress` | Create zip/tar.gz archive |
+| POST | `/api/extract` | Extract archive |
 | GET/POST/DELETE | `/api/favorites` | Manage favorites |
+| GET/POST/DELETE | `/api/share` | Manage file shares |
+| GET/POST | `/api/terminals` | Manage terminal sessions |
+| GET | `/api/containers` | List Docker containers |
+| POST | `/api/change-password` | Change password |
 
 ## Directory Structure
 
@@ -134,6 +150,8 @@ webfiles/
 ├── config.example.json # Configuration template
 ├── config.json         # Your config (gitignored)
 ├── favorites.json      # User favorites (gitignored)
+├── shares.json         # File shares (gitignored)
+├── terminals.json      # Terminal sessions (gitignored)
 ├── public/
 │   └── index.html      # Web interface
 └── README.md           # This file
@@ -143,6 +161,8 @@ webfiles/
 
 - Node.js 18+
 - Linux/macOS
+- tmux (for terminal feature)
+- Docker (optional, for container features)
 
 ## License
 
