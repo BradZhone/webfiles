@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  webfiles:
+    build: .
+    image: webfiles:latest
+    container_name: webfiles
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      # Mount your data directory
+      - ./data:/data
+      # Or mount a specific directory from host
+      # - /path/to/your/files:/data
+    environment:
+      # Port to listen on (default: 8765)
+      - WEBFILES_PORT=8765
+      # Home directory for file browsing (default: /data)
+      - WEBFILES_HOME=/data
+      # Session secret (auto-generated if not set)
+      # - WEBFILES_SECRET=your-secret-key-here
+    security_opt:
+      # Required for terminal/pty support
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
