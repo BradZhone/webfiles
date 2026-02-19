@@ -970,6 +970,18 @@
             min-height: 0;
             padding: 0;
         }
+        .terminal-instance .xterm-viewport {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        .terminal-instance .xterm-screen {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        .xterm-selection div {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+        }
         /* Mobile terminal optimization */
         @media (max-width: 768px) {
             .terminal-container {
