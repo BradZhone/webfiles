@@ -1583,6 +1583,77 @@
         };
 
         function getMode(name) {
+            const basename = name.split('/').pop().toLowerCase();
+
+            // 特殊文件名匹配（隐藏文件、配置文件等）
+            const specialFiles = {
+                // Shell 配置
+                '.bashrc': 'shell', '.bash_profile': 'shell', '.bash_logout': 'shell',
+                '.zshrc': 'shell', '.zprofile': 'shell', '.zshenv': 'shell', '.zlogin': 'shell',
+                '.profile': 'shell', '.kshrc': 'shell',
+                '.shrc': 'shell', '.aliases': 'shell', '.functions': 'shell',
+                // Git
+                '.gitignore': 'shell', '.gitattributes': 'shell', '.gitmodules': 'shell', '.gitkeep': 'text/plain',
+                '.gitconfig': 'ini', '.git-commit-msg': 'text/plain',
+                // 编辑器/IDE
+                '.vimrc': 'shell', '.gvimrc': 'shell', '.exrc': 'shell',
+                '.editorconfig': 'ini',
+                '.eslintrc': 'javascript', '.eslintrc.js': 'javascript', '.eslintrc.json': { name: 'javascript', json: true },
+                '.prettierrc': 'javascript', '.prettierrc.js': 'javascript', '.prettierrc.json': { name: 'javascript', json: true },
+                '.stylelintrc': 'javascript', '.stylelintrc.js': 'javascript', '.stylelintrc.json': { name: 'javascript', json: true },
+                '.babelrc': 'javascript', '.babelrc.js': 'javascript', '.babelrc.json': { name: 'javascript', json: true },
+                '.tslintrc': 'javascript',
+                // Node.js
+                '.npmrc': 'ini', '.nvmrc': 'text/plain', '.node-version': 'text/plain',
+                '.npmignore': 'shell',
+                // Python
+                '.pythonrc': 'python', '.python_history': 'text/plain',
+                '.condarc': 'yaml', '.pylintrc': 'ini',
+                // Docker
+                '.dockerignore': 'shell', 'dockerfile': 'dockerfile',
+                'docker-compose.yml': 'yaml', 'docker-compose.yaml': 'yaml',
+                // Web
+                '.htaccess': 'apache',
+                '.nginx.conf': 'nginx',
+                '.env': 'properties', '.env.local': 'properties', '.env.development': 'properties', '.env.production': 'properties',
+                '.env.example': 'properties',
+                // Config
+                '.curlrc': 'text/plain', '.wgetrc': 'text/plain',
+                '.inputrc': 'text/plain',
+                '.screenrc': 'text/plain', '.tmux.conf': 'shell',
+                '.config': 'ini',
+                'makefile': 'shell', 'gnumakefile': 'shell',
+                'vagrantfile': 'ruby',
+                'gemfile': 'ruby', 'rakefile': 'ruby',
+                'procfile': 'text/plain',
+                'jenkinsfile': 'groovy',
+                'package.json': { name: 'javascript', json: true }, 'package-lock.json': { name: 'javascript', json: true },
+                'tsconfig.json': { name: 'javascript', json: true }, 'jsconfig.json': { name: 'javascript', json: true },
+                'composer.json': { name: 'javascript', json: true },
+                'license': 'markdown', 'license.md': 'markdown', 'license.txt': 'text/plain',
+                'readme': 'markdown', 'readme.md': 'markdown', 'readme.txt': 'text/plain',
+                'changelog': 'markdown', 'changelog.md': 'markdown',
+                'contributing': 'markdown', 'contributing.md': 'markdown',
+            };
+
+            if (specialFiles[basename]) {
+                return specialFiles[basename];
+            }
+
+            // 检查部分匹配
+            if (basename.startsWith('dockerfile')) return 'dockerfile';
+            if (basename.startsWith('.env')) return 'properties';
+            if (basename.startsWith('.bash')) return 'shell';
+            if (basename.startsWith('.zsh')) return 'shell';
+            if (basename.endsWith('rc') && basename.startsWith('.')) return 'shell';
+            if (basename === 'license' || basename.startsWith('license.')) return 'markdown';
+            if (basename === 'readme' || basename.startsWith('readme.')) return 'markdown';
+            if (basename === 'changelog' || basename.startsWith('changelog.')) return 'markdown';
+            if (basename === 'makefile' || basename.startsWith('makefile.')) return 'shell';
+            if (basename.endsWith('.service')) return 'ini';  // systemd
+            if (basename.endsWith('.conf')) return 'ini';
+
+            // 扩展名匹配
             const ext = name.split('.').pop().toLowerCase();
             return modes[ext] || 'text/plain';
         }
