@@ -972,6 +972,8 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 // ========== 终端管理 ==========
 const TERMINALS_FILE = path.join(__dirname, 'terminals.json');
 const terminalConnections = new Map(); // 存储活跃的 WebSocket 连接
+const terminalPtyProcesses = new Map(); // 存储共享的 pty 进程
+const terminalBuffers = new Map(); // 存储输出缓冲区
 
 // 加载终端配置
 function loadTerminalsConfig() {
@@ -997,19 +999,56 @@ function getTmuxSessions() {
     }
 }
 
-// API: 获取终端列表（合并 tmux 会话和保存的配置）
+// 创建或恢复 tmux 会话
+function ensureTmuxSession(terminalId, workDir) {
+    const sessionName = `webfiles_${terminalId}`;
+    try {
+        // 检查会话是否已存在
+        require('child_process').execSync(`tmux has-session -t ${sessionName} 2>/dev/null`);
+        return true;
+    } catch {
+        // 会话不存在，尝试创建
+        try {
+            require('child_process').execSync(`tmux new-session -d -s ${sessionName} -c "${workDir}"`, { encoding: 'utf-8' });
+            // 启用鼠标模式和终端滚动
+            try {
+                require('child_process').execSync(`tmux set-option -t ${sessionName} mouse on 2>/dev/null`);
+                require('child_process').execSync(`tmux set-option -t ${sessionName} terminal-overrides 'xterm*:smcup@:rmcup@:*256col*:Tc' 2>/dev/null`);
+            } catch {}
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+}
+
+// API: 获取终端列表（以配置文件为主，自动恢复丢失的会话）
 app.get('/api/terminals', requireAuth, (req, res) => {
     const config = loadTerminalsConfig();
     const tmuxSessions = getTmuxSessions();
+    const tmuxSessionSet = new Set(tmuxSessions);
 
     const terminalList = [];
-    for (const sessionName of tmuxSessions) {
-        const id = sessionName.replace('webfiles_', '');
-        const savedInfo = config.terminals[id] || {};
+    
+    // 遍历配置文件中的所有终端
+    for (const [id, savedInfo] of Object.entries(config.terminals)) {
+        const sessionName = `webfiles_${id}`;
+        const workDir = savedInfo.cwd || HOME_DIR;
+        
+        // 检查 tmux 会话是否存在，如果不存在则尝试恢复
+        if (!tmuxSessionSet.has(sessionName)) {
+            // 尝试恢复 tmux 会话
+            const restored = ensureTmuxSession(id, workDir);
+            if (!restored) {
+                // tmux 不可用，跳过此终端（或标记为不可用）
+                continue;
+            }
+        }
+        
         terminalList.push({
             id,
             name: savedInfo.name || id.split('_')[0] || 'Terminal',
-            cwd: savedInfo.cwd || HOME_DIR,
+            cwd: workDir,
             createdAt: savedInfo.createdAt || Date.now()
         });
     }
@@ -1108,27 +1147,13 @@ app.delete('/api/terminals/:id', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// WebSocket 处理
-wss.on('connection', (ws, req) => {
-    const match = req.url.match(/\/terminal\/(.+)/);
-    if (!match) {
-        ws.close();
-        return;
+// 获取或创建 pty 进程
+function getOrCreatePtyProcess(terminalId, workDir) {
+    if (terminalPtyProcesses.has(terminalId)) {
+        return terminalPtyProcesses.get(terminalId);
     }
 
-    const terminalId = match[1];
     const sessionName = `webfiles_${terminalId}`;
-    const config = loadTerminalsConfig();
-    const terminalInfo = config.terminals[terminalId] || {};
-    const workDir = terminalInfo.cwd || HOME_DIR;
-
-    // 存储连接
-    if (!terminalConnections.has(terminalId)) {
-        terminalConnections.set(terminalId, new Set());
-    }
-    terminalConnections.get(terminalId).add(ws);
-
-    // 使用 node-pty 创建真正的伪终端
     let ptyProcess;
     let useTmux = false;
 
@@ -1156,25 +1181,113 @@ wss.on('connection', (ws, req) => {
         });
     }
 
-    // 发送输出到当前客户端（不广播，避免重复）
+    const ptyInfo = { process: ptyProcess, useTmux, lastActivity: Date.now() };
+
+    // 初始化缓冲区
+    terminalBuffers.set(terminalId, []);
+    
+    // 数据缓冲区大小限制
+    const MAX_BUFFER_SIZE = 100 * 1024; // 100KB
+
+    // 发送输出到所有连接的客户端
     ptyProcess.onData((data) => {
-        if (ws.readyState === 1) {
-            ws.send(data);
+        ptyInfo.lastActivity = Date.now();
+        
+        // 添加到缓冲区（用于新连接的客户端）
+        const buffer = terminalBuffers.get(terminalId) || [];
+        buffer.push({ data, timestamp: Date.now() });
+        
+        // 限制缓冲区大小
+        let totalSize = buffer.reduce((sum, item) => sum + item.data.length, 0);
+        while (totalSize > MAX_BUFFER_SIZE && buffer.length > 1) {
+            totalSize -= buffer.shift().data.length;
+        }
+        terminalBuffers.set(terminalId, buffer);
+
+        // 广播到所有连接的客户端
+        const connections = terminalConnections.get(terminalId);
+        if (connections) {
+            connections.forEach(clientWs => {
+                try {
+                    if (clientWs.readyState === 1) {
+                        // 检查缓冲区，避免发送过快
+                        if (clientWs.bufferedAmount < 64 * 1024) {
+                            clientWs.send(data);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error sending to client:', e);
+                }
+            });
         }
     });
 
     ptyProcess.onExit(({ exitCode }) => {
-        if (ws.readyState === 1) {
-            ws.send(`\r\n\x1b[33m终端已退出 (code: ${exitCode})\x1b[0m\r\n`);
+        const connections = terminalConnections.get(terminalId);
+        if (connections) {
+            connections.forEach(clientWs => {
+                try {
+                    if (clientWs.readyState === 1) {
+                        clientWs.send(`\r\n\x1b[33m终端已退出 (code: ${exitCode})\x1b[0m\r\n`);
+                    }
+                } catch {}
+            });
         }
-        if (terminalConnections.has(terminalId)) {
-            terminalConnections.get(terminalId).delete(ws);
-        }
+        terminalPtyProcesses.delete(terminalId);
+        terminalBuffers.delete(terminalId);
+    });
+
+    terminalPtyProcesses.set(terminalId, ptyInfo);
+    return ptyInfo;
+}
+
+// WebSocket 处理
+wss.on('connection', (ws, req) => {
+    const match = req.url.match(/\/terminal\/(.+)/);
+    if (!match) {
+        ws.close();
+        return;
+    }
+
+    const terminalId = match[1];
+    const config = loadTerminalsConfig();
+    const terminalInfo = config.terminals[terminalId] || {};
+    const workDir = terminalInfo.cwd || HOME_DIR;
+
+    // 存储连接
+    if (!terminalConnections.has(terminalId)) {
+        terminalConnections.set(terminalId, new Set());
+    }
+    terminalConnections.get(terminalId).add(ws);
+
+    // 获取或创建共享的 pty 进程
+    const ptyInfo = getOrCreatePtyProcess(terminalId, workDir);
+    const ptyProcess = ptyInfo.process;
+
+    // 发送缓冲区内容给新连接的客户端
+    const buffer = terminalBuffers.get(terminalId) || [];
+    if (buffer.length > 0) {
+        // 延迟发送缓冲区内容，确保客户端已准备好
+        setTimeout(() => {
+            if (ws.readyState === 1) {
+                const recentData = buffer.slice(-20).map(item => item.data).join('');
+                ws.send(recentData);
+            }
+        }, 50);
+    }
+
+    // 心跳检测
+    ws.isAlive = true;
+    ws.on('pong', () => {
+        ws.isAlive = true;
     });
 
     // 接收 WebSocket 输入
     ws.on('message', (data) => {
         try {
+            ws.isAlive = true;
+            ptyInfo.lastActivity = Date.now();
+            
             const msg = JSON.parse(data);
             if (msg.type === 'input') {
                 ptyProcess.write(msg.data);
@@ -1193,12 +1306,36 @@ wss.on('connection', (ws, req) => {
         if (terminalConnections.has(terminalId)) {
             terminalConnections.get(terminalId).delete(ws);
         }
-        // 只在非 tmux 模式下关闭 pty
-        if (!useTmux) {
-            try { ptyProcess.kill(); } catch {}
+
+        // 检查是否还有其他连接，如果没有则考虑关闭 pty
+        const connections = terminalConnections.get(terminalId);
+        if (!connections || connections.size === 0) {
+            // 非tmux模式下，延迟关闭pty（允许短暂重连）
+            if (!ptyInfo.useTmux) {
+                setTimeout(() => {
+                    const currentConnections = terminalConnections.get(terminalId);
+                    if (!currentConnections || currentConnections.size === 0) {
+                        try { ptyProcess.kill(); } catch {}
+                        terminalPtyProcesses.delete(terminalId);
+                        terminalBuffers.delete(terminalId);
+                    }
+                }, 5000); // 5秒后关闭
+            }
         }
     });
 });
+
+// 定期检查死连接
+const HEARTBEAT_INTERVAL = 30000; // 30秒
+setInterval(() => {
+    wss.clients.forEach(ws => {
+        if (ws.isAlive === false) {
+            return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, HEARTBEAT_INTERVAL);
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  文件管理器已启动\n  http://<服务器IP>:${PORT}\n  Home: ${HOME_DIR}\n`);
