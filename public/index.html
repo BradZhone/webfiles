@@ -1153,6 +1153,71 @@
             padding: 4px 8px;
             font-size: 12px;
         }
+        /* 终端选择模式样式 */
+        .terminal-select-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            z-index: 1001;
+            flex-direction: column;
+        }
+        .terminal-select-overlay.active {
+            display: flex;
+        }
+        .terminal-select-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+        .terminal-select-header span {
+            flex: 1;
+            color: var(--text-secondary);
+        }
+        .terminal-select-textarea {
+            flex: 1;
+            width: 100%;
+            padding: 10px;
+            background: #0d1117;
+            color: #e6edf3;
+            border: none;
+            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            resize: none;
+            outline: none;
+            white-space: pre;
+            overflow: auto;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        #selectModeBtn.active {
+            background: var(--accent);
+            color: white;
+        }
+        .terminal-instance.select-mode .xterm {
+            pointer-events: none;
+        }
+        .terminal-instance.select-mode::after {
+            content: '选择模式：在下方文本框中选择文本';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: var(--accent);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 10;
+        }
         .terminal-toolbar {
             display: flex;
             gap: 8px;
@@ -1278,8 +1343,19 @@
             <button class="btn-secondary" onclick="closeTerminalView()">返回文件</button>
             <button class="btn-secondary" onclick="scrollTerminalUp()">▲ 上翻</button>
             <button class="btn-secondary" onclick="scrollTerminalDown()">▼ 下翻</button>
+            <button class="btn-secondary" id="selectModeBtn" onclick="toggleSelectMode()">📎 选择</button>
             <button class="btn-secondary" onclick="showMobileKeyboard()">⌨️</button>
         </div>
+    </div>
+
+    <!-- 终端选择模式文本框 (手机端使用) -->
+    <div class="terminal-select-overlay" id="terminalSelectOverlay">
+        <div class="terminal-select-header">
+            <span>选择模式 - 选择文本后可复制</span>
+            <button class="btn-secondary" onclick="copySelectedText()">📋 复制</button>
+            <button class="btn-secondary" onclick="exitSelectMode()">✕ 关闭</button>
+        </div>
+        <textarea class="terminal-select-textarea" id="terminalSelectTextarea" readonly placeholder="终端内容将显示在这里..."></textarea>
     </div>
 
     <!-- Mobile keyboard helper for terminal - compact design -->
@@ -3869,6 +3945,9 @@
             terminals[terminalId] = { term, fitAddon, ws: null, name, cwd: workDir };
             terminalFitAddons[terminalId] = fitAddon;
 
+            // 设置选择功能（用于选择模式）
+            setupTerminalSelection(terminalId, term);
+
             // 先自适应大小，再连接 WebSocket
             setTimeout(() => {
                 fitAddon.fit();
@@ -3908,12 +3987,17 @@
                     terminals[terminalId].resizeDisposable.dispose();
                     terminals[terminalId].resizeDisposable = null;
                 }
+                // 设置标志防止重连
+                oldWs._isReplaced = true;
                 oldWs.close();
             }
 
             const ws = new WebSocket(wsUrl);
+            let isWsOpen = false;
 
             ws.onopen = () => {
+                if (ws._isReplaced) return; // 如果已被替换，忽略
+                isWsOpen = true;
                 if (terminals[terminalId]) {
                     terminals[terminalId].ws = ws;
                     // 清除本地缓冲区，让 tmux 内容重新渲染
@@ -3922,41 +4006,122 @@
                     const fitAddon = terminals[terminalId].fitAddon;
                     if (fitAddon) {
                         setTimeout(() => {
-                            fitAddon.fit();
-                            ws.send(JSON.stringify({
-                                type: 'resize',
-                                cols: term.cols,
-                                rows: term.rows
-                            }));
+                            if (terminals[terminalId] && terminals[terminalId].ws === ws) {
+                                fitAddon.fit();
+                                safeSend(ws, { type: 'resize', cols: term.cols, rows: term.rows });
+                            }
                         }, 100);
                     }
                 }
             };
 
-            ws.onmessage = (event) => {
-                term.write(event.data);
-            };
+            // 写入队列和节流控制
+            let writeQueue = [];
+            let isWriting = false;
+            let lastWriteTime = 0;
+            const WRITE_THROTTLE_MS = 16; // ~60fps
+            const MAX_QUEUE_SIZE = 1000;
 
-            ws.onclose = () => {
-                if (terminals[terminalId]) {
-                    terminals[terminalId].ws = null;
+            const processWriteQueue = () => {
+                if (isWriting || writeQueue.length === 0) return;
+                isWriting = true;
+                
+                const now = Date.now();
+                const timeSinceLastWrite = now - lastWriteTime;
+                
+                if (timeSinceLastWrite < WRITE_THROTTLE_MS) {
+                    setTimeout(() => {
+                        isWriting = false;
+                        processWriteQueue();
+                    }, WRITE_THROTTLE_MS - timeSinceLastWrite);
+                    return;
+                }
+
+                // 批量处理队列中的数据
+                const batchSize = Math.min(writeQueue.length, 50);
+                let combinedData = '';
+                for (let i = 0; i < batchSize; i++) {
+                    combinedData += writeQueue.shift();
+                }
+                
+                try {
+                    term.write(combinedData);
+                    lastWriteTime = Date.now();
+                } catch (e) {
+                    console.error('Terminal write error:', e);
+                }
+                
+                isWriting = false;
+                
+                // 如果队列中还有数据，继续处理
+                if (writeQueue.length > 0) {
+                    requestAnimationFrame(processWriteQueue);
                 }
             };
 
-            ws.onerror = () => {
-                showToast('终端连接错误', 'error');
+            ws.onmessage = (event) => {
+                if (ws._isReplaced) return;
+                
+                // 添加到写入队列
+                writeQueue.push(event.data);
+                
+                // 防止队列过大
+                if (writeQueue.length > MAX_QUEUE_SIZE) {
+                    writeQueue = writeQueue.slice(-MAX_QUEUE_SIZE / 2);
+                }
+                
+                // 使用 requestAnimationFrame 进行节流
+                requestAnimationFrame(processWriteQueue);
+            };
+
+            ws.onclose = () => {
+                isWsOpen = false;
+                if (terminals[terminalId] && terminals[terminalId].ws === ws) {
+                    terminals[terminalId].ws = null;
+                }
+                // 清空写入队列
+                writeQueue = [];
+            };
+
+            ws.onerror = (error) => {
+                console.error('Terminal WebSocket error:', error);
+                if (!ws._isReplaced) {
+                    showToast('终端连接错误', 'error');
+                }
+            };
+
+            // 安全发送函数，检查缓冲区
+            const safeSend = (websocket, msg) => {
+                if (!websocket || websocket.readyState !== WebSocket.OPEN) return false;
+                
+                // 检查缓冲区大小，避免阻塞
+                if (websocket.bufferedAmount > 1024 * 1024) { // 1MB
+                    console.warn('WebSocket buffer full, skipping send');
+                    return false;
+                }
+                
+                try {
+                    websocket.send(JSON.stringify(msg));
+                    return true;
+                } catch (e) {
+                    console.error('WebSocket send error:', e);
+                    return false;
+                }
             };
 
             // 保存 disposable 以便后续清理
+            // 重要：使用 terminals[terminalId].ws 而不是闭包中的 ws 变量
             terminals[terminalId].dataDisposable = term.onData((data) => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'input', data }));
+                const currentWs = terminals[terminalId]?.ws;
+                if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+                    safeSend(currentWs, { type: 'input', data });
                 }
             });
 
             terminals[terminalId].resizeDisposable = term.onResize(({ cols, rows }) => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+                const currentWs = terminals[terminalId]?.ws;
+                if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+                    safeSend(currentWs, { type: 'resize', cols, rows });
                 }
             });
         }
@@ -4247,6 +4412,137 @@
             const helper = document.getElementById('mobileKeyboardHelper');
             helper.classList.remove('active');
             document.getElementById('mobileTerminalInput').value = '';
+        }
+
+        // ========== 终端选择模式 ==========
+        let isInSelectMode = false;
+
+        function toggleSelectMode() {
+            if (isInSelectMode) {
+                exitSelectMode();
+            } else {
+                enterSelectMode();
+            }
+        }
+
+        function enterSelectMode() {
+            if (!activeTerminalId || !terminals[activeTerminalId]) {
+                alert('请先选择一个终端');
+                return;
+            }
+
+            isInSelectMode = true;
+            const btn = document.getElementById('selectModeBtn');
+            btn.classList.add('active');
+            btn.textContent = '📎 退出';
+
+            const term = terminals[activeTerminalId].term;
+
+            // 手机端：显示选择覆盖层
+            if (window.innerWidth < 768 || 'ontouchstart' in window) {
+                const overlay = document.getElementById('terminalSelectOverlay');
+                const textarea = document.getElementById('terminalSelectTextarea');
+
+                // 获取终端当前内容
+                const buffer = term.buffer.active;
+                let content = '';
+                for (let i = 0; i < buffer.length; i++) {
+                    const line = buffer.getLine(i);
+                    if (line) {
+                        content += line.translateToString(true) + '\n';
+                    }
+                }
+
+                textarea.value = content.trim();
+                overlay.classList.add('active');
+
+                // 聚焦到 textarea 以便选择
+                setTimeout(() => {
+                    textarea.focus();
+                    textarea.setSelectionRange(0, 0);
+                    textarea.scrollTop = textarea.scrollHeight;
+                }, 100);
+            } else {
+                // 电脑端：禁用 tmux 鼠标模式，启用原生选择
+                const termInstance = document.getElementById('instance_' + activeTerminalId);
+                if (termInstance) {
+                    termInstance.classList.add('select-mode');
+                }
+
+                // 发送按键禁用 tmux 鼠标
+                const ws = terminals[activeTerminalId].ws;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    // 先按住 Shift 才能选择，所以我们只是提示用户
+                }
+
+                // 启用 xterm 的选择功能
+                term.options.selectOnMouseUp = true;
+
+                // 提示用户
+                showToast('选择模式：按住 Shift 并拖动鼠标选择文本，松开后自动复制');
+            }
+        }
+
+        function exitSelectMode() {
+            isInSelectMode = false;
+            const btn = document.getElementById('selectModeBtn');
+            btn.classList.remove('active');
+            btn.textContent = '📎 选择';
+
+            // 隐藏手机端选择覆盖层
+            const overlay = document.getElementById('terminalSelectOverlay');
+            overlay.classList.remove('active');
+
+            // 电脑端：恢复终端实例
+            if (activeTerminalId && terminals[activeTerminalId]) {
+                const termInstance = document.getElementById('instance_' + activeTerminalId);
+                if (termInstance) {
+                    termInstance.classList.remove('select-mode');
+                }
+            }
+        }
+
+        function copySelectedText() {
+            const textarea = document.getElementById('terminalSelectTextarea');
+            const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+
+            if (selectedText) {
+                navigator.clipboard.writeText(selectedText).then(() => {
+                    showToast('已复制 ' + selectedText.length + ' 个字符');
+                    exitSelectMode();
+                }).catch(err => {
+                    // 降级方案：使用 execCommand
+                    textarea.select();
+                    document.execCommand('copy');
+                    showToast('已复制 ' + selectedText.length + ' ' + '个字符');
+                    exitSelectMode();
+                });
+            } else {
+                showToast('请先选择要复制的文本');
+            }
+        }
+
+        // 电脑端：监听终端选择事件，自动复制
+        function setupTerminalSelection(terminalId, term) {
+            term.onSelectionChange(() => {
+                if (!isInSelectMode) return;
+
+                const selection = term.getSelection();
+                if (selection && selection.length > 0) {
+                    navigator.clipboard.writeText(selection).then(() => {
+                        showToast('已复制 ' + selection.length + ' 个字符');
+                    }).catch(() => {
+                        // 降级方案
+                        const textArea = document.createElement('textarea');
+                        textArea.value = selection;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        showToast('已复制 ' + selection.length + ' 个字符');
+                    });
+                }
+            });
         }
 
         function sendMobileInput() {
