@@ -195,6 +195,13 @@
         .toolbar-btn.danger:hover {
             background: var(--danger-subtle);
         }
+        .toolbar-divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
 
         /* 面包屑 */
         .breadcrumb {
@@ -671,8 +678,85 @@
         .media-info {
             margin-top: 16px;
             text-align: center;
-            color: var(--dim);
+            color: var(--text-secondary);
             font-size: 12px;
+            background: var(--item);
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            max-width: 400px;
+        }
+        .media-info-title {
+            color: var(--text);
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+        .media-info-meta {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .media-info-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .media-info-actions {
+            margin-top: 12px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+        .media-action-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .media-action-btn:hover {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .media-view {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            -webkit-overflow-scrolling: touch;
+            background: var(--bg-secondary);
+            gap: 16px;
+        }
+        .media-view img {
+            max-width: 100%;
+            max-height: 50vh;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            cursor: zoom-in;
+            transition: transform 0.15s ease;
+        }
+        .media-view img:hover {
+            transform: scale(1.02);
+        }
+        .media-view video {
+            max-width: 100%;
+            max-height: 50vh;
+            border-radius: 8px;
+            background: #000;
+        }
+        .media-view audio {
+            width: 100%;
+            max-width: 400px;
         }
 
         /* HTML 预览 */
@@ -769,6 +853,15 @@
             border-top: 1px solid var(--border);
             flex-shrink: 0;
         }
+        /* 文件列表底部栏：桌面端隐藏，移动端显示 */
+        .bottom-bar.desktop-hidden {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .bottom-bar.desktop-hidden {
+                display: flex;
+            }
+        }
         .bottom-bar button {
             flex: 1;
             padding: 10px;
@@ -798,6 +891,110 @@
             color: #fff;
         }
         .btn-danger:hover { filter: brightness(1.1); }
+        /* 按钮加载状态 */
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            top: 50%;
+            left: 50%;
+            margin-left: -7px;
+            margin-top: -7px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: btn-spin 0.8s linear infinite;
+        }
+        @keyframes btn-spin {
+            to { transform: rotate(360deg); }
+        }
+        /* 拖拽上传区域 */
+        .drop-zone {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(13, 17, 23, 0.95);
+            border: 3px dashed var(--accent);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+        .drop-zone.active {
+            display: flex;
+        }
+        .drop-zone-content {
+            text-align: center;
+            color: var(--accent);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .drop-zone-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        .drop-zone-text {
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .drop-zone-hint {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+        /* 文件预览增强 */
+        .preview-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .preview-toolbar-btn {
+            background: var(--item);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .preview-toolbar-btn:hover {
+            background: var(--item-hover);
+            color: var(--text);
+        }
+        .preview-toolbar-btn.active {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .preview-info-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .preview-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
         /* 模态框 */
         .modal-overlay {
@@ -1299,6 +1496,14 @@
     </style>
 </head>
 <body>
+    <!-- 拖拽上传区域 -->
+    <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-content">
+            <div class="drop-zone-icon">📤</div>
+            <div class="drop-zone-text">释放以上传文件</div>
+            <div class="drop-zone-hint">文件将上传到: <span id="dropZonePath">~</span></div>
+        </div>
+    </div>
     <!-- 系统状态栏 -->
     <div class="stats-bar" id="statsBar">
         <div class="stats-item">
@@ -1369,27 +1574,31 @@
         </div>
         <!-- 工具栏 -->
         <div class="toolbar" id="toolbar">
-            <button class="toolbar-btn" onclick="showUploadModal()">📤 上传</button>
-            <button class="toolbar-btn" onclick="showSearchView()">🔍 搜索</button>
-            <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">☑️ 多选</button>
-            <button class="toolbar-btn" onclick="showNewModal('file')">📄 新建</button>
-            <button class="toolbar-btn" onclick="showNewModal('folder')">📁 文件夹</button>
-            <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">💻 终端</button>
+            <button class="toolbar-btn" onclick="showUploadModal()">上传</button>
+            <button class="toolbar-btn" onclick="showSearchView()">搜索</button>
+            <div class="toolbar-divider"></div>
+            <button class="toolbar-btn" onclick="showNewModal('file')">新建</button>
+            <button class="toolbar-btn" onclick="showNewModal('folder')">文件夹</button>
+            <div class="toolbar-divider"></div>
+            <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">多选</button>
+            <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
         </div>
         <!-- 批量操作栏 -->
         <div class="toolbar" id="batchToolbar" style="display:none">
             <button class="toolbar-btn" onclick="selectAll()">全选</button>
             <button class="toolbar-btn" onclick="cancelSelect()">取消</button>
-            <button class="toolbar-btn" onclick="showBatchMoveModal()">📁 移动</button>
-            <button class="toolbar-btn" onclick="showBatchCopyModal()">📋 复制</button>
-            <button class="toolbar-btn" onclick="showBatchRenameModal()">✏️ 重命名</button>
-            <button class="toolbar-btn" onclick="batchCompress()">📦 压缩</button>
-            <button class="toolbar-btn danger" onclick="batchDelete()">🗑️ 删除</button>
+            <div class="toolbar-divider"></div>
+            <button class="toolbar-btn" onclick="showBatchMoveModal()">移动</button>
+            <button class="toolbar-btn" onclick="showBatchCopyModal()">复制</button>
+            <button class="toolbar-btn" onclick="showBatchRenameModal()">重命名</button>
+            <button class="toolbar-btn" onclick="batchCompress()">压缩</button>
+            <div class="toolbar-divider"></div>
+            <button class="toolbar-btn danger" onclick="batchDelete()">删除</button>
         </div>
         <div class="file-list" id="fileList"><div class="loading"><div class="spinner"></div></div></div>
-        <div class="bottom-bar" id="listBar">
-            <button class="btn-secondary" onclick="showUploadModal()">📤 上传</button>
-            <button class="btn-secondary" onclick="showSearchView()">🔍 搜索</button>
+        <div class="bottom-bar desktop-hidden" id="listBar">
+            <button class="btn-secondary" onclick="showUploadModal()">上传</button>
+            <button class="btn-secondary" onclick="showSearchView()">搜索</button>
         </div>
     </div>
 
@@ -1439,11 +1648,11 @@
             </div>
         </div>
         <div class="bottom-bar">
-            <button class="btn-secondary" onclick="closeTerminalView()">返回文件</button>
-            <button class="btn-secondary" onclick="scrollTerminalUp()">▲ 上翻</button>
-            <button class="btn-secondary" onclick="scrollTerminalDown()">▼ 下翻</button>
-            <button class="btn-secondary" id="selectModeBtn" onclick="toggleSelectMode()">📎 选择</button>
-            <button class="btn-secondary" onclick="showMobileKeyboard()">⌨️</button>
+            <button class="btn-secondary" onclick="closeTerminalView()">返回</button>
+            <button class="btn-secondary" onclick="scrollTerminalUp()">上翻</button>
+            <button class="btn-secondary" onclick="scrollTerminalDown()">下翻</button>
+            <button class="btn-secondary" id="selectModeBtn" onclick="toggleTerminalSelectMode()">选择</button>
+            <button class="btn-secondary" onclick="showMobileKeyboard()">键盘</button>
         </div>
     </div>
 
@@ -1451,8 +1660,8 @@
     <div class="terminal-select-overlay" id="terminalSelectOverlay">
         <div class="terminal-select-header">
             <span>选择模式 - 选择文本后可复制</span>
-            <button class="btn-secondary" onclick="copySelectedText()">📋 复制</button>
-            <button class="btn-secondary" onclick="exitSelectMode()">✕ 关闭</button>
+            <button class="btn-secondary" onclick="copySelectedText()">复制</button>
+            <button class="btn-secondary" onclick="exitSelectMode()">关闭</button>
         </div>
         <textarea class="terminal-select-textarea" id="terminalSelectTextarea" readonly placeholder="终端内容将显示在这里..."></textarea>
     </div>
@@ -1609,6 +1818,25 @@
                     <input type="password" id="newPassword" placeholder="新密码" style="width: 100%">
                     <input type="password" id="confirmPassword" placeholder="确认新密码" style="width: 100%">
                     <button class="btn-secondary" onclick="changePassword()" style="width:100%">修改密码</button>
+                </div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 16px;">
+                <div class="terminal-keyboard-row-label">快捷键</div>
+                <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;">
+                        <span style="color: var(--dim);">文件列表</span><span></span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+U</kbd></span><span>上传文件</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+K</kbd></span><span>搜索</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+N</kbd></span><span>新建文件</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+Shift+N</kbd></span><span>新建文件夹</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Delete</kbd></span><span>删除选中</span>
+                        <span style="color: var(--dim);">编辑器</span><span></span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+S</kbd></span><span>保存</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+W</kbd></span><span>关闭标签</span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Ctrl+Tab</kbd></span><span>切换标签</span>
+                        <span style="color: var(--dim);">通用</span><span></span>
+                        <span><kbd style="background:var(--item);padding:2px 6px;border-radius:4px;">Esc</kbd></span><span>关闭弹窗</span>
+                    </div>
                 </div>
             </div>
             <div class="modal-btns">
@@ -1917,6 +2145,60 @@
         let terminalFitAddons = {};
         let terminalPathCallback = null;
 
+        // ========== 统一按钮组件 ==========
+        const Button = {
+            // 主要按钮
+            primary(text, onClick, icon = '') {
+                return `<button class="btn-primary" onclick="${onClick}">${icon}${text}</button>`;
+            },
+            // 次要按钮
+            secondary(text, onClick, icon = '') {
+                return `<button class="btn-secondary" onclick="${onClick}">${icon}${text}</button>`;
+            },
+            // 危险按钮
+            danger(text, onClick, icon = '') {
+                return `<button class="btn-danger" onclick="${onClick}">${icon}${text}</button>`;
+            },
+            // 工具栏按钮
+            toolbar(text, onClick, icon = '', extraClass = '') {
+                return `<button class="toolbar-btn ${extraClass}" onclick="${onClick}">${icon}${text}</button>`;
+            },
+            // 模态框底部按钮组
+            modalFooter(cancelFn, confirmFn, cancelText = '取消', confirmText = '确定') {
+                return `<div class="modal-btns">
+                    <button class="btn-secondary" onclick="${cancelFn}">${cancelText}</button>
+                    <button class="btn-primary" onclick="${confirmFn}">${confirmText}</button>
+                </div>`;
+            },
+            // 模态框单按钮（只有确认）
+            modalSingle(confirmFn, confirmText = '完成') {
+                return `<div class="modal-btns">
+                    <button class="btn-primary" onclick="${confirmFn}">${confirmText}</button>
+                </div>`;
+            },
+            // 编辑器底部操作栏
+            editorBar(showSave = true) {
+                let html = '<button class="btn-secondary" onclick="goBack()">返回</button>' +
+                          '<button class="btn-secondary" onclick="downloadCurrentFile()">下载</button>';
+                if (showSave) {
+                    html += '<button class="btn-primary" onclick="saveFile()">保存</button>';
+                }
+                return html;
+            },
+            // 设置按钮加载状态
+            setLoading(btn, loading) {
+                if (loading) {
+                    btn.classList.add('btn-loading');
+                    btn.dataset.originalText = btn.textContent;
+                } else {
+                    btn.classList.remove('btn-loading');
+                    if (btn.dataset.originalText) {
+                        btn.textContent = btn.dataset.originalText;
+                    }
+                }
+            }
+        };
+
         const modes = {
             // JavaScript/TypeScript
             js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript',
@@ -2131,7 +2413,7 @@
                     wrap.innerHTML = `<iframe class="html-preview" src="${url}" style="border:none;width:100%;flex:1;background:#fff;"></iframe>`;
                 } else {
                     const bar = document.getElementById('editorBar');
-                    bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button><button class="btn-primary" onclick="saveFile()">保存</button>';
+                    bar.innerHTML = Button.editorBar(true);
                     initEditor(fileContent || '', currentFile.split('/').pop());
                 }
                 return;
@@ -2142,7 +2424,7 @@
                 wrap.innerHTML = `<div class="markdown-view"><div class="markdown-body">${marked.parse(fileContent || '')}</div></div>`;
             } else if (view === 'edit') {
                 const bar = document.getElementById('editorBar');
-                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button><button class="btn-primary" onclick="saveFile()">保存</button>';
+                bar.innerHTML = Button.editorBar(true);
                 initEditor(fileContent || '', currentFile.split('/').pop());
             }
         }
@@ -2396,9 +2678,9 @@
 
             const bar = document.getElementById('editorBar');
             if (['image', 'audio', 'video', 'pdf', 'binary'].includes(type)) {
-                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button>';
+                bar.innerHTML = Button.editorBar(false);
             } else {
-                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button><button class="btn-primary" onclick="saveFile()">保存</button>';
+                bar.innerHTML = Button.editorBar(true);
             }
 
             try {
@@ -2415,32 +2697,89 @@
 
                 if (data.type === 'image') {
                     const imgSrc = `data:${data.mime};base64,${data.data}`;
-                    wrap.innerHTML = `<div class="media-view"><img src="${imgSrc}" alt="${name}" onclick="openImageViewer('${imgSrc}', '${name.replace(/'/g, "\\'")}')"><div class="media-info">${formatSize(data.size)} · 点击放大</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <img src="${imgSrc}" alt="${name}" onclick="openImageViewer('${imgSrc}', '${name.replace(/'/g, "\\'")}')">
+                        <div class="media-info">
+                            <div class="media-info-title">${name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">📷 ${data.mime.split('/')[1]?.toUpperCase() || '图片'}</span>
+                            </div>
+                            <div class="media-info-actions">
+                                <button class="media-action-btn" onclick="openImageViewer('${imgSrc}', '${name.replace(/'/g, "\\'")}')">🔍 放大</button>
+                                <button class="media-action-btn" onclick="downloadCurrentFile()">⬇ 下载</button>
+                            </div>
+                        </div>
+                    </div>`;
                     // 媒体文件也加入标签
                     addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'audio') {
-                    wrap.innerHTML = `<div class="media-view"><div style="font-size:64px;margin-bottom:20px">🎵</div><audio controls src="data:${data.mime};base64,${data.data}"></audio><div class="media-info">${name}<br>${formatSize(data.size)}</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <div style="font-size:64px;margin-bottom:16px;opacity:0.8">🎵</div>
+                        <audio controls src="data:${data.mime};base64,${data.data}" style="width:100%;max-width:400px"></audio>
+                        <div class="media-info">
+                            <div class="media-info-title">${name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">🎵 ${data.mime.split('/')[1]?.toUpperCase() || '音频'}</span>
+                            </div>
+                        </div>
+                    </div>`;
                     addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'video') {
-                    wrap.innerHTML = `<div class="media-view"><video controls src="data:${data.mime};base64,${data.data}"></video><div class="media-info">${formatSize(data.size)}</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <video controls src="data:${data.mime};base64,${data.data}" style="max-width:100%;max-height:60vh;border-radius:8px;background:#000"></video>
+                        <div class="media-info">
+                            <div class="media-info-title">${name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">🎬 ${data.mime.split('/')[1]?.toUpperCase() || '视频'}</span>
+                            </div>
+                        </div>
+                    </div>`;
                     addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.type === 'pdf') {
-                    wrap.innerHTML = `<div class="media-view" style="padding:0"><iframe class="html-preview" src="data:application/pdf;base64,${data.data}"></iframe></div>`;
+                    wrap.innerHTML = `<div class="media-view" style="padding:0;flex-direction:column">
+                        <iframe class="html-preview" src="data:application/pdf;base64,${data.data}" style="flex:1;min-height:60vh"></iframe>
+                        <div class="media-info" style="margin:12px">
+                            <div class="media-info-title">${name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">📄 PDF</span>
+                            </div>
+                        </div>
+                    </div>`;
                     addFileTab(path, name, data.type, false);
                     return;
                 }
 
                 if (data.isBinary) {
-                    wrap.innerHTML = `<div class="binary-notice"><div class="icon">📦</div><div>二进制文件</div><div style="font-size:12px;color:var(--dim)">${formatSize(data.size)}</div></div>`;
+                    const ext = name.split('.').pop().toLowerCase();
+                    const binaryIcons = {
+                        zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦',
+                        exe: '⚙️', msi: '⚙️', dmg: '⚙️', app: '⚙️',
+                        apk: '📱', ipa: '📱',
+                        font: '🔤', ttf: '🔤', otf: '🔤', woff: '🔤', woff2: '🔤',
+                        default: '📦'
+                    };
+                    const icon = binaryIcons[ext] || binaryIcons.default;
+                    wrap.innerHTML = `<div class="binary-notice">
+                        <div class="icon">${icon}</div>
+                        <div style="font-size:16px;margin-top:8px">${name}</div>
+                        <div style="font-size:12px;color:var(--dim);margin-top:4px">${formatSize(data.size)} · ${ext.toUpperCase()} 文件</div>
+                        <div class="media-info-actions" style="margin-top:16px">
+                            <button class="media-action-btn" onclick="downloadCurrentFile()">⬇ 下载</button>
+                        </div>
+                    </div>`;
                     addFileTab(path, name, 'binary', false);
                     return;
                 }
@@ -2563,9 +2902,9 @@
             // 更新底部栏
             const bar = document.getElementById('editorBar');
             if (['image', 'audio', 'video', 'pdf', 'binary'].includes(fileData.fileType)) {
-                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button>';
+                bar.innerHTML = Button.editorBar(false);
             } else {
-                bar.innerHTML = '<button class="btn-secondary" onclick="goBack()">返回</button><button class="btn-secondary" onclick="downloadCurrentFile()">下载</button><button class="btn-primary" onclick="saveFile()">保存</button>';
+                bar.innerHTML = Button.editorBar(true);
             }
 
             // 渲染内容
@@ -2629,18 +2968,75 @@
 
                 if (data.type === 'image') {
                     const imgSrc = `data:${data.mime};base64,${data.data}`;
-                    wrap.innerHTML = `<div class="media-view"><img src="${imgSrc}" alt="${fileData.name}" onclick="openImageViewer('${imgSrc}', '${fileData.name.replace(/'/g, "\\'")}')"><div class="media-info">${formatSize(data.size)} · 点击放大</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <img src="${imgSrc}" alt="${fileData.name}" onclick="openImageViewer('${imgSrc}', '${fileData.name.replace(/'/g, "\\'")}')">
+                        <div class="media-info">
+                            <div class="media-info-title">${fileData.name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">📷 ${data.mime.split('/')[1]?.toUpperCase() || '图片'}</span>
+                            </div>
+                            <div class="media-info-actions">
+                                <button class="media-action-btn" onclick="openImageViewer('${imgSrc}', '${fileData.name.replace(/'/g, "\\'")}')">🔍 放大</button>
+                                <button class="media-action-btn" onclick="downloadCurrentFile()">⬇ 下载</button>
+                            </div>
+                        </div>
+                    </div>`;
                 } else if (data.type === 'audio') {
-                    wrap.innerHTML = `<div class="media-view"><div style="font-size:64px;margin-bottom:20px">🎵</div><audio controls src="data:${data.mime};base64,${data.data}"></audio><div class="media-info">${fileData.name}<br>${formatSize(data.size)}</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <div style="font-size:64px;margin-bottom:16px;opacity:0.8">🎵</div>
+                        <audio controls src="data:${data.mime};base64,${data.data}" style="width:100%;max-width:400px"></audio>
+                        <div class="media-info">
+                            <div class="media-info-title">${fileData.name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">🎵 ${data.mime.split('/')[1]?.toUpperCase() || '音频'}</span>
+                            </div>
+                        </div>
+                    </div>`;
                 } else if (data.type === 'video') {
-                    wrap.innerHTML = `<div class="media-view"><video controls src="data:${data.mime};base64,${data.data}"></video><div class="media-info">${formatSize(data.size)}</div></div>`;
+                    wrap.innerHTML = `<div class="media-view">
+                        <video controls src="data:${data.mime};base64,${data.data}" style="max-width:100%;max-height:60vh;border-radius:8px;background:#000"></video>
+                        <div class="media-info">
+                            <div class="media-info-title">${fileData.name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">🎬 ${data.mime.split('/')[1]?.toUpperCase() || '视频'}</span>
+                            </div>
+                        </div>
+                    </div>`;
                 } else if (data.type === 'pdf') {
-                    wrap.innerHTML = `<div class="media-view" style="padding:0"><iframe class="html-preview" src="data:application/pdf;base64,${data.data}"></iframe></div>`;
+                    wrap.innerHTML = `<div class="media-view" style="padding:0;flex-direction:column">
+                        <iframe class="html-preview" src="data:application/pdf;base64,${data.data}" style="flex:1;min-height:60vh"></iframe>
+                        <div class="media-info" style="margin:12px">
+                            <div class="media-info-title">${fileData.name}</div>
+                            <div class="media-info-meta">
+                                <span class="media-info-item">📊 ${formatSize(data.size)}</span>
+                                <span class="media-info-item">📄 PDF</span>
+                            </div>
+                        </div>
+                    </div>`;
                 } else if (data.isBinary) {
-                    wrap.innerHTML = `<div class="binary-notice"><div class="icon">📦</div><div>二进制文件</div><div style="font-size:12px;color:var(--dim)">${formatSize(data.size)}</div></div>`;
+                    const ext = fileData.name.split('.').pop().toLowerCase();
+                    const binaryIcons = {
+                        zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦',
+                        exe: '⚙️', msi: '⚙️', dmg: '⚙️', app: '⚙️',
+                        apk: '📱', ipa: '📱',
+                        ttf: '🔤', otf: '🔤', woff: '🔤', woff2: '🔤',
+                        default: '📦'
+                    };
+                    const icon = binaryIcons[ext] || binaryIcons.default;
+                    wrap.innerHTML = `<div class="binary-notice">
+                        <div class="icon">${icon}</div>
+                        <div style="font-size:16px;margin-top:8px">${fileData.name}</div>
+                        <div style="font-size:12px;color:var(--dim);margin-top:4px">${formatSize(data.size)} · ${ext.toUpperCase()} 文件</div>
+                        <div class="media-info-actions" style="margin-top:16px">
+                            <button class="media-action-btn" onclick="downloadCurrentFile()">⬇ 下载</button>
+                        </div>
+                    </div>`;
                 }
             } catch (e) {
-                wrap.innerHTML = `<div class="binary-notice"><div class="icon" style="color:var(--danger)">⚠️</div><div>加载失败</div></div>`;
+                wrap.innerHTML = `<div class="binary-notice"><div class="icon" style="color:var(--danger)">⚠️</div><div>加载失败</div><div style="font-size:12px;color:var(--dim);margin-top:4px">${e.message}</div></div>`;
             }
         }
 
@@ -2848,6 +3244,10 @@
             const fileData = openFiles[filePath];
             const content = editor ? editor.getValue() : (fileData ? fileData.content : fileContent);
 
+            // 显示加载状态
+            const saveBtns = document.querySelectorAll('#editorBar .btn-primary');
+            saveBtns.forEach(btn => Button.setLoading(btn, true));
+
             try {
                 const res = await fetch('/api/file', {
                     method: 'POST',
@@ -2876,6 +3276,10 @@
                 showToast('保存成功', 'success');
             } catch (e) {
                 showToast(e.message, 'error');
+            } finally {
+                // 移除加载状态
+                const saveBtns = document.querySelectorAll('#editorBar .btn-primary');
+                saveBtns.forEach(btn => Button.setLoading(btn, false));
             }
         }
 
@@ -4706,7 +5110,7 @@
         // ========== 终端选择模式 ==========
         let isInSelectMode = false;
 
-        function toggleSelectMode() {
+        function toggleTerminalSelectMode() {
             if (isInSelectMode) {
                 exitSelectMode();
             } else {
@@ -5014,7 +5418,49 @@
                 hideShortcutConfig();
                 hideBatchRenameModal();
                 hideShareModal();
+                hideDestModal();
+                hideSettingsModal();
+                hideTerminalPathModal();
                 closeAllPanels();
+            }
+
+            // 文件列表视图快捷键
+            const isListView = document.getElementById('listView').classList.contains('active');
+            if (isListView && (e.ctrlKey || e.metaKey)) {
+                // Ctrl+U 上传
+                if (e.key === 'u') {
+                    e.preventDefault();
+                    showUploadModal();
+                }
+                // Ctrl+K 搜索
+                if (e.key === 'k') {
+                    e.preventDefault();
+                    showSearchView();
+                }
+                // Ctrl+N 新建文件
+                if (e.key === 'n') {
+                    e.preventDefault();
+                    showNewModal('file');
+                }
+                // Ctrl+Shift+N 新建文件夹
+                if (e.key === 'N') {
+                    e.preventDefault();
+                    showNewModal('folder');
+                }
+            }
+
+            // 多选模式快捷键
+            if (isListView && selectMode && selectedFiles.size > 0) {
+                // Delete 删除选中文件
+                if (e.key === 'Delete') {
+                    e.preventDefault();
+                    batchDelete();
+                }
+                // Ctrl+A 全选
+                if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                    e.preventDefault();
+                    selectAll();
+                }
             }
 
             // 全局快捷键（仅在编辑器视图有效）
@@ -5058,6 +5504,148 @@
         loadFiles(HOME);
         loadFavorites();
         startStatsMonitoring();
+
+        // ========== 拖拽上传功能 ==========
+        const dropZone = document.getElementById('dropZone');
+        const dropZonePath = document.getElementById('dropZonePath');
+        let dragCounter = 0;
+
+        // 阻止默认拖拽行为
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.body.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        // 拖拽进入
+        document.body.addEventListener('dragenter', (e) => {
+            dragCounter++;
+            if (e.dataTransfer.types.includes('Files')) {
+                dropZone.classList.add('active');
+                dropZonePath.textContent = currentPath;
+            }
+        });
+
+        // 拖拽离开
+        document.body.addEventListener('dragleave', (e) => {
+            dragCounter--;
+            if (dragCounter === 0) {
+                dropZone.classList.remove('active');
+            }
+        });
+
+        // 拖拽悬停
+        document.body.addEventListener('dragover', (e) => {
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        // 拖拽释放
+        document.body.addEventListener('drop', async (e) => {
+            dragCounter = 0;
+            dropZone.classList.remove('active');
+
+            const files = e.dataTransfer.files;
+            if (files.length === 0) return;
+
+            // 上传文件
+            await uploadDroppedFiles(files);
+        });
+
+        // 上传拖拽的文件
+        async function uploadDroppedFiles(files) {
+            const progress = document.getElementById('uploadProgress');
+            const status = document.getElementById('uploadStatus');
+            progress.classList.add('show');
+            status.textContent = `正在上传 ${files.length} 个文件...`;
+
+            const formData = new FormData();
+            Array.from(files).forEach(file => formData.append('files', file));
+
+            try {
+                const res = await fetch('/api/upload?dest=' + encodeURIComponent(currentPath), {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                status.textContent = `已上传 ${files.length} 个文件`;
+                showToast(`成功上传 ${files.length} 个文件`, 'success');
+                loadFiles(currentPath);
+            } catch (e) {
+                status.textContent = '上传失败';
+                showToast('上传失败: ' + e.message, 'error');
+            } finally {
+                setTimeout(() => progress.classList.remove('show'), 1500);
+            }
+        }
+
+        // ========== 文件预览优化 ==========
+        // Office文件预览（使用微软Office Online查看器）
+        function getOfficePreviewUrl(fileUrl, fileType) {
+            const encodedUrl = encodeURIComponent(fileUrl);
+            if (fileType === 'doc' || fileType === 'docx' || fileType === 'xls' || fileType === 'xlsx' || fileType === 'ppt' || fileType === 'pptx') {
+                return `https://view.officeapps.live.com/op/embed.aspx?src=${encodedUrl}`;
+            }
+            return null;
+        }
+
+        // 代码文件语法高亮预览
+        function highlightCode(code, language) {
+            // 简单的语法高亮
+            const keywords = {
+                javascript: ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'import', 'export', 'async', 'await', 'try', 'catch'],
+                python: ['def', 'class', 'import', 'from', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'with', 'as', 'async', 'await'],
+                go: ['func', 'package', 'import', 'return', 'if', 'else', 'for', 'range', 'struct', 'interface', 'go', 'defer', 'chan', 'select', 'case'],
+                rust: ['fn', 'let', 'mut', 'pub', 'struct', 'enum', 'impl', 'trait', 'use', 'mod', 'return', 'if', 'else', 'match', 'loop', 'while', 'for'],
+                java: ['public', 'private', 'protected', 'class', 'interface', 'extends', 'implements', 'return', 'if', 'else', 'for', 'while', 'try', 'catch', 'new', 'static', 'final']
+            };
+
+            const kw = keywords[language] || [];
+            let highlighted = escapeHtml(code);
+
+            // 高亮字符串
+            highlighted = highlighted.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#a5d6ff">$&</span>');
+
+            // 高亮注释
+            highlighted = highlighted.replace(/(\/\/.*$|#.*$|\/\*[\s\S]*?\*\/)/gm, '<span style="color:#6e7681">$&</span>');
+
+            // 高亮关键字
+            kw.forEach(k => {
+                const regex = new RegExp(`\\b(${k})\\b`, 'g');
+                highlighted = highlighted.replace(regex, '<span style="color:#ff7b72">$1</span>');
+            });
+
+            // 高亮数字
+            highlighted = highlighted.replace(/\b(\d+)\b/g, '<span style="color:#79c0ff">$1</span>');
+
+            return highlighted;
+        }
+
+        // 增强文件打开函数，支持更多文件类型
+        const originalOpenFile = openFile;
+        openFile = async function(path, type) {
+            const ext = path.split('.').pop().toLowerCase();
+
+            // Office文件预览（需要公网访问）
+            const officeExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+            if (officeExts.includes(ext)) {
+                showToast('Office文件需要公网访问才能预览，建议下载查看', 'info');
+                // 调用原始函数处理下载
+                return originalOpenFile(path, type);
+            }
+
+            // 代码文件预览增强
+            const codeExts = ['js', 'ts', 'jsx', 'tsx', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'sh', 'rb', 'php', 'lua', 'sql'];
+            if (codeExts.includes(ext)) {
+                return originalOpenFile(path, type);
+            }
+
+            // 其他文件类型使用原始函数
+            return originalOpenFile(path, type);
+        };
     </script>
 </body>
 </html>
