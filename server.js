@@ -961,6 +961,172 @@ app.post('/api/unzip', requireAuth, async (req, res) => {
     }
 });
 
+// ========== 系统状态 API ==========
+let previousNetworkStats = null;
+
+app.get('/api/system-stats', requireAuth, (req, res) => {
+    try {
+        const stats = {};
+
+        // CPU 信息
+        const cpus = os.cpus();
+        let totalIdle = 0, totalTick = 0;
+        cpus.forEach(cpu => {
+            for (let type in cpu.times) {
+                totalTick += cpu.times[type];
+            }
+            totalIdle += cpu.times.idle;
+        });
+        const totalUsage = totalTick - totalIdle;
+        const cpuUsage = ((totalUsage / totalTick) * 100).toFixed(1);
+
+        stats.cpu = {
+            usage: parseFloat(cpuUsage),
+            cores: cpus.length,
+            loadAvg: os.loadavg()
+        };
+
+        // 内存信息
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+
+        stats.memory = {
+            total: totalMem,
+            used: usedMem,
+            free: freeMem,
+            usage: parseFloat(memUsage)
+        };
+
+        // 磁盘信息 (通过 df 命令获取根分区)
+        try {
+            const dfOutput = require('child_process').execSync('df -B1 / | tail -1', { encoding: 'utf-8' });
+            const parts = dfOutput.trim().split(/\s+/);
+            if (parts.length >= 4) {
+                const diskTotal = parseInt(parts[1]);
+                const diskUsed = parseInt(parts[2]);
+                const diskUsage = ((diskUsed / diskTotal) * 100).toFixed(1);
+                stats.disk = {
+                    total: diskTotal,
+                    used: diskUsed,
+                    usage: parseFloat(diskUsage)
+                };
+            }
+        } catch (e) {
+            stats.disk = { total: 0, used: 0, usage: 0 };
+        }
+
+        // 网络信息 (通过 /proc/net/dev 获取)
+        try {
+            const netDev = fs.readFileSync('/proc/net/dev', 'utf-8');
+            const lines = netDev.split('\n');
+            let totalRx = 0, totalTx = 0;
+
+            lines.forEach(line => {
+                const match = line.match(/\s*(.+?):\s*(\d+)\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)/);
+                if (match && !match[1].includes('lo:')) {
+                    totalRx += parseInt(match[2]);
+                    totalTx += parseInt(match[3]);
+                }
+            });
+
+            const currentStats = { rx: totalRx, tx: totalTx, time: Date.now() };
+
+            if (previousNetworkStats) {
+                const timeDiff = (currentStats.time - previousNetworkStats.time) / 1000;
+                const rxDiff = currentStats.rx - previousNetworkStats.rx;
+                const txDiff = currentStats.tx - previousNetworkStats.tx;
+
+                stats.network = {
+                    rxSpeed: rxDiff / timeDiff,
+                    txSpeed: txDiff / timeDiff,
+                    rxTotal: totalRx,
+                    txTotal: totalTx
+                };
+            } else {
+                stats.network = {
+                    rxSpeed: 0,
+                    txSpeed: 0,
+                    rxTotal: totalRx,
+                    txTotal: totalTx
+                };
+            }
+
+            previousNetworkStats = currentStats;
+        } catch (e) {
+            stats.network = { rxSpeed: 0, txSpeed: 0, rxTotal: 0, txTotal: 0 };
+        }
+
+        // 系统信息
+        stats.system = {
+            uptime: os.uptime(),
+            hostname: os.hostname(),
+            platform: os.platform(),
+            arch: os.arch()
+        };
+
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== 系统优化 API ==========
+app.post('/api/system-optimize', requireAuth, async (req, res) => {
+    const { actions } = req.body;
+
+    // 立即返回，后台执行优化
+    res.json({ success: true, message: '优化任务已启动' });
+
+    // 后台执行优化操作
+    setImmediate(() => {
+        const execCommand = (cmd) => {
+            try {
+                return require('child_process').execSync(cmd, { encoding: 'utf-8', timeout: 10000 });
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const execSudo = (cmd) => {
+            try {
+                return require('child_process').execSync(`sudo ${cmd}`, { encoding: 'utf-8', timeout: 10000 });
+            } catch (e) {
+                return null;
+            }
+        };
+
+        if (actions.includes('memory')) {
+            execSudo('sync');
+            execSudo('sh -c "echo 3 > /proc/sys/vm/drop_caches"');
+        }
+
+        if (actions.includes('temp')) {
+            execSudo('find /tmp -type f -mtime +1 -delete 2>/dev/null');
+            execSudo('find /var/tmp -type f -mtime +1 -delete 2>/dev/null');
+        }
+
+        if (actions.includes('packages')) {
+            execSudo('apt-get clean -y 2>/dev/null');
+            execSudo('dnf clean all 2>/dev/null');
+            execCommand('pip cache purge 2>/dev/null');
+            execCommand('npm cache clean --force 2>/dev/null');
+        }
+
+        if (actions.includes('logs')) {
+            execSudo('journalctl --vacuum-time=7d 2>/dev/null');
+            execSudo('find /var/log -name "*.log.*" -mtime +7 -delete 2>/dev/null');
+            execSudo('find /var/log -name "*.gz" -mtime +7 -delete 2>/dev/null');
+        }
+
+        if (actions.includes('thumbnails')) {
+            const thumbDir = require('os').homedir() + '/.cache/thumbnails';
+            execCommand(`rm -rf ${thumbDir}/* 2>/dev/null`);
+        }
+    });
+});
+
 // 主页面
 app.get('/', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
