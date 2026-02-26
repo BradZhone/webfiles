@@ -44,6 +44,70 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
+        /* 系统状态栏 */
+        .stats-bar {
+            background: linear-gradient(180deg, #1a1f26 0%, #161b22 100%);
+            height: 28px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 101;
+            width: 100%;
+        }
+        .stats-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .stats-item-icon {
+            font-size: 14px;
+        }
+        .stats-item-label {
+            color: var(--dim);
+            font-weight: 500;
+        }
+        .stats-item-value {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .stats-item-value.good { color: var(--success); }
+        .stats-item-value.warning { color: var(--warning); }
+        .stats-item-value.danger { color: var(--danger); }
+
+        @media (max-width: 768px) {
+            .stats-item-label { display: none; }
+            .stats-bar { gap: 12px; padding: 0 12px; }
+        }
+
+        .stats-boost-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 2px 6px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .stats-boost-btn:hover {
+            background: var(--accent-subtle);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .stats-boost-btn.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
         /* 头部 */
         .header {
             background: var(--bg-secondary);
@@ -85,7 +149,7 @@
         }
 
         /* 主视图 */
-        .view { display: none; height: calc(100vh - 48px); height: calc(100dvh - 48px); overflow: hidden; }
+        .view { display: none; height: calc(100vh - 76px); height: calc(100dvh - 76px); overflow: hidden; }
         .view.active { display: flex; flex-direction: column; }
 
         /* 工具栏 */
@@ -1235,6 +1299,41 @@
     </style>
 </head>
 <body>
+    <!-- 系统状态栏 -->
+    <div class="stats-bar" id="statsBar">
+        <div class="stats-item">
+            <span class="stats-item-icon">🖥️</span>
+            <span class="stats-item-label">CPU</span>
+            <span class="stats-item-value" id="cpuUsage">--</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-item-icon">📊</span>
+            <span class="stats-item-label">Load</span>
+            <span class="stats-item-value" id="loadAvg">--</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-item-icon">💾</span>
+            <span class="stats-item-label">Memory</span>
+            <span class="stats-item-value" id="memUsage">--</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-item-icon">💿</span>
+            <span class="stats-item-label">Disk</span>
+            <span class="stats-item-value" id="diskUsage">--</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-item-icon">🌐</span>
+            <span class="stats-item-label">Net</span>
+            <span class="stats-item-value" id="netSpeed">--</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-item-icon">⏱️</span>
+            <span class="stats-item-label">Uptime</span>
+            <span class="stats-item-value" id="uptime">--</span>
+        </div>
+        <button class="stats-boost-btn" onclick="runSystemBoost()" id="boostBtn" title="一键加速">🚀</button>
+    </div>
+
     <!-- 头部 -->
     <div class="header">
         <button class="header-btn" id="backBtn" style="display:none">‹</button>
@@ -1468,6 +1567,40 @@
                     <span id="scrollLinesValue" style="width: 40px; text-align: center;">3</span>
                 </div>
                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">每次点击翻页按钮滚动的行数</div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <div class="terminal-keyboard-row-label">系统监控刷新频率</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="range" id="statsRefreshSlider" min="1" max="30" value="5" style="flex:1" oninput="updateStatsRefreshDisplay()">
+                    <span id="statsRefreshValue" style="width: 50px; text-align: center;">5秒</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">状态栏数据刷新间隔（1-30秒）</div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 16px;">
+                <div class="terminal-keyboard-row-label">🧹 系统清理选项</div>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" class="boost-action-checkbox" data-action="memory" onchange="updateBoostActions()">
+                        <span>释放内存缓存</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" class="boost-action-checkbox" data-action="temp" onchange="updateBoostActions()">
+                        <span>清理临时文件（24小时前）</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" class="boost-action-checkbox" data-action="packages" onchange="updateBoostActions()">
+                        <span>清理包管理器缓存</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" class="boost-action-checkbox" data-action="logs" onchange="updateBoostActions()">
+                        <span>清理旧日志（7天前）</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" class="boost-action-checkbox" data-action="thumbnails" onchange="updateBoostActions()">
+                        <span>清理缩略图缓存</span>
+                    </label>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">点击状态栏 🚀 按钮时执行的清理项</div>
             </div>
             <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 16px;">
                 <div class="terminal-keyboard-row-label">修改密码</div>
@@ -2016,6 +2149,141 @@
 
         function escapeHtml(text) {
             return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        // ========== 系统状态监控 ==========
+        async function loadSystemStats() {
+            try {
+                const res = await fetch('/api/system-stats');
+                if (res.ok) {
+                    const data = await res.json();
+                    updateStatsDisplay(data);
+                }
+            } catch (e) {
+                console.error('Failed to load system stats:', e);
+            }
+        }
+
+        function updateStatsDisplay(data) {
+            // CPU 使用率
+            const cpuEl = document.getElementById('cpuUsage');
+            cpuEl.textContent = data.cpu.usage + '%';
+            cpuEl.className = 'stats-item-value ' + getUsageClass(data.cpu.usage);
+
+            // 系统负载
+            const loadEl = document.getElementById('loadAvg');
+            const load1 = data.cpu.loadAvg[0].toFixed(2);
+            loadEl.textContent = load1;
+            loadEl.className = 'stats-item-value ' + getUsageClass((load1 / data.cpu.cores) * 100);
+
+            // 内存使用
+            const memEl = document.getElementById('memUsage');
+            const memUsedGB = (data.memory.used / 1024 / 1024 / 1024).toFixed(1);
+            const memTotalGB = (data.memory.total / 1024 / 1024 / 1024).toFixed(1);
+            memEl.textContent = `${memUsedGB}/${memTotalGB}GB`;
+            memEl.className = 'stats-item-value ' + getUsageClass(data.memory.usage);
+
+            // 磁盘使用
+            const diskEl = document.getElementById('diskUsage');
+            if (data.disk.total > 0) {
+                const diskUsedGB = (data.disk.used / 1024 / 1024 / 1024).toFixed(0);
+                const diskTotalGB = (data.disk.total / 1024 / 1024 / 1024).toFixed(0);
+                diskEl.textContent = `${diskUsedGB}/${diskTotalGB}GB`;
+                diskEl.className = 'stats-item-value ' + getUsageClass(data.disk.usage);
+            } else {
+                diskEl.textContent = 'N/A';
+            }
+
+            // 网络速度
+            const netEl = document.getElementById('netSpeed');
+            const rxSpeed = formatSpeed(data.network.rxSpeed);
+            const txSpeed = formatSpeed(data.network.txSpeed);
+            netEl.textContent = `↓${rxSpeed} ↑${txSpeed}`;
+
+            // 系统运行时间
+            const uptimeEl = document.getElementById('uptime');
+            uptimeEl.textContent = formatUptime(data.system.uptime);
+        }
+
+        function getUsageClass(usage) {
+            if (usage < 50) return 'good';
+            if (usage < 70) return '';
+            if (usage < 90) return 'warning';
+            return 'danger';
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${mins}m`;
+            return `${mins}m`;
+        }
+
+        function formatSpeed(bytesPerSec) {
+            if (bytesPerSec === 0) return '0B/s';
+            const k = 1024;
+            const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+            const i = Math.floor(Math.log(bytesPerSec) / Math.log(k));
+            return parseFloat((bytesPerSec / Math.pow(k, i)).toFixed(1)) + sizes[i];
+        }
+
+        function startStatsMonitoring() {
+            loadSystemStats();
+            statsIntervalId = setInterval(loadSystemStats, statsRefreshInterval * 1000);
+        }
+
+        // ========== 系统加速功能 ==========
+        const defaultBoostActions = ['memory', 'temp', 'packages', 'logs', 'thumbnails'];
+
+        function getBoostActions() {
+            const saved = localStorage.getItem('boostActions');
+            return saved ? JSON.parse(saved) : defaultBoostActions;
+        }
+
+        async function runSystemBoost() {
+            const btn = document.getElementById('boostBtn');
+            btn.classList.add('loading');
+
+            try {
+                const res = await fetch('/api/system-optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ actions: getBoostActions() })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast('🧹 系统清理已启动', 'success');
+                    // 延迟刷新系统状态
+                    setTimeout(loadSystemStats, 2000);
+                } else {
+                    showToast('清理失败', 'error');
+                }
+            } catch (e) {
+                showToast('清理失败: ' + e.message, 'error');
+            } finally {
+                setTimeout(() => btn.classList.remove('loading'), 1000);
+            }
+        }
+
+        function updateBoostActions() {
+            const checkboxes = document.querySelectorAll('.boost-action-checkbox');
+            const actions = [];
+            checkboxes.forEach(cb => {
+                if (cb.checked) actions.push(cb.dataset.action);
+            });
+            localStorage.setItem('boostActions', JSON.stringify(actions));
+        }
+
+        function loadBoostActions() {
+            const actions = getBoostActions();
+            const checkboxes = document.querySelectorAll('.boost-action-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = actions.includes(cb.dataset.action);
+            });
         }
 
         // 加载文件列表
@@ -3757,6 +4025,10 @@
         // 终端翻页行数设置
         let scrollLines = parseInt(localStorage.getItem('scrollLines')) || 3;
 
+        // 系统监控刷新频率设置
+        let statsRefreshInterval = parseInt(localStorage.getItem('statsRefreshInterval')) || 5;
+        let statsIntervalId = null;
+
         // 终端翻页
         function scrollTerminalUp() {
             const termId = activeTerminalId;
@@ -3792,6 +4064,9 @@
             modal.classList.add('active');
             document.getElementById('scrollLinesSlider').value = scrollLines;
             document.getElementById('scrollLinesValue').textContent = scrollLines;
+            document.getElementById('statsRefreshSlider').value = statsRefreshInterval;
+            document.getElementById('statsRefreshValue').textContent = statsRefreshInterval + '秒';
+            loadBoostActions();
             document.getElementById('currentPassword').value = '';
             document.getElementById('newPassword').value = '';
             document.getElementById('confirmPassword').value = '';
@@ -3806,6 +4081,20 @@
             document.getElementById('scrollLinesValue').textContent = value;
             scrollLines = parseInt(value);
             localStorage.setItem('scrollLines', scrollLines);
+        }
+
+        function updateStatsRefreshDisplay() {
+            const value = document.getElementById('statsRefreshSlider').value;
+            document.getElementById('statsRefreshValue').textContent = value + '秒';
+            statsRefreshInterval = parseInt(value);
+            localStorage.setItem('statsRefreshInterval', statsRefreshInterval);
+
+            // 重启监控以应用新的刷新频率
+            if (statsIntervalId) {
+                clearInterval(statsIntervalId);
+            }
+            loadSystemStats();
+            statsIntervalId = setInterval(loadSystemStats, statsRefreshInterval * 1000);
         }
 
         async function changePassword() {
@@ -4768,6 +5057,7 @@
         // 初始化
         loadFiles(HOME);
         loadFavorites();
+        startStatsMonitoring();
     </script>
 </body>
 </html>
