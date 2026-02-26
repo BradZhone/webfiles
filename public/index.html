@@ -301,7 +301,33 @@
         .file-checkbox.hidden { opacity: 0; pointer-events: none; width: 0; border: none; margin: 0; }
         .file-checkbox:hover { border-color: var(--accent); }
         .file-checkbox.checked { background: var(--accent); border-color: var(--accent); }
-        .file-icon { font-size: 18px; width: 24px; text-align: center; opacity: 0.9; }
+        .file-icon { font-size: 18px; width: 24px; text-align: center; opacity: 0.9; position: relative; flex-shrink: 0; }
+        .file-thumbnail {
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            object-fit: cover;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-secondary);
+        }
+        .file-thumbnail.loading {
+            opacity: 0.5;
+        }
+        .file-thumbnail.error {
+            display: none;
+        }
+        .file-icon-overlay {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            font-size: 10px;
+            background: var(--bg-secondary);
+            border-radius: 2px;
+            padding: 0 2px;
+        }
         .file-info { flex: 1; min-width: 0; }
         .file-name {
             font-size: 13px;
@@ -2611,10 +2637,19 @@
             list.innerHTML = files.map(f => {
                 const escapedPath = escapeJs(f.path);
                 const escapedName = escapeJs(f.name);
+                const isImage = f.type === 'image';
+
+                // 图片文件使用缩略图容器
+                const iconHtml = isImage
+                    ? `<div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')" data-thumbnail-path="${escapedPath}" data-needs-thumbnail="true">
+                         <span class="icon-placeholder">${getFileIcon(f.name, f.isDirectory, f.type)}</span>
+                       </div>`
+                    : `<div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">${getFileIcon(f.name, f.isDirectory, f.type)}</div>`;
+
                 return `
                 <div class="file-item ${selectedFiles.has(f.path) ? 'selected' : ''}" data-path="${f.path}" data-isdir="${f.isDirectory}" data-type="${f.type || 'file'}">
                     <div class="file-checkbox ${selectMode ? '' : 'hidden'} ${selectedFiles.has(f.path) ? 'checked' : ''}" onclick="toggleSelect('${escapedPath}', event)">${selectMode && selectedFiles.has(f.path) ? '✓' : ''}</div>
-                    <div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">${getFileIcon(f.name, f.isDirectory, f.type)}</div>
+                    ${iconHtml}
                     <div class="file-info" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">
                         <div class="file-name">${f.name}</div>
                         <div class="file-meta">${f.isDirectory ? '文件夹' : formatSize(f.size)} · ${formatDate(f.modified)}</div>
@@ -2622,6 +2657,75 @@
                     <div class="file-arrow" onclick="event.stopPropagation(); showActionMenu('${escapedPath}', '${escapedName}', ${f.isDirectory}, '${f.type || 'file'}')">⋮</div>
                 </div>`;
             }).join('');
+
+            // 懒加载缩略图
+            loadVisibleThumbnails();
+        }
+
+        // 缩略图缓存
+        const thumbnailCache = new Map();
+        const THUMBNAIL_SIZE = 64;
+
+        // 加载可见区域的缩略图
+        function loadVisibleThumbnails() {
+            const items = document.querySelectorAll('[data-needs-thumbnail="true"]');
+            if (items.length === 0) return;
+
+            // 使用Intersection Observer实现懒加载
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const el = entry.target;
+                        const imgPath = el.dataset.thumbnailPath;
+                        if (imgPath) {
+                            loadThumbnail(el, imgPath);
+                        }
+                        observer.unobserve(el);
+                    }
+                });
+            }, { rootMargin: '100px' });
+
+            items.forEach(item => {
+                observer.observe(item);
+            });
+        }
+
+        // 加载单个缩略图
+        async function loadThumbnail(el, imgPath) {
+            // 检查缓存
+            if (thumbnailCache.has(imgPath)) {
+                showThumbnail(el, thumbnailCache.get(imgPath));
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/thumbnail?path=${encodeURIComponent(imgPath)}&size=${THUMBNAIL_SIZE}`);
+                if (!res.ok) throw new Error('加载失败');
+
+                const data = await res.json();
+                if (data.success && data.data) {
+                    const thumbSrc = `data:${data.mime};base64,${data.data}`;
+                    thumbnailCache.set(imgPath, thumbSrc);
+                    showThumbnail(el, thumbSrc);
+                }
+            } catch (e) {
+                // 加载失败，保持默认图标
+                el.dataset.needsThumbnail = 'error';
+            }
+        }
+
+        // 显示缩略图
+        function showThumbnail(el, src) {
+            const placeholder = el.querySelector('.icon-placeholder');
+            if (placeholder) {
+                placeholder.innerHTML = `<img src="${src}" class="file-thumbnail" style="width:100%;height:100%;object-fit:cover;border-radius:4px;" onerror="this.style.display='none'">`;
+            }
+            el.dataset.needsThumbnail = 'loaded';
+        }
+
+        // 清除缩略图缓存
+        function clearThumbnailCache() {
+            thumbnailCache.clear();
         }
 
         function getFileIcon(name, isDir, type) {

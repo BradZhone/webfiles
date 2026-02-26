@@ -358,6 +358,60 @@ app.get('/api/files', requireAuth, (req, res) => {
     }
 });
 
+// API: 获取图片缩略图
+app.get('/api/thumbnail', requireAuth, (req, res) => {
+    const filePath = req.query.path;
+    const size = parseInt(req.query.size) || 64; // 默认64px
+
+    if (!filePath) return res.status(400).json({ error: '缺少路径' });
+
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+
+    try {
+        const stats = fs.statSync(resolvedPath);
+        if (stats.isDirectory()) return res.status(400).json({ error: '这是文件夹' });
+
+        // 只处理图片文件，限制大小5MB
+        const ext = resolvedPath.split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico'];
+        if (!imageExts.includes(ext)) {
+            return res.status(400).json({ error: '不是图片文件' });
+        }
+        if (stats.size > 5 * 1024 * 1024) {
+            return res.status(413).json({ error: '文件太大' });
+        }
+
+        // 读取文件并返回base64
+        const data = fs.readFileSync(resolvedPath);
+        const mime = getMimeType(ext);
+        res.json({
+            success: true,
+            data: data.toString('base64'),
+            mime: mime,
+            size: stats.size
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+function getMimeType(ext) {
+    const mimes = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'bmp': 'image/bmp',
+        'ico': 'image/x-icon',
+        'svg': 'image/svg+xml'
+    };
+    return mimes[ext] || 'application/octet-stream';
+}
+
 // API: 获取文件内容
 app.get('/api/file', requireAuth, (req, res) => {
     const filePath = req.query.path;
