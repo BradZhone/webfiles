@@ -301,32 +301,21 @@
         .file-checkbox.hidden { opacity: 0; pointer-events: none; width: 0; border: none; margin: 0; }
         .file-checkbox:hover { border-color: var(--accent); }
         .file-checkbox.checked { background: var(--accent); border-color: var(--accent); }
-        .file-icon { font-size: 18px; width: 24px; text-align: center; opacity: 0.9; position: relative; flex-shrink: 0; }
+        .file-icon { font-size: 18px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; opacity: 0.9; flex-shrink: 0; overflow: hidden; }
+        .file-icon.has-thumbnail { width: 40px; height: 40px; margin-right: 8px; }
         .file-thumbnail {
             width: 36px;
             height: 36px;
             border-radius: 4px;
             object-fit: cover;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             background: var(--bg-secondary);
         }
-        .file-thumbnail.loading {
-            opacity: 0.5;
-        }
-        .file-thumbnail.error {
-            display: none;
-        }
-        .file-icon-overlay {
-            position: absolute;
-            bottom: -2px;
-            right: -2px;
-            font-size: 10px;
-            background: var(--bg-secondary);
-            border-radius: 2px;
-            padding: 0 2px;
+        .icon-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
         }
         .file-info { flex: 1; min-width: 0; }
         .file-name {
@@ -2641,8 +2630,8 @@
 
                 // 图片文件使用缩略图容器
                 const iconHtml = isImage
-                    ? `<div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')" data-thumbnail-path="${escapedPath}" data-needs-thumbnail="true">
-                         <span class="icon-placeholder">${getFileIcon(f.name, f.isDirectory, f.type)}</span>
+                    ? `<div class="file-icon has-thumbnail" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')" data-thumbnail-path="${escapedPath}" data-needs-thumbnail="true">
+                         <div class="icon-placeholder">${getFileIcon(f.name, f.isDirectory, f.type)}</div>
                        </div>`
                     : `<div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">${getFileIcon(f.name, f.isDirectory, f.type)}</div>`;
 
@@ -2718,8 +2707,9 @@
         function showThumbnail(el, src) {
             const placeholder = el.querySelector('.icon-placeholder');
             if (placeholder) {
-                placeholder.innerHTML = `<img src="${src}" class="file-thumbnail" style="width:100%;height:100%;object-fit:cover;border-radius:4px;" onerror="this.style.display='none'">`;
+                placeholder.innerHTML = `<img src="${src}" class="file-thumbnail" onerror="this.parentElement.innerHTML='🖼️'">`;
             }
+            el.classList.add('has-thumbnail');
             el.dataset.needsThumbnail = 'loaded';
         }
 
