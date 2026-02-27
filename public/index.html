@@ -341,6 +341,155 @@
         .file-item:hover .file-arrow { opacity: 1; }
         .file-arrow:hover { color: var(--text); }
 
+        /* 视图模式切换按钮组 */
+        .view-mode-group {
+            display: flex;
+            gap: 2px;
+            background: var(--item);
+            padding: 2px;
+            border-radius: 6px;
+        }
+        .view-mode-btn {
+            background: transparent;
+            border: none;
+            color: var(--dim);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-width: 28px;
+        }
+        .view-mode-btn:hover { color: var(--text); background: var(--item-hover); }
+        .view-mode-btn.active { background: var(--accent); color: #fff; }
+
+        /* 排序下拉菜单 */
+        .sort-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .sort-dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-width: 160px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 100;
+            margin-top: 4px;
+        }
+        .sort-dropdown.open .sort-dropdown-content { display: block; }
+        .sort-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.15s ease;
+        }
+        .sort-option:hover { background: var(--item-hover); color: var(--text); }
+        .sort-option:first-child { border-radius: 7px 7px 0 0; }
+        .sort-option:last-child { border-radius: 0 0 7px 7px; }
+        .sort-option.active { color: var(--accent); }
+        .sort-option-check { color: var(--accent); margin-left: 8px; }
+
+        /* 大图标视图 */
+        .file-list.icon-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            padding: 12px;
+        }
+        .icon-view .file-item {
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 10px;
+            text-align: center;
+            gap: 8px;
+        }
+        .icon-view .file-checkbox {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+        }
+        .icon-view .file-icon {
+            font-size: 48px;
+            width: 64px;
+            height: 64px;
+        }
+        .icon-view .file-icon.has-thumbnail {
+            width: 80px;
+            height: 80px;
+            margin: 0;
+        }
+        .icon-view .file-thumbnail {
+            width: 72px;
+            height: 72px;
+            border-radius: 8px;
+        }
+        .icon-view .file-info { width: 100%; }
+        .icon-view .file-name {
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .icon-view .file-meta { font-size: 11px; margin-top: 4px; }
+        .icon-view .file-arrow {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            opacity: 0;
+        }
+        .icon-view .file-item:hover .file-arrow { opacity: 1; }
+
+        /* 紧凑视图 */
+        .file-list.compact-view .file-item {
+            padding: 6px 10px;
+            gap: 8px;
+        }
+        .compact-view .file-icon {
+            font-size: 16px;
+            width: 20px;
+            height: 20px;
+        }
+        .compact-view .file-name { font-size: 12px; }
+        .compact-view .file-meta { font-size: 10px; }
+
+        /* 显示设置弹窗 */
+        .display-settings-grid {
+            display: grid;
+            gap: 16px;
+        }
+        .display-setting-group h4 {
+            font-size: 12px;
+            color: var(--dim);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .display-columns label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .display-columns input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+        }
+
         /* 收藏夹侧边栏 */
         .sidebar {
             position: fixed;
@@ -1597,6 +1746,35 @@
             <div class="toolbar-divider"></div>
             <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">多选</button>
             <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
+            <div class="toolbar-divider"></div>
+            <div class="view-mode-group">
+                <button class="view-mode-btn active" id="viewListBtn" onclick="setViewMode('list')" title="列表视图">☰</button>
+                <button class="view-mode-btn" id="viewIconBtn" onclick="setViewMode('icon')" title="大图标">⊞</button>
+            </div>
+            <div class="sort-dropdown" id="sortDropdown">
+                <button class="toolbar-btn" onclick="toggleSortDropdown()">排序 ▾</button>
+                <div class="sort-dropdown-content">
+                    <div class="sort-option active" data-sort="name" data-order="asc" onclick="event.stopPropagation(); setSort('name', 'asc')">
+                        <span>名称 A→Z</span><span class="sort-option-check">✓</span>
+                    </div>
+                    <div class="sort-option" data-sort="name" data-order="desc" onclick="event.stopPropagation(); setSort('name', 'desc')">
+                        <span>名称 Z→A</span><span class="sort-option-check"></span>
+                    </div>
+                    <div class="sort-option" data-sort="size" data-order="asc" onclick="event.stopPropagation(); setSort('size', 'asc')">
+                        <span>大小 小→大</span><span class="sort-option-check"></span>
+                    </div>
+                    <div class="sort-option" data-sort="size" data-order="desc" onclick="event.stopPropagation(); setSort('size', 'desc')">
+                        <span>大小 大→小</span><span class="sort-option-check"></span>
+                    </div>
+                    <div class="sort-option" data-sort="modified" data-order="desc" onclick="event.stopPropagation(); setSort('modified', 'desc')">
+                        <span>时间 新→旧</span><span class="sort-option-check"></span>
+                    </div>
+                    <div class="sort-option" data-sort="modified" data-order="asc" onclick="event.stopPropagation(); setSort('modified', 'asc')">
+                        <span>时间 旧→新</span><span class="sort-option-check"></span>
+                    </div>
+                </div>
+            </div>
+            <button class="toolbar-btn" onclick="showDisplaySettings()">⚙ 显示</button>
         </div>
         <!-- 批量操作栏 -->
         <div class="toolbar" id="batchToolbar" style="display:none">
@@ -1776,6 +1954,26 @@
             <div class="modal-btns" style="margin-top: 16px;">
                 <button class="btn-secondary" onclick="resetShortcuts()">重置</button>
                 <button class="btn-primary" onclick="hideShortcutConfig()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 显示设置弹窗 -->
+    <div class="modal-overlay" id="displaySettingsModal">
+        <div class="modal" style="max-width: 360px;">
+            <h3>⚙️ 显示设置</h3>
+            <div class="display-settings-grid">
+                <div class="display-setting-group">
+                    <h4>显示列（列表模式）</h4>
+                    <div class="display-columns">
+                        <label><input type="checkbox" id="colSize" checked onchange="saveDisplaySettings()"> 大小</label>
+                        <label><input type="checkbox" id="colModified" checked onchange="saveDisplaySettings()"> 修改时间</label>
+                        <label><input type="checkbox" id="colType" onchange="saveDisplaySettings()"> 文件类型</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-btns" style="margin-top: 20px;">
+                <button class="btn-primary" onclick="hideDisplaySettingsModal()">完成</button>
             </div>
         </div>
     </div>
@@ -2148,6 +2346,13 @@
         let selectedFiles = new Set();
         let favorites = [];
         let uploadFiles = [];
+
+        // 视图和显示设置
+        let viewMode = 'list'; // list, icon
+        let sortBy = 'name';   // name, size, modified
+        let sortOrder = 'asc'; // asc, desc
+        let displayColumns = { size: true, modified: true, type: false };
+        let currentFiles = []; // 保存当前文件列表用于排序
 
         // 多标签编辑相关
         let openFiles = {}; // { path: { content, cursor, modified, editor, fileType, name } }
@@ -2594,7 +2799,9 @@
                 if (res.status === 401) { window.location.href = '/login'; return; }
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                renderFiles(data.files);
+                // 排序后渲染
+                const sortedFiles = sortFiles(data.files);
+                renderFiles(sortedFiles);
             } catch (e) {
                 window.location.href = '/login';
             }
@@ -2618,9 +2825,25 @@
         function renderFiles(files) {
             const list = document.getElementById('fileList');
 
+            // 保存当前文件列表用于排序
+            currentFiles = files;
+
             if (files.length === 0) {
                 list.innerHTML = '<div class="empty"><div class="empty-icon">📂</div><div>文件夹为空</div></div>';
                 return;
+            }
+
+            // 构建文件元数据字符串
+            function getFileMeta(f) {
+                const parts = [];
+                if (f.isDirectory) {
+                    parts.push('文件夹');
+                } else {
+                    if (displayColumns.size) parts.push(formatSize(f.size));
+                    if (displayColumns.type) parts.push(f.type || '文件');
+                }
+                if (displayColumns.modified) parts.push(formatDate(f.modified));
+                return parts.join(' · ');
             }
 
             list.innerHTML = files.map(f => {
@@ -2628,9 +2851,12 @@
                 const escapedName = escapeJs(f.name);
                 const isImage = f.type === 'image';
 
+                // 根据视图模式调整缩略图大小
+                const thumbSize = viewMode === 'icon' ? 120 : (viewMode === 'grid' ? 80 : 64);
+
                 // 图片文件使用缩略图容器
                 const iconHtml = isImage
-                    ? `<div class="file-icon has-thumbnail" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')" data-thumbnail-path="${escapedPath}" data-needs-thumbnail="true">
+                    ? `<div class="file-icon has-thumbnail" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')" data-thumbnail-path="${escapedPath}" data-needs-thumbnail="true" data-thumb-size="${thumbSize}">
                          <div class="icon-placeholder">${getFileIcon(f.name, f.isDirectory, f.type)}</div>
                        </div>`
                     : `<div class="file-icon" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">${getFileIcon(f.name, f.isDirectory, f.type)}</div>`;
@@ -2641,7 +2867,7 @@
                     ${iconHtml}
                     <div class="file-info" onclick="onItemClick('${escapedPath}', ${f.isDirectory}, '${f.type || 'file'}')">
                         <div class="file-name">${f.name}</div>
-                        <div class="file-meta">${f.isDirectory ? '文件夹' : formatSize(f.size)} · ${formatDate(f.modified)}</div>
+                        <div class="file-meta">${getFileMeta(f)}</div>
                     </div>
                     <div class="file-arrow" onclick="event.stopPropagation(); showActionMenu('${escapedPath}', '${escapedName}', ${f.isDirectory}, '${f.type || 'file'}')">⋮</div>
                 </div>`;
@@ -2717,6 +2943,192 @@
         function clearThumbnailCache() {
             thumbnailCache.clear();
         }
+
+        // ========== 视图和排序功能 ==========
+        const VIEW_SETTINGS_KEY = 'webfiles_view_settings';
+
+        // 加载视图设置
+        function loadViewSettings() {
+            try {
+                const saved = localStorage.getItem(VIEW_SETTINGS_KEY);
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    viewMode = settings.viewMode || 'list';
+                    sortBy = settings.sortBy || 'name';
+                    sortOrder = settings.sortOrder || 'asc';
+                    if (settings.displayColumns) {
+                        displayColumns = { ...displayColumns, ...settings.displayColumns };
+                    }
+                }
+            } catch (e) {
+                console.error('加载视图设置失败:', e);
+            }
+        }
+
+        // 保存视图设置
+        function saveViewSettings() {
+            try {
+                const settings = {
+                    viewMode,
+                    sortBy,
+                    sortOrder,
+                    displayColumns
+                };
+                localStorage.setItem(VIEW_SETTINGS_KEY, JSON.stringify(settings));
+            } catch (e) {
+                console.error('保存视图设置失败:', e);
+            }
+        }
+
+        // 应用视图设置到 UI
+        function applyViewSettings() {
+            // 应用视图模式
+            setViewMode(viewMode, false);
+            // 更新排序下拉菜单
+            updateSortDropdownUI();
+            // 更新显示设置弹窗 UI
+            updateDisplaySettingsUI();
+        }
+
+        // 设置视图模式
+        function setViewMode(mode, save = true) {
+            viewMode = mode;
+            const list = document.getElementById('fileList');
+
+            // 移除所有视图类
+            list.classList.remove('icon-view', 'compact-view');
+
+            // 添加对应的视图类
+            if (mode === 'icon') {
+                list.classList.add('icon-view');
+            } else if (mode === 'compact') {
+                list.classList.add('compact-view');
+            }
+
+            // 更新工具栏按钮状态
+            document.getElementById('viewListBtn').classList.toggle('active', mode === 'list' || mode === 'compact');
+            document.getElementById('viewIconBtn').classList.toggle('active', mode === 'icon');
+
+            if (save) {
+                saveViewSettings();
+            }
+
+            // 重新渲染文件列表
+            if (currentFiles.length > 0) {
+                renderFiles(currentFiles);
+            }
+        }
+
+        // 切换排序下拉菜单
+        function toggleSortDropdown() {
+            const dropdown = document.getElementById('sortDropdown');
+            dropdown.classList.toggle('open');
+        }
+
+        // 设置排序方式
+        function setSort(field, order, save = true) {
+            console.log('setSort called:', field, order);
+            sortBy = field;
+            sortOrder = order;
+
+            updateSortDropdownUI();
+
+            // 关闭下拉菜单
+            document.getElementById('sortDropdown').classList.remove('open');
+
+            if (save) {
+                saveViewSettings();
+            }
+
+            // 重新排序并渲染
+            console.log('currentFiles:', currentFiles ? currentFiles.length : 'null');
+            sortAndRenderFiles();
+        }
+
+        // 更新排序下拉菜单 UI
+        function updateSortDropdownUI() {
+            document.querySelectorAll('.sort-option').forEach(opt => {
+                const optSort = opt.dataset.sort;
+                const optOrder = opt.dataset.order;
+                const isActive = optSort === sortBy && optOrder === sortOrder;
+                opt.classList.toggle('active', isActive);
+                opt.querySelector('.sort-option-check').style.display = isActive ? 'inline' : 'none';
+            });
+        }
+
+        // 排序文件列表
+        function sortFiles(files) {
+            return [...files].sort((a, b) => {
+                // 文件夹始终在前面
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+
+                let comparison = 0;
+                switch (sortBy) {
+                    case 'name':
+                        comparison = a.name.localeCompare(b.name, 'zh-CN');
+                        break;
+                    case 'size':
+                        comparison = a.size - b.size;
+                        break;
+                    case 'modified':
+                        comparison = new Date(a.modified) - new Date(b.modified);
+                        break;
+                    default:
+                        comparison = a.name.localeCompare(b.name, 'zh-CN');
+                }
+
+                return sortOrder === 'asc' ? comparison : -comparison;
+            });
+        }
+
+        // 排序并渲染文件
+        function sortAndRenderFiles() {
+            if (currentFiles && currentFiles.length > 0) {
+                const sorted = sortFiles(currentFiles);
+                renderFiles(sorted);
+            }
+        }
+
+        // 显示设置弹窗
+        function showDisplaySettings() {
+            updateDisplaySettingsUI();
+            document.getElementById('displaySettingsModal').classList.add('show');
+        }
+
+        // 隐藏显示设置弹窗
+        function hideDisplaySettingsModal() {
+            document.getElementById('displaySettingsModal').classList.remove('show');
+        }
+
+        // 更新显示设置弹窗 UI
+        function updateDisplaySettingsUI() {
+            // 显示列复选框
+            document.getElementById('colSize').checked = displayColumns.size;
+            document.getElementById('colModified').checked = displayColumns.modified;
+            document.getElementById('colType').checked = displayColumns.type;
+        }
+
+        // 保存显示设置
+        function saveDisplaySettings() {
+            displayColumns.size = document.getElementById('colSize').checked;
+            displayColumns.modified = document.getElementById('colModified').checked;
+            displayColumns.type = document.getElementById('colType').checked;
+            saveViewSettings();
+
+            // 重新渲染文件列表
+            if (currentFiles.length > 0) {
+                renderFiles(currentFiles);
+            }
+        }
+
+        // 点击其他地方关闭排序下拉菜单
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('sortDropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
 
         function getFileIcon(name, isDir, type) {
             if (isDir) return '📁';
@@ -5595,6 +6007,8 @@
         });
 
         // 初始化
+        loadViewSettings();
+        applyViewSettings();
         loadFiles(HOME);
         loadFavorites();
         startStatsMonitoring();
