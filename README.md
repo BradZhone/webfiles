@@ -2,7 +2,7 @@
 
 A modern web-based file manager with a VSCode-like interface.
 
-![](screenshot.png)
+> 📸 Screenshots coming soon
 
 ## Features
 

@@ -12,8 +12,8 @@
     "editor",
     "file-manager"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "WebFiles Contributors",
+  "license": "MIT",
   "dependencies": {
     "archiver": "^7.0.1",
     "body-parser": "^2.2.2",

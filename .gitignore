@@ -26,3 +26,21 @@ Thumbs.db
 # Backup files
 *.bak
 *.bak.*
+
+# Runtime data
+shares.json
+terminals.json
+server.pid
+.env
+.env.*
+
+# Development tools
+.playwright-mcp/
+.serena/
+
+# Screenshots and images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
