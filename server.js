@@ -38,6 +38,7 @@ const configFile = loadConfigFile();
 const PORT = process.env.WEBFILES_PORT || configFile.port || 8765;
 const HOME_DIR = process.env.WEBFILES_HOME || configFile.homeDir || process.env.HOME || '/home/brad';
 const sessionSecret = process.env.WEBFILES_SECRET || configFile.sessionSecret || crypto.randomBytes(32).toString('hex');
+const vaultPaths = configFile.vaultPaths || [];
 
 // 读取或创建配置
 function loadConfig() {
@@ -1556,6 +1557,218 @@ setInterval(() => {
         ws.ping();
     });
 }, HEARTBEAT_INTERVAL);
+
+// ========== Vault API (Obsidian Integration) ==========
+
+// Vault 辅助函数
+function extractWikiLinks(content) {
+  const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+  const links = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    links.push(match[1].trim());
+  }
+  return links;
+}
+
+function extractTags(content) {
+  const tags = new Set();
+  // frontmatter tags
+  const fmMatch = content.match(/^---[\s\S]*?tags:\s*\[([^\]]+)\]/);
+  if (fmMatch) {
+    fmMatch[1].split(',').forEach(t => tags.add(t.trim()));
+  }
+  // 行内 tags（排除 Markdown 标题）
+  const body = content.replace(/^---[\s\S]*?---\n?/, '');
+  const lines = body.split('\n');
+  lines.forEach(line => {
+    if (/^#{1,6}\s/.test(line)) return; // 跳过标题行
+    const tagRegex = /(?:^|[\s(])#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/]*)/g;
+    let m;
+    while ((m = tagRegex.exec(line)) !== null) {
+      tags.add(m[1]);
+    }
+  });
+  return [...tags];
+}
+
+function parseFrontmatter(content) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) return { metadata: null, body: content };
+  const yamlStr = match[1];
+  const body = content.slice(match[0].length).replace(/^\n+/, '');
+  const metadata = {};
+  yamlStr.split('\n').forEach(line => {
+    const kv = line.match(/^(\w[\w-]*):\s*(.*)$/);
+    if (kv) {
+      const key = kv[1].trim();
+      const val = kv[2].trim();
+      if (val.startsWith('[') && val.endsWith(']')) {
+        metadata[key] = val.slice(1, -1).split(',').map(s => s.trim());
+      } else {
+        metadata[key] = val;
+      }
+    }
+  });
+  return { metadata, body };
+}
+
+function scanVault(vaultPath) {
+  const files = [];
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.name.endsWith('.md')) {
+        try {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          const { metadata, body } = parseFrontmatter(content);
+          const links = extractWikiLinks(content);
+          const tags = extractTags(content);
+          files.push({
+            path: fullPath,
+            relativePath: path.relative(vaultPath, fullPath),
+            name: entry.name,
+            basename: entry.name.replace(/\.md$/, ''),
+            metadata,
+            links,
+            tags
+          });
+        } catch (e) {
+          // 跳过无法读取的文件
+        }
+      }
+    }
+  }
+  walk(vaultPath);
+  return files;
+}
+
+function validateVaultPath(vaultPath, HOME_DIR) {
+  const resolved = path.resolve(vaultPath);
+  // 必须在 HOME_DIR 下
+  if (!resolved.startsWith(HOME_DIR)) return false;
+  // 如果配置了 vaultPaths，必须匹配其中之一
+  if (vaultPaths.length > 0 && !vaultPaths.some(vp => resolved.startsWith(path.resolve(vp)))) return false;
+  // 必须是存在的目录
+  try {
+    return fs.statSync(resolved).isDirectory();
+  } catch { return false; }
+}
+
+// Vault API 端点
+
+// GET /api/vault/graph - 构建笔记关系图
+app.get('/api/vault/graph', requireAuth, (req, res) => {
+  const vaultPath = req.query.vault;
+  if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
+    return res.status(400).json({ error: 'Invalid vault path' });
+  }
+  const files = scanVault(vaultPath);
+
+  // 构建节点
+  const nodeMap = new Map();
+  files.forEach(f => {
+    nodeMap.set(f.basename, {
+      id: f.basename,
+      label: f.basename,
+      path: f.relativePath,
+      tags: f.tags,
+      group: path.dirname(f.relativePath) || 'root'
+    });
+  });
+
+  // 构建边
+  const edges = [];
+  const edgeSet = new Set();
+  files.forEach(f => {
+    f.links.forEach(target => {
+      const key = `${f.basename}->${target}`;
+      if (nodeMap.has(target) && !edgeSet.has(key)) {
+        edgeSet.add(key);
+        edges.push({ from: f.basename, to: target });
+      }
+    });
+  });
+
+  res.json({ nodes: Array.from(nodeMap.values()), edges });
+});
+
+// GET /api/vault/backlinks - 获取笔记的反向链接
+app.get('/api/vault/backlinks', requireAuth, (req, res) => {
+  const { vault, file } = req.query;
+  if (!vault || !file || !validateVaultPath(vault, HOME_DIR)) {
+    return res.status(400).json({ error: 'Invalid parameters' });
+  }
+  const targetBasename = path.basename(file, '.md');
+  const files = scanVault(vault);
+
+  const backlinks = files.filter(f =>
+    f.links.some(link => link === targetBasename)
+  ).map(f => ({
+    path: f.relativePath,
+    name: f.name,
+    basename: f.basename,
+    metadata: f.metadata
+  }));
+
+  res.json({ file: targetBasename, backlinks });
+});
+
+// GET /api/vault/tags - 获取所有标签及其关联笔记
+app.get('/api/vault/tags', requireAuth, (req, res) => {
+  const vaultPath = req.query.vault;
+  if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
+    return res.status(400).json({ error: 'Invalid vault path' });
+  }
+  const files = scanVault(vaultPath);
+  const tagMap = {};
+  files.forEach(f => {
+    f.tags.forEach(tag => {
+      if (!tagMap[tag]) tagMap[tag] = [];
+      tagMap[tag].push({ path: f.relativePath, name: f.name, basename: f.basename });
+    });
+  });
+  res.json({ tags: tagMap, totalFiles: files.length });
+});
+
+// POST /api/vault/parse - 解析单个 Markdown 文件
+app.post('/api/vault/parse', requireAuth, (req, res) => {
+  const { file, vault } = req.body;
+  if (!file) return res.status(400).json({ error: 'Missing file parameter' });
+
+  const filePath = vault ? path.join(vault, file) : file;
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(HOME_DIR)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    const content = fs.readFileSync(resolved, 'utf-8');
+    const { metadata, body } = parseFrontmatter(content);
+    const links = extractWikiLinks(content);
+    const tags = extractTags(content);
+    const headings = [];
+    body.split('\n').forEach(line => {
+      const m = line.match(/^(#{1,6})\s+(.+)/);
+      if (m) headings.push({ level: m[1].length, text: m[2].trim() });
+    });
+
+    res.json({
+      metadata,
+      body,
+      links,
+      tags,
+      headings,
+      basename: path.basename(resolved, '.md')
+    });
+  } catch (e) {
+    res.status(404).json({ error: 'File not found', message: e.message });
+  }
+});
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  文件管理器已启动\n  http://<服务器IP>:${PORT}\n  Home: ${HOME_DIR}\n`);
