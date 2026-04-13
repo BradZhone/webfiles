@@ -1657,6 +1657,91 @@
             cursor: pointer;
             transition: all 0.15s ease;
         }
+        /* === Obsidian Markdown Enhancements === */
+
+        /* Callout blocks */
+        .callout {
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+        .callout-note    { border-color: #448aff; background: rgba(68,138,255,0.1); }
+        .callout-info    { border-color: #00bcd4; background: rgba(0,188,212,0.1); }
+        .callout-tip     { border-color: #00c853; background: rgba(0,200,83,0.1); }
+        .callout-warning { border-color: #ff9800; background: rgba(255,152,0,0.1); }
+        .callout-danger  { border-color: #ff1744; background: rgba(255,23,68,0.1); }
+        .callout-quote   { border-color: #9e9e9e; background: rgba(158,158,158,0.1); }
+        .callout-example { border-color: #b388ff; background: rgba(179,136,255,0.1); }
+        .callout-title   { font-weight: bold; margin-bottom: 4px; }
+        .callout-body    { font-size: 0.95em; }
+
+        /* Wiki links */
+        .wiki-link {
+            color: #89b4fa;
+            text-decoration: none;
+            border-bottom: 1px dashed #585b70;
+            cursor: pointer;
+        }
+        .wiki-link:hover {
+            color: #b4befe;
+            border-bottom-color: #89b4fa;
+        }
+
+        /* Tags */
+        .obsidian-tag {
+            color: #f9e2af;
+            background: rgba(249,226,175,0.15);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .obsidian-tag:hover {
+            background: rgba(249,226,175,0.3);
+        }
+
+        /* Embed content */
+        .embed-content {
+            border: 1px solid #45475a;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            background: rgba(30,30,46,0.5);
+        }
+        .embed-header {
+            font-size: 0.85em;
+            color: #89b4fa;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #313244;
+            padding-bottom: 4px;
+        }
+        .embed-loading, .embed-error {
+            color: #6c7086;
+            font-style: italic;
+        }
+
+        /* Mermaid diagrams */
+        .mermaid-container {
+            margin: 12px 0;
+            text-align: center;
+            background: #1e1e2e;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        /* Frontmatter display */
+        .frontmatter {
+            background: rgba(49,50,68,0.6);
+            border: 1px solid #45475a;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            font-size: 0.85em;
+        }
+        .frontmatter-key { color: #89b4fa; }
+        .frontmatter-value { color: #cdd6f4; }
     </style>
 </head>
 <body>
@@ -2328,6 +2413,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/vhdl/vhdl.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/spreadsheet/spreadsheet.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+
+    <!-- highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+
+    <!-- Mermaid for diagram rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+    <!-- vis-network for knowledge graph -->
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9/standalone/umd/vis-network.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 
@@ -2642,6 +2738,8 @@
             // Markdown 文件
             if (view === 'preview') {
                 wrap.innerHTML = `<div class="markdown-view"><div class="markdown-body">${marked.parse(fileContent || '')}</div></div>`;
+                renderMermaidDiagrams(wrap);
+                loadEmbeds(wrap);
             } else if (view === 'edit') {
                 const bar = document.getElementById('editorBar');
                 bar.innerHTML = Button.editorBar(true);
@@ -3322,6 +3420,8 @@
                             btn.classList.toggle('active', i === 1);
                         });
                         wrap.innerHTML = `<div class="markdown-view"><div class="markdown-body">${marked.parse(data.content)}</div></div>`;
+                        renderMermaidDiagrams(wrap);
+                        loadEmbeds(wrap);
                     }
                 } else {
                     initEditor(data.content || '', name, path);
@@ -6154,6 +6254,244 @@
             // 其他文件类型使用原始函数
             return originalOpenFile(path, type);
         };
+
+        // ========== Obsidian Markdown Enhancements ==========
+
+        // Initialize Obsidian Markdown enhancements
+        function initObsidianMarkdown() {
+            // Initialize mermaid
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'dark',
+                    themeVariables: {
+                        darkMode: true,
+                        background: '#1e1e2e',
+                        primaryColor: '#89b4fa'
+                    }
+                });
+            }
+
+            // Wiki-Link extension: [[target]] or [[target|alias]]
+            const wikiLinkExtension = {
+                name: 'wikiLink',
+                level: 'inline',
+                start(src) { return src.indexOf('[['); },
+                tokenizer(src) {
+                    const match = /^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/.exec(src);
+                    if (match) {
+                        return {
+                            type: 'wikiLink',
+                            raw: match[0],
+                            target: match[1].trim(),
+                            alias: match[2] ? match[2].trim() : null
+                        };
+                    }
+                },
+                renderer(token) {
+                    const display = token.alias || token.target;
+                    const encoded = encodeURIComponent(token.target);
+                    return `<a class="wiki-link" href="javascript:void(0)" data-target="${encoded}" onclick="openWikiLink('${encoded}')">${display}</a>`;
+                }
+            };
+
+            // Callout extension: > [!type] title
+            const calloutExtension = {
+                name: 'callout',
+                level: 'block',
+                start(src) { return src.indexOf('> [!'); },
+                tokenizer(src) {
+                    const match = /^> \[!(\w+)\]\s*(.*?)\n((?:>.*\n?)*)/.exec(src);
+                    if (match) {
+                        const type = match[1].toLowerCase();
+                        const title = match[2].trim();
+                        const body = match[3].split('\n').map(line => line.replace(/^>\s?/, '')).join('\n').trim();
+                        const defaultTitles = {
+                            note: '笔记', info: '信息', tip: '提示',
+                            warning: '警告', danger: '危险', quote: '引用', example: '示例'
+                        };
+                        return {
+                            type: 'callout',
+                            raw: match[0],
+                            calloutType: type,
+                            calloutTitle: title || defaultTitles[type] || type,
+                            calloutBody: body
+                        };
+                    }
+                },
+                renderer(token) {
+                    const bodyHtml = this.parser.parseInline(token.calloutBody);
+                    return `<div class="callout callout-${token.calloutType}"><div class="callout-title">${token.calloutTitle}</div><div class="callout-body">${bodyHtml}</div></div>`;
+                }
+            };
+
+            // Tag extension: #tag (not markdown headings)
+            const tagExtension = {
+                name: 'obsidianTag',
+                level: 'inline',
+                start(src) {
+                    const idx = src.indexOf('#');
+                    return idx;
+                },
+                tokenizer(src) {
+                    // Match #tag or #nested/tag, but NOT markdown headings
+                    const match = /(?:^|[\s(])(#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/]*))/.exec(src);
+                    if (match && match.index === 0) {
+                        // At start of string - check if it's a heading
+                        if (/^#{1,6}\s/.test(src)) return;
+                    }
+                    if (match) {
+                        return {
+                            type: 'obsidianTag',
+                            raw: match[1],
+                            tagName: match[2]
+                        };
+                    }
+                },
+                renderer(token) {
+                    return `<span class="obsidian-tag" data-tag="${token.tagName}" onclick="filterByTag('${token.tagName}')">#${token.tagName}</span>`;
+                }
+            };
+
+            // Embed extension: ![[file]] or ![[file#heading]]
+            const embedExtension = {
+                name: 'embed',
+                level: 'inline',
+                start(src) { return src.indexOf('![['); },
+                tokenizer(src) {
+                    const match = /^!\[\[([^]#]+)(?:#([^]]+))?\]\]/.exec(src);
+                    if (match) {
+                        return {
+                            type: 'embed',
+                            raw: match[0],
+                            file: match[1].trim(),
+                            heading: match[2] ? match[2].trim() : null
+                        };
+                    }
+                },
+                renderer(token) {
+                    const ext = token.file.split('.').pop().toLowerCase();
+                    if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+                        return `<img class="embed-image" src="/api/file?path=${encodeURIComponent(token.file)}" alt="${token.file}" loading="lazy" style="max-width:100%;border-radius:6px;">`;
+                    }
+                    return `<div class="embed-content" data-file="${encodeURIComponent(token.file)}" data-heading="${token.heading || ''}"><div class="embed-loading">加载 ${token.file}...</div></div>`;
+                }
+            };
+
+            // Mermaid extension: ```mermaid blocks
+            const mermaidExtension = {
+                name: 'mermaidBlock',
+                level: 'block',
+                start(src) {
+                    const idx = src.indexOf('```mermaid');
+                    return idx !== -1 ? idx : -1;
+                },
+                tokenizer(src) {
+                    const match = /^```mermaid\n([\s\S]*?)```/.exec(src);
+                    if (match) {
+                        return {
+                            type: 'mermaidBlock',
+                            raw: match[0],
+                            code: match[1].trim()
+                        };
+                    }
+                },
+                renderer(token) {
+                    const id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
+                    return `<div class="mermaid-container" id="${id}" data-code="${encodeURIComponent(token.code)}"><div class="embed-loading">渲染图表中...</div></div>`;
+                }
+            };
+
+            // Register all extensions
+            marked.use({
+                extensions: [wikiLinkExtension, calloutExtension, tagExtension, embedExtension, mermaidExtension]
+            });
+
+            // Custom code renderer with highlight.js
+            const renderer = {
+                code(code, language) {
+                    const lang = language || '';
+                    if (lang === 'mermaid' && typeof mermaid !== 'undefined') {
+                        const id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
+                        return `<div class="mermaid-container" id="${id}" data-code="${encodeURIComponent(code)}"><div class="embed-loading">渲染图表中...</div></div>`;
+                    }
+                    let highlighted;
+                    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                        highlighted = hljs.highlight(code, { language: lang }).value;
+                    } else if (typeof hljs !== 'undefined') {
+                        highlighted = hljs.highlightAuto(code).value;
+                    } else {
+                        highlighted = code;
+                    }
+                    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+                }
+            };
+            marked.use({ renderer });
+        }
+
+        // Global wiki link handler
+        function openWikiLink(encodedTarget) {
+            const target = decodeURIComponent(encodedTarget);
+            // Search for the file in current vault
+            if (typeof currentVaultPath !== 'undefined' && currentVaultPath) {
+                fetch(`/api/search?query=${encodeURIComponent(target + '.md')}&path=${encodeURIComponent(currentVaultPath)}`)
+                    .then(r => r.json())
+                    .then(results => {
+                        if (results && results.length > 0) {
+                            openFile(results[0].path);
+                        } else {
+                            showToast(`找不到笔记: ${target}`);
+                        }
+                    })
+                    .catch(() => showToast(`搜索失败: ${target}`));
+            } else {
+                showToast('请先打开一个 Vault');
+            }
+        }
+
+        // Render mermaid diagrams after markdown render
+        async function renderMermaidDiagrams(container) {
+            if (typeof mermaid === 'undefined') return;
+            const els = container.querySelectorAll('.mermaid-container[data-code]');
+            for (const el of els) {
+                const code = decodeURIComponent(el.dataset.code);
+                try {
+                    const { svg } = await mermaid.render(el.id + '-svg', code);
+                    el.innerHTML = svg;
+                } catch (e) {
+                    el.innerHTML = `<div class="embed-error">图表渲染失败: ${e.message}</div>`;
+                }
+            }
+        }
+
+        // Render embed content after markdown render
+        async function loadEmbeds(container) {
+            const embeds = container.querySelectorAll('.embed-content[data-file]');
+            for (const el of embeds) {
+                const file = decodeURIComponent(el.dataset.file);
+                const heading = el.dataset.heading;
+                try {
+                    const resp = await fetch('/api/vault/parse', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ file })
+                    });
+                    const data = await resp.json();
+                    let html = marked.parse(data.body || '');
+                    el.innerHTML = `<div class="embed-header">${file}</div>${html}`;
+                } catch (e) {
+                    el.innerHTML = `<div class="embed-error">加载失败: ${file}</div>`;
+                }
+            }
+        }
+
+        // Tag filter handler (placeholder, can be extended)
+        function filterByTag(tag) {
+            showToast(`筛选标签: #${tag}`);
+        }
+
+        // Initialize Obsidian Markdown on page load
+        initObsidianMarkdown();
     </script>
 </body>
 </html>
