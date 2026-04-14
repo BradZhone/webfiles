@@ -1558,6 +1558,53 @@ setInterval(() => {
     });
 }, HEARTBEAT_INTERVAL);
 
+
+// ========== Vault Cache ==========
+class VaultCache {
+  constructor(maxSize = 20, ttlMs = 5 * 60 * 1000) {
+    this.cache = new Map();
+    this.maxSize = maxSize;
+    this.ttl = ttlMs;
+  }
+
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    if (Date.now() - item.ts > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    // LRU: move to end
+    this.cache.delete(key);
+    this.cache.set(key, item);
+    return item.data;
+  }
+
+  set(key, data) {
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { data, ts: Date.now() });
+  }
+
+  invalidate(key) {
+    this.cache.delete(key);
+  }
+
+  invalidatePrefix(prefix) {
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) this.cache.delete(key);
+    }
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+}
+
+const vaultCache = new VaultCache(20, 5 * 60 * 1000);
+
 // ========== Vault API (Obsidian Integration) ==========
 
 // Vault 辅助函数
@@ -1667,6 +1714,12 @@ app.get('/api/vault/graph', requireAuth, (req, res) => {
   if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
     return res.status(400).json({ error: 'Invalid vault path' });
   }
+
+  // Check cache first
+  const cacheKey = 'graph:' + vaultPath;
+  const cached = vaultCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
   const files = scanVault(vaultPath);
 
   // 构建节点
@@ -1694,7 +1747,9 @@ app.get('/api/vault/graph', requireAuth, (req, res) => {
     });
   });
 
-  res.json({ nodes: Array.from(nodeMap.values()), edges });
+  const result = { nodes: Array.from(nodeMap.values()), edges };
+  vaultCache.set(cacheKey, result);
+  res.json(result);
 });
 
 // GET /api/vault/backlinks - 获取笔记的反向链接
@@ -1703,6 +1758,12 @@ app.get('/api/vault/backlinks', requireAuth, (req, res) => {
   if (!vault || !file || !validateVaultPath(vault, HOME_DIR)) {
     return res.status(400).json({ error: 'Invalid parameters' });
   }
+
+  // Check cache first
+  const cacheKey = 'backlinks:' + vault + ':' + file;
+  const cached = vaultCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
   const targetBasename = path.basename(file, '.md');
   const files = scanVault(vault);
 
@@ -1715,7 +1776,9 @@ app.get('/api/vault/backlinks', requireAuth, (req, res) => {
     metadata: f.metadata
   }));
 
-  res.json({ file: targetBasename, backlinks });
+  const result = { file: targetBasename, backlinks };
+  vaultCache.set(cacheKey, result);
+  res.json(result);
 });
 
 // GET /api/vault/tags - 获取所有标签及其关联笔记
@@ -1724,6 +1787,12 @@ app.get('/api/vault/tags', requireAuth, (req, res) => {
   if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
     return res.status(400).json({ error: 'Invalid vault path' });
   }
+
+  // Check cache first
+  const cacheKey = 'tags:' + vaultPath;
+  const cached = vaultCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
   const files = scanVault(vaultPath);
   const tagMap = {};
   files.forEach(f => {
@@ -1732,7 +1801,9 @@ app.get('/api/vault/tags', requireAuth, (req, res) => {
       tagMap[tag].push({ path: f.relativePath, name: f.name, basename: f.basename });
     });
   });
-  res.json({ tags: tagMap, totalFiles: files.length });
+  const result = { tags: tagMap, totalFiles: files.length };
+  vaultCache.set(cacheKey, result);
+  res.json(result);
 });
 
 // POST /api/vault/parse - 解析单个 Markdown 文件

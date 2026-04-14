@@ -1742,6 +1742,196 @@
         }
         .frontmatter-key { color: #89b4fa; }
         .frontmatter-value { color: #cdd6f4; }
+
+        /* ========== Vault Browser Styles ========== */
+        .vault-view { display: flex; flex-direction: column; height: 100%; }
+        .vault-toolbar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px; border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0;
+        }
+        .vault-toolbar button {
+            background: var(--item); border: 1px solid var(--border); color: var(--text-secondary);
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+            transition: all 0.15s ease;
+        }
+        .vault-toolbar button:hover { background: var(--item-hover); color: var(--text); border-color: var(--accent); }
+        .vault-name { flex: 1; font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vault-toolbar-actions { display: flex; gap: 4px; }
+        .vault-layout { display: flex; flex: 1; overflow: hidden; }
+        .vault-sidebar {
+            width: 260px; min-width: 180px; border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; background: var(--bg-secondary); flex-shrink: 0;
+        }
+        .vault-search {
+            padding: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .vault-search input {
+            width: 100%; background: var(--item); border: 1px solid var(--border); color: var(--text);
+            padding: 6px 10px; border-radius: 6px; font-size: 13px; outline: none;
+        }
+        .vault-search input:focus { border-color: var(--accent); }
+        .vault-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+        .vault-tree-item {
+            display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+            cursor: pointer; font-size: 13px; color: var(--text-secondary);
+            transition: background 0.1s ease; user-select: none;
+        }
+        .vault-tree-item:hover { background: var(--item-hover); color: var(--text); }
+        .vault-tree-item.active { background: var(--accent-subtle); color: var(--accent); }
+        .vault-tree-item .tree-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+        .vault-tree-item .tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vault-tree-folder > .vault-tree-item { font-weight: 500; color: var(--text); }
+        .vault-tree-folder > .vault-tree-children { display: none; }
+        .vault-tree-folder.open > .vault-tree-children { display: block; }
+        .vault-tree-children { padding-left: 16px; }
+
+        .vault-preview {
+            flex: 1; overflow-y: auto; padding: 24px 32px; background: var(--bg);
+            min-width: 0;
+        }
+        .vault-preview .markdown-body { max-width: 800px; margin: 0 auto; }
+        .vault-preview .markdown-body h1, .vault-preview .markdown-body h2,
+        .vault-preview .markdown-body h3, .vault-preview .markdown-body h4,
+        .vault-preview .markdown-body h5, .vault-preview .markdown-body h6 {
+            scroll-margin-top: 20px;
+        }
+
+        .vault-info-panel {
+            width: 280px; min-width: 200px; border-left: 1px solid var(--border);
+            background: var(--bg-secondary); display: flex; flex-direction: column;
+            overflow: hidden; flex-shrink: 0;
+        }
+        .vault-info-panel .panel-tabs {
+            display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .vault-info-panel .panel-tab {
+            flex: 1; padding: 8px 4px; text-align: center; background: none; border: none;
+            color: var(--text-secondary); cursor: pointer; font-size: 12px; font-weight: 500;
+            border-bottom: 2px solid transparent; transition: all 0.15s ease;
+        }
+        .vault-info-panel .panel-tab:hover { color: var(--text); background: var(--item-hover); }
+        .vault-info-panel .panel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .vault-info-panel .panel-content { flex: 1; overflow-y: auto; }
+        .panel-header {
+            padding: 10px 12px; font-weight: 600; font-size: 12px; color: var(--text);
+            border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
+        }
+        .panel-empty { padding: 24px 16px; text-align: center; color: var(--dim); font-size: 13px; }
+
+        /* TOC */
+        .toc-list { padding: 4px 0; }
+        .toc-item {
+            padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--text-secondary);
+            transition: all 0.1s ease; border-left: 2px solid transparent;
+        }
+        .toc-item:hover { color: var(--text); background: var(--item-hover); }
+        .toc-item.active { color: var(--accent); border-left-color: var(--accent); }
+        .toc-level-1 { padding-left: 12px; font-weight: 600; }
+        .toc-level-2 { padding-left: 24px; }
+        .toc-level-3 { padding-left: 36px; font-size: 12px; }
+        .toc-level-4 { padding-left: 48px; font-size: 12px; color: var(--dim); }
+        .toc-level-5 { padding-left: 56px; font-size: 12px; color: var(--dim); }
+        .toc-level-6 { padding-left: 64px; font-size: 12px; color: var(--dim); }
+
+        /* Backlinks */
+        .backlink-item {
+            border-bottom: 1px solid var(--border); padding: 8px 12px;
+        }
+        .backlink-item:last-child { border-bottom: none; }
+        .backlink-title {
+            font-size: 13px; font-weight: 500; color: var(--accent); cursor: pointer;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .backlink-title:hover { text-decoration: underline; }
+        .backlink-context {
+            margin-top: 4px; padding: 6px 8px; background: var(--item); border-radius: 4px;
+            font-size: 12px; color: var(--text-secondary); cursor: pointer;
+            transition: background 0.1s ease;
+        }
+        .backlink-context:hover { background: var(--item-hover); }
+        .backlink-context pre {
+            margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit;
+        }
+        .backlink-context .context-line {
+            display: block; margin-top: 2px; font-size: 11px; color: var(--dim);
+        }
+
+        /* Metadata table */
+        .vault-meta-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+        .vault-meta-table td {
+            padding: 6px 12px; border-bottom: 1px solid var(--border); vertical-align: top;
+        }
+        .vault-meta-table td:first-child { color: var(--accent); font-weight: 500; white-space: nowrap; width: 80px; }
+        .vault-meta-table td:last-child { color: var(--text-secondary); word-break: break-word; }
+
+        /* Graph Modal */
+        .graph-modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000;
+            background: rgba(0,0,0,0.92); display: none; flex-direction: column;
+        }
+        .graph-modal.show { display: flex; }
+        .graph-modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .graph-modal-header h3 { font-size: 14px; color: var(--text); font-weight: 600; }
+        .graph-controls { display: flex; align-items: center; gap: 8px; }
+        .graph-controls select, .graph-controls input {
+            background: var(--item); border: 1px solid var(--border); color: var(--text);
+            padding: 5px 10px; border-radius: 6px; font-size: 12px; outline: none;
+        }
+        .graph-controls input { width: 160px; }
+        .graph-controls select:focus, .graph-controls input:focus { border-color: var(--accent); }
+        .graph-controls button {
+            background: var(--item); border: 1px solid var(--border); color: var(--text-secondary);
+            padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 14px;
+        }
+        .graph-controls button:hover { background: var(--item-hover); color: var(--text); }
+        .graph-modal-body { flex: 1; position: relative; }
+
+        /* Tag Cloud */
+        .tag-cloud { padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+        .tag-cloud-item {
+            display: inline-block; padding: 4px 10px; border-radius: 12px; cursor: pointer;
+            background: var(--accent-subtle); color: var(--accent); font-size: 13px;
+            transition: all 0.15s ease; white-space: nowrap;
+        }
+        .tag-cloud-item:hover { background: rgba(88,166,255,0.25); transform: scale(1.05); }
+        .tag-cloud-item small { font-size: 0.8em; opacity: 0.7; margin-left: 2px; }
+        .tag-file-list { list-style: none; padding: 0 12px; }
+        .tag-file-list li {
+            padding: 6px 10px; cursor: pointer; font-size: 13px; color: var(--text-secondary);
+            border-radius: 4px; transition: background 0.1s ease;
+        }
+        .tag-file-list li:hover { background: var(--item-hover); color: var(--text); }
+        .tag-files-header {
+            padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text);
+            border-top: 1px solid var(--border); margin-top: 8px;
+        }
+
+        /* Vault empty state */
+        .vault-empty-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; color: var(--dim); font-size: 14px; gap: 8px;
+        }
+        .vault-empty-state .empty-icon { font-size: 48px; margin-bottom: 8px; }
+
+        /* Wiki-link broken state */
+        .wiki-link.broken { color: var(--danger); border-bottom-color: var(--danger); opacity: 0.7; }
+
+        /* Responsive: hide info panel on small screens */
+        @media (max-width: 900px) {
+            .vault-sidebar { width: 200px; min-width: 160px; }
+            .vault-info-panel { display: none; }
+            .vault-preview { padding: 16px; }
+        }
+        @media (max-width: 600px) {
+            .vault-sidebar { width: 100%; position: absolute; z-index: 10; left: 0; top: 0; bottom: 0; }
+            .vault-layout { position: relative; }
+            .vault-preview { padding: 12px; }
+        }
+
     </style>
 </head>
 <body>
@@ -1831,6 +2021,7 @@
             <div class="toolbar-divider"></div>
             <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">多选</button>
             <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
+            <button class="toolbar-btn" onclick="showVaultView()" id="vaultBtn">知识库</button>
             <div class="toolbar-divider"></div>
             <div class="view-mode-group">
                 <button class="view-mode-btn active" id="viewListBtn" onclick="setViewMode('list')" title="列表视图">☰</button>
@@ -2143,6 +2334,78 @@
         </div>
     </div>
 
+
+    <!-- ========== Vault Browser View ========== -->
+    <div class="view" id="vaultView">
+        <div class="vault-view">
+            <!-- Toolbar -->
+            <div class="vault-toolbar">
+                <button onclick="openVaultSelector()">📂 选择 Vault</button>
+                <span id="vaultName" class="vault-name">未选择 Vault</span>
+                <div class="vault-toolbar-actions">
+                    <button onclick="showTagCloud()" title="标签云">🏷️</button>
+                    <button onclick="showGraph()" title="知识图谱">🌐</button>
+                </div>
+            </div>
+            <!-- Three-column layout -->
+            <div class="vault-layout">
+                <!-- Left: File tree -->
+                <div class="vault-sidebar" id="vaultSidebar">
+                    <div class="vault-search">
+                        <input type="text" id="vaultSearchInput" placeholder="搜索文件..." oninput="searchVault(this.value)">
+                    </div>
+                    <div class="vault-tree" id="vaultTree">
+                        <div class="vault-empty-state">
+                            <div class="empty-icon">📂</div>
+                            <p>选择一个 Vault 目录开始</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Center: Preview -->
+                <div class="vault-preview" id="vaultPreview">
+                    <div class="vault-empty-state">
+                        <div class="empty-icon">📑</div>
+                        <p>选择文件开始浏览</p>
+                    </div>
+                </div>
+                <!-- Right: TOC + Backlinks + Metadata -->
+                <div class="vault-info-panel" id="vaultInfoPanel">
+                    <div class="panel-tabs">
+                        <button class="panel-tab active" onclick="switchInfoTab('toc')">📋 大纲</button>
+                        <button class="panel-tab" onclick="switchInfoTab('backlinks')">↩ 反链</button>
+                        <button class="panel-tab" onclick="switchInfoTab('meta')">📊 元数据</button>
+                    </div>
+                    <div class="panel-content" id="panelToc">
+                        <div class="panel-empty">打开文件后显示大纲</div>
+                    </div>
+                    <div class="panel-content" id="panelBacklinks" style="display:none;">
+                        <div class="panel-empty">打开文件后显示反链</div>
+                    </div>
+                    <div class="panel-content" id="panelMeta" style="display:none;">
+                        <div class="panel-empty">打开文件后显示元数据</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Modal (full-screen overlay) -->
+    <div id="graphModal" class="graph-modal">
+        <div class="graph-modal-header">
+            <h3>🌐 知识图谱</h3>
+            <div class="graph-controls">
+                <select id="graphGroupBy" onchange="updateGraphGrouping(this.value)">
+                    <option value="directory">按目录分组</option>
+                    <option value="tag">按标签分组</option>
+                </select>
+                <input type="text" id="graphSearchInput" placeholder="搜索节点..." oninput="filterGraphNodes(this.value)">
+                <button onclick="closeGraphModal()" title="关闭">✕</button>
+            </div>
+        </div>
+        <div class="graph-modal-body" id="graphContainer"></div>
+    </div>
+
+
     <!-- 操作菜单 -->
     <div class="action-menu" id="actionMenu">
         <div class="action-menu-item" onclick="doAction('open')">📂 打开</div>
@@ -2163,6 +2426,7 @@
         <div class="action-menu-item" onclick="showUploadModal()">📤 上传文件</div>
         <div class="action-menu-item" onclick="showSearchView()">🔍 搜索</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showTerminalView()">💻 终端</div>
+        <div class="action-menu-item" onclick="hideMainMenu(); showVaultView()">📚 知识库</div>
         <div class="action-menu-item" onclick="showOpenFilesPanel()">📑 已打开文件 (<span id="openFilesCount">0</span>)</div>
         <div class="action-menu-item" onclick="location.href='/logout'">🚪 退出登录</div>
         <div class="action-menu-close" onclick="hideMainMenu()">取消</div>
@@ -6486,11 +6750,655 @@
         }
 
         // Tag filter handler (placeholder, can be extended)
-        function filterByTag(tag) {
-            showToast(`筛选标签: #${tag}`);
-        }
+        // filterByTag moved to VaultModule
 
         // Initialize Obsidian Markdown on page load
+
+        // ========== Vault Browser Module ==========
+        ;(function VaultModule(global) {
+            'use strict';
+
+            // --- Private State ---
+            let currentVault = null;
+            let currentFile = null;
+            let graphNetwork = null;
+            let graphCache = null;
+            let treeData = null;
+            let allNodes = [];
+
+            const DIR_COLORS = {
+                'daily-notes': '#f38ba8', 'projects': '#3fb950', 'areas': '#58a6ff',
+                'resources': '#d29922', 'archive': '#6e7681', 'templates': '#a371f7',
+                'attachments': '#6e7681'
+            };
+            const TAG_COLORS = [
+                '#f38ba8', '#3fb950', '#58a6ff', '#d29922',
+                '#a371f7', '#79c0ff', '#f0883e', '#56d364'
+            ];
+            const DEFAULT_COLOR = '#58a6ff';
+
+            // --- Utility Functions ---
+            function slugify(text) {
+                return text.toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-').replace(/^-|-$/g, '');
+            }
+
+            function hashCode(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                    hash |= 0;
+                }
+                return hash;
+            }
+
+            function getNodeColor(filePath, groupBy, tags) {
+                if (groupBy === 'tag' && tags && tags.length > 0) {
+                    const idx = Math.abs(hashCode(tags[0])) % TAG_COLORS.length;
+                    return TAG_COLORS[idx];
+                }
+                // Default: by directory
+                const parts = filePath.split('/');
+                const dir = parts.length > 1 ? parts[0] : 'root';
+                return DIR_COLORS[dir.toLowerCase()] || DEFAULT_COLOR;
+            }
+
+            // --- View Management ---
+            function showVaultView() {
+                showView('vaultView');
+                document.getElementById('headerTitle').textContent = '📚 知识库';
+                if (!currentVault) {
+                    openVaultSelector();
+                }
+            }
+
+            function hideVaultView() {
+                goBack();
+            }
+
+            function openVaultSelector() {
+                const saved = localStorage.getItem('webfiles_vault_path') || '';
+                const vaultPath = prompt('请输入 Vault 目录的绝对路径：', saved || '/home/brad');
+                if (vaultPath && vaultPath.trim()) {
+                    const trimmed = vaultPath.trim();
+                    localStorage.setItem('webfiles_vault_path', trimmed);
+                    currentVault = trimmed;
+                    document.getElementById('vaultName').textContent = trimmed.split('/').pop() || trimmed;
+                    loadVaultTree(trimmed);
+                }
+            }
+
+            // --- File Tree ---
+            async function loadVaultTree(vaultPath) {
+                const tree = document.getElementById('vaultTree');
+                tree.innerHTML = '<div class="panel-empty">加载中...</div>';
+                try {
+                    const resp = await fetch('/api/vault/graph?vault=' + encodeURIComponent(vaultPath));
+                    const data = await resp.json();
+                    const payload = data.data || data;
+                    const nodes = payload.nodes || [];
+                    allNodes = nodes;
+                    graphCache = payload;
+                    if (nodes.length === 0) {
+                        tree.innerHTML = '<div class="panel-empty">Vault 中没有 Markdown 文件</div>';
+                        return;
+                    }
+                    treeData = buildTreeFromNodes(nodes);
+                    renderTree(tree, treeData);
+                } catch (e) {
+                    tree.innerHTML = '<div class="panel-empty">加载失败: ' + escapeHtml(e.message) + '</div>';
+                }
+            }
+
+            function buildTreeFromNodes(nodes) {
+                const root = { name: '', children: {}, files: [] };
+                nodes.forEach(function(node) {
+                    const parts = (node.path || node.id).split('/');
+                    let current = root;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        const dir = parts[i];
+                        if (!current.children[dir]) {
+                            current.children[dir] = { name: dir, children: {}, files: [] };
+                        }
+                        current = current.children[dir];
+                    }
+                    current.files.push({
+                        name: parts[parts.length - 1],
+                        label: node.label || parts[parts.length - 1].replace(/\.md$/, ''),
+                        path: node.path || node.id,
+                        tags: node.tags || []
+                    });
+                });
+                return root;
+            }
+
+            function renderTree(container, tree) {
+                var html = '';
+                // Sort and render directories first
+                var dirs = Object.keys(tree.children).sort();
+                dirs.forEach(function(dirName) {
+                    html += renderTreeFolder(tree.children[dirName], dirName);
+                });
+                // Then files at root level
+                var files = (tree.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); });
+                files.forEach(function(f) {
+                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
+                         + '<span class="tree-icon">📄</span>'
+                         + '<span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
+                });
+                container.innerHTML = html || '<div class="panel-empty">没有文件</div>';
+            }
+
+            function renderTreeFolder(folder, name) {
+                var html = '<div class="vault-tree-folder">';
+                html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)">';
+                html += '<span class="tree-icon">▶</span>';
+                html += '<span class="tree-label">📁 ' + escapeHtml(name) + '</span></div>';
+                html += '<div class="vault-tree-children">';
+                // Sub-directories
+                var dirs = Object.keys(folder.children).sort();
+                dirs.forEach(function(d) {
+                    html += renderTreeFolder(folder.children[d], d);
+                });
+                // Files
+                var files = (folder.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); });
+                files.forEach(function(f) {
+                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
+                         + '<span class="tree-icon">📄</span>'
+                         + '<span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
+                });
+                html += '</div></div>';
+                return html;
+            }
+
+            global.toggleTreeFolder = function(el) {
+                el.classList.toggle('open');
+                var icon = el.querySelector('.tree-icon');
+                if (icon) icon.textContent = el.classList.contains('open') ? '▼' : '▶';
+            };
+
+            // --- File Preview ---
+            async function openVaultFile(filePath) {
+                if (!currentVault) return;
+                currentFile = filePath;
+
+                // Highlight active tree item
+                document.querySelectorAll('.vault-tree-item.active').forEach(function(el) { el.classList.remove('active'); });
+                var items = document.querySelectorAll('.vault-tree-item[data-path]');
+                items.forEach(function(el) {
+                    if (el.dataset.path === filePath) el.classList.add('active');
+                });
+
+                var preview = document.getElementById('vaultPreview');
+                preview.innerHTML = '<div class="panel-empty">加载中...</div>';
+
+                try {
+                    var resp = await fetch('/api/vault/parse', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vault: currentVault, file: filePath })
+                    });
+                    var data = await resp.json();
+                    var payload = data.data || data;
+                    renderPreview(preview, payload);
+
+                    // Load backlinks in parallel
+                    loadBacklinks(filePath);
+
+                    // Render metadata
+                    renderMetadata(document.getElementById('panelMeta'), payload.metadata || {});
+
+                    // Update header
+                    var title = payload.metadata && payload.metadata.title
+                        ? payload.metadata.title
+                        : filePath.split('/').pop().replace(/\.md$/, '');
+                    document.getElementById('headerTitle').textContent = '📚 ' + title;
+
+                } catch (e) {
+                    preview.innerHTML = '<div class="panel-empty">加载失败: ' + escapeHtml(e.message) + '</div>';
+                }
+            }
+
+            function renderPreview(container, payload) {
+                var html = '';
+                // Use pre-rendered HTML if available, else render from body/raw
+                if (payload.html) {
+                    html = payload.html;
+                } else if (payload.body) {
+                    html = marked.parse(payload.body);
+                } else if (payload.raw) {
+                    html = marked.parse(payload.raw);
+                }
+
+                container.innerHTML = '<div class="markdown-body">' + html + '</div>';
+
+                // Add IDs to headings for TOC navigation
+                var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                headings.forEach(function(h) {
+                    if (!h.id) h.id = slugify(h.textContent);
+                });
+
+                // Generate and render TOC
+                var tocItems = [];
+                if (payload.toc && payload.toc.length > 0) {
+                    tocItems = payload.toc;
+                } else {
+                    tocItems = generateTOC(container);
+                }
+                renderTOC(document.getElementById('panelToc'), tocItems);
+
+                // Render mermaid diagrams
+                if (typeof renderMermaidDiagrams === 'function') {
+                    renderMermaidDiagrams(container);
+                }
+
+                // Load embedded content
+                if (typeof loadEmbeds === 'function') {
+                    loadEmbeds(container);
+                }
+            }
+
+            // --- TOC ---
+            function generateTOC(container) {
+                var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                var items = [];
+                headings.forEach(function(h) {
+                    items.push({
+                        level: parseInt(h.tagName[1]),
+                        text: h.textContent,
+                        id: h.id || slugify(h.textContent)
+                    });
+                });
+                return items;
+            }
+
+            function renderTOC(container, tocItems) {
+                if (!tocItems || tocItems.length === 0) {
+                    container.innerHTML = '<div class="panel-empty">无标题</div>';
+                    return;
+                }
+                var minLevel = Math.min.apply(null, tocItems.map(function(t) { return t.level; }));
+                var html = '<div class="panel-header"><span>📋</span><span>大纲 (' + tocItems.length + ')</span></div>';
+                html += '<div class="toc-list">';
+                tocItems.forEach(function(item) {
+                    var level = item.level - minLevel + 1;
+                    html += '<div class="toc-item toc-level-' + level + '" onclick="scrollToHeading(\'' + escapeHtml(item.id) + '\')">'
+                         + escapeHtml(item.text) + '</div>';
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            }
+
+            global.scrollToHeading = function(id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Highlight briefly
+                    el.style.background = 'rgba(88,166,255,0.15)';
+                    setTimeout(function() { el.style.background = ''; }, 1500);
+                }
+            };
+
+            // --- Backlinks ---
+            async function loadBacklinks(filePath) {
+                var container = document.getElementById('panelBacklinks');
+                container.innerHTML = '<div class="panel-empty">加载中...</div>';
+                try {
+                    var resp = await fetch('/api/vault/backlinks?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(filePath));
+                    var data = await resp.json();
+                    var payload = data.data || data;
+                    var backlinks = payload.backlinks || [];
+                    renderBacklinks(container, backlinks);
+                } catch (e) {
+                    container.innerHTML = '<div class="panel-empty">加载失败</div>';
+                }
+            }
+
+            function renderBacklinks(container, backlinks) {
+                if (!backlinks || backlinks.length === 0) {
+                    container.innerHTML = '<div class="panel-header"><span>↩</span><span>反向链接 (0)</span></div>'
+                        + '<div class="panel-empty">暂无反向链接</div>';
+                    return;
+                }
+                var html = '<div class="panel-header"><span>↩</span><span>反向链接 (' + backlinks.length + ')</span></div>';
+                backlinks.forEach(function(bl) {
+                    html += '<div class="backlink-item">';
+                    html += '<div class="backlink-title" onclick="openVaultFile(\'' + escapeHtml(bl.file).replace(/'/g, "\\'") + '\')">'
+                         + '📄 ' + escapeHtml(bl.title || bl.file) + '</div>';
+                    if (bl.contexts) {
+                        bl.contexts.forEach(function(ctx) {
+                            html += '<div class="backlink-context" onclick="openVaultFile(\'' + escapeHtml(bl.file).replace(/'/g, "\\'") + '\')">'
+                                 + '<pre>' + escapeHtml(ctx.snippet || '') + '</pre>'
+                                 + '<span class="context-line">第 ' + (ctx.line || '?') + ' 行</span></div>';
+                        });
+                    }
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+            }
+
+            // --- Info Panel Tab Switching ---
+            function switchInfoTab(tab) {
+                var tabs = document.querySelectorAll('.vault-info-panel .panel-tab');
+                tabs.forEach(function(t) { t.classList.remove('active'); });
+
+                var panels = {
+                    toc: document.getElementById('panelToc'),
+                    backlinks: document.getElementById('panelBacklinks'),
+                    meta: document.getElementById('panelMeta')
+                };
+
+                Object.keys(panels).forEach(function(key) {
+                    if (panels[key]) panels[key].style.display = key === tab ? '' : 'none';
+                });
+
+                // Activate the clicked tab
+                tabs.forEach(function(t) {
+                    var tabName = t.textContent.includes('大纲') ? 'toc' : t.textContent.includes('反链') ? 'backlinks' : 'meta';
+                    if (tabName === tab) t.classList.add('active');
+                });
+            }
+
+            // --- Metadata ---
+            function renderMetadata(container, metadata) {
+                if (!metadata || Object.keys(metadata).length === 0) {
+                    container.innerHTML = '<div class="panel-header"><span>📊</span><span>元数据</span></div>'
+                        + '<div class="panel-empty">无元数据</div>';
+                    return;
+                }
+                var html = '<div class="panel-header"><span>📊</span><span>元数据</span></div>';
+                html += '<table class="vault-meta-table">';
+                Object.keys(metadata).forEach(function(key) {
+                    var val = metadata[key];
+                    if (Array.isArray(val)) {
+                        val = val.map(function(v) { return escapeHtml(String(v)); }).join(', ');
+                    } else {
+                        val = escapeHtml(String(val));
+                    }
+                    html += '<tr><td>' + escapeHtml(key) + '</td><td>' + val + '</td></tr>';
+                });
+                html += '</table>';
+                container.innerHTML = html;
+            }
+
+            // --- Knowledge Graph ---
+            function showGraph() {
+                if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
+                var modal = document.getElementById('graphModal');
+                modal.classList.add('show');
+                var container = document.getElementById('graphContainer');
+
+                if (graphCache) {
+                    initGraph(container, graphCache);
+                } else {
+                    container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">加载图谱数据...</div>';
+                    fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            var payload = data.data || data;
+                            graphCache = payload;
+                            initGraph(container, payload);
+                        })
+                        .catch(function(e) {
+                            container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">加载失败: ' + escapeHtml(e.message) + '</div>';
+                        });
+                }
+            }
+
+            function initGraph(container, data) {
+                if (typeof vis === 'undefined' || !vis.Network) {
+                    container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">vis-network 库未加载</div>';
+                    return;
+                }
+
+                var nodes = (data.nodes || []).map(function(n) {
+                    return {
+                        id: n.id || n.path,
+                        label: n.label || n.path,
+                        path: n.path || n.id,
+                        color: n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []),
+                        size: n.size || 16,
+                        tags: n.tags || [],
+                        font: { color: '#e6edf3', size: 11 },
+                        title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '')
+                    };
+                });
+                var edges = (data.edges || []).map(function(e) {
+                    return { from: e.from, to: e.to };
+                });
+
+                container.innerHTML = '';
+
+                var nodesDS = new vis.DataSet(nodes);
+                var edgesDS = new vis.DataSet(edges);
+
+                var options = {
+                    nodes: {
+                        shape: 'dot', borderWidth: 2, borderWidthSelected: 3
+                    },
+                    edges: {
+                        color: { color: '#30363d', highlight: '#58a6ff', hover: '#58a6ff' },
+                        arrows: { to: { enabled: false } },
+                        smooth: { type: 'continuous' }
+                    },
+                    physics: {
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: {
+                            gravitationalConstant: -80,
+                            centralGravity: 0.01,
+                            springLength: 150,
+                            springConstant: 0.08
+                        },
+                        stabilization: { iterations: 200 }
+                    },
+                    interaction: {
+                        hover: true, tooltipDelay: 200,
+                        navigationButtons: true, keyboard: true
+                    }
+                };
+
+                graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
+
+                // Store DataSets for later filtering
+                graphNetwork._nodesDS = nodesDS;
+                graphNetwork._edgesDS = edgesDS;
+                graphNetwork._allNodes = nodes;
+                graphNetwork._allEdges = edges;
+
+                graphNetwork.on('click', function(params) {
+                    if (params.nodes.length === 1) {
+                        var nodeId = params.nodes[0];
+                        var node = nodesDS.get(nodeId);
+                        if (node && node.path) {
+                            closeGraphModal();
+                            openVaultFile(node.path);
+                        }
+                    }
+                });
+            }
+
+            function updateGraphGrouping(value) {
+                if (!graphNetwork || !graphNetwork._allNodes) return;
+                var nodesDS = graphNetwork._nodesDS;
+                graphNetwork._allNodes.forEach(function(n) {
+                    var newColor = getNodeColor(n.path, value, n.tags || []);
+                    nodesDS.update({ id: n.id, color: newColor });
+                });
+            }
+
+            function filterGraphNodes(query) {
+                if (!graphNetwork || !graphNetwork._allNodes) return;
+                var nodesDS = graphNetwork._nodesDS;
+                var q = query.toLowerCase().trim();
+                if (!q) {
+                    // Reset all nodes to normal
+                    graphNetwork._allNodes.forEach(function(n) {
+                        nodesDS.update({ id: n.id, opacity: 1, font: { color: '#e6edf3', size: 11 } });
+                    });
+                    return;
+                }
+                graphNetwork._allNodes.forEach(function(n) {
+                    var match = (n.label || '').toLowerCase().includes(q) ||
+                                (n.path || '').toLowerCase().includes(q) ||
+                                (n.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
+                    nodesDS.update({
+                        id: n.id,
+                        opacity: match ? 1 : 0.15,
+                        font: { color: match ? '#e6edf3' : '#30363d', size: match ? 13 : 9 }
+                    });
+                    if (match && graphNetwork._allNodes.filter(function(x) { return (x.label || '').toLowerCase().includes(q); }).length === 1) {
+                        graphNetwork.focus(n.id, { scale: 1.2, animation: true });
+                    }
+                });
+            }
+
+            function closeGraphModal() {
+                document.getElementById('graphModal').classList.remove('show');
+            }
+
+            // --- Tag Cloud ---
+            function showTagCloud() {
+                if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
+                // Switch to meta tab and show tag cloud there, or show in backlinks panel
+                switchInfoTab('meta');
+                var container = document.getElementById('panelMeta');
+                container.innerHTML = '<div class="panel-empty">加载标签...</div>';
+
+                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var payload = data.data || data;
+                        var tags = payload.tags || [];
+                        if (tags.length === 0) {
+                            container.innerHTML = '<div class="panel-header"><span>🏷️</span><span>标签云</span></div>'
+                                + '<div class="panel-empty">暂无标签</div>';
+                            return;
+                        }
+                        var maxCount = Math.max.apply(null, tags.map(function(t) { return t.count; }));
+                        var minCount = Math.min.apply(null, tags.map(function(t) { return t.count; }));
+                        var html = '<div class="panel-header"><span>🏷️</span><span>标签 (' + tags.length + ')</span></div>';
+                        html += '<div class="tag-cloud">';
+                        tags.forEach(function(tag) {
+                            var ratio = maxCount === minCount ? 0.5 : (tag.count - minCount) / (maxCount - minCount);
+                            var size = 0.75 + ratio * 0.75;
+                            html += '<span class="tag-cloud-item" style="font-size:' + size + 'rem;" onclick="filterByTag(\'' + escapeHtml(tag.name).replace(/'/g, "\\'") + '\')">'
+                                 + '#' + escapeHtml(tag.name) + ' <small>(' + tag.count + ')</small></span>';
+                        });
+                        html += '</div>';
+                        html += '<div id="tagFilesContainer"></div>';
+                        container.innerHTML = html;
+                    })
+                    .catch(function(e) {
+                        container.innerHTML = '<div class="panel-empty">加载标签失败</div>';
+                    });
+            }
+
+            // Override existing placeholder filterByTag
+            function filterByTag(tagName) {
+                if (!currentVault) {
+                    showToast('筛选标签: #' + tagName);
+                    return;
+                }
+                // If vault view is active, show filtered files
+                var tagContainer = document.getElementById('tagFilesContainer');
+                if (!tagContainer) {
+                    // Not in vault view, just show toast
+                    showToast('标签: #' + tagName, 'info');
+                    return;
+                }
+                tagContainer.innerHTML = '<div class="panel-empty">加载中...</div>';
+
+                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault) + '&tag=' + encodeURIComponent(tagName) + '&includeFiles=true')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var payload = data.data || data;
+                        var files = payload.files || [];
+                        if (files.length === 0) {
+                            tagContainer.innerHTML = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' — 无文件</div>';
+                            return;
+                        }
+                        var html = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' (' + files.length + ' 个文件)</div>';
+                        html += '<ul class="tag-file-list">';
+                        files.forEach(function(f) {
+                            html += '<li onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
+                                 + '📄 ' + escapeHtml(f.title || f.path) + '</li>';
+                        });
+                        html += '</ul>';
+                        tagContainer.innerHTML = html;
+                    })
+                    .catch(function() {
+                        tagContainer.innerHTML = '<div class="panel-empty">加载失败</div>';
+                    });
+            }
+
+            // --- Search ---
+            function searchVault(query) {
+                var q = query.toLowerCase().trim();
+                var items = document.querySelectorAll('#vaultTree .vault-tree-item[data-path]');
+                var folders = document.querySelectorAll('#vaultTree .vault-tree-folder');
+
+                if (!q) {
+                    // Show all
+                    items.forEach(function(el) { el.style.display = ''; });
+                    folders.forEach(function(f) { f.style.display = ''; });
+                    return;
+                }
+
+                // Hide non-matching files, show matching ones
+                var visiblePaths = new Set();
+                items.forEach(function(el) {
+                    var path = (el.dataset.path || '').toLowerCase();
+                    var label = (el.querySelector('.tree-label') || {}).textContent || '';
+                    var match = path.includes(q) || label.toLowerCase().includes(q);
+                    el.style.display = match ? '' : 'none';
+                    if (match) {
+                        // Mark parent folders as needing to be visible
+                        var parent = el.closest('.vault-tree-folder');
+                        while (parent) {
+                            visiblePaths.add(parent);
+                            parent.classList.add('open');
+                            var icon = parent.querySelector(':scope > .vault-tree-item .tree-icon');
+                            if (icon) icon.textContent = '▼';
+                            parent = parent.parentElement.closest('.vault-tree-folder');
+                        }
+                    }
+                });
+
+                folders.forEach(function(f) {
+                    if (!visiblePaths.has(f)) {
+                        // Check if any child is visible
+                        var hasVisible = f.querySelector('.vault-tree-item[data-path]:not([style*="display: none"])');
+                        f.style.display = hasVisible ? '' : 'none';
+                    } else {
+                        f.style.display = '';
+                    }
+                });
+            }
+
+            // --- Public API: expose to global scope ---
+            global.showVaultView = showVaultView;
+            global.hideVaultView = hideVaultView;
+            global.openVaultSelector = openVaultSelector;
+            global.openVaultFile = openVaultFile;
+            global.showGraph = showGraph;
+            global.closeGraphModal = closeGraphModal;
+            global.showTagCloud = showTagCloud;
+            global.filterByTag = filterByTag;   // Override placeholder
+            global.switchInfoTab = switchInfoTab;
+            global.searchVault = searchVault;
+            global.updateGraphGrouping = updateGraphGrouping;
+            global.filterGraphNodes = filterGraphNodes;
+
+            global.VaultModule = {
+                showVaultView: showVaultView,
+                openVaultFile: openVaultFile,
+                showGraph: showGraph,
+                filterByTag: filterByTag,
+                get currentVault() { return currentVault; }
+            };
+
+        })(window);
+
+
         initObsidianMarkdown();
     </script>
 </body>
