@@ -1188,7 +1188,11 @@ app.post('/api/system-optimize', requireAuth, async (req, res) => {
 
 // 主页面
 app.get('/', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const fs = require('fs');
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
+    let html = fs.readFileSync(htmlPath, 'utf-8');
+    html = html.replace("'__HOME_DIR__'", `'${HOME_DIR}'`);
+    res.type('html').send(html);
 });
 
 // 静态文件
