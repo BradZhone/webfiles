@@ -1,3 +1,46 @@
+# Implementation Status
+
+> Last updated: 2026-04-14
+
+## Completed Features
+
+| Module | Feature | Status | Notes |
+|--------|---------|--------|-------|
+| **Backend - Vault Engine** | Wiki-link extraction (`[[target]]`, `[[target\|alias]]`) | Done | `extractWikiLinks()` in server.js |
+| **Backend - Vault Engine** | Tag extraction (frontmatter + inline `#tags`) | Done | `extractTags()` in server.js |
+| **Backend - Vault Engine** | Frontmatter (YAML) parsing | Done | `parseFrontmatter()` in server.js |
+| **Backend - Vault Engine** | Recursive vault scanning | Done | `scanVault()` in server.js |
+| **Backend - Vault Engine** | Path validation and security | Done | `validateVaultPath()` with HOME_DIR + vaultPaths checks |
+| **Backend - Vault Engine** | LRU cache (20 entries, 5-min TTL) | Done | `VaultCache` class in server.js |
+| **Backend - API** | `GET /api/vault/graph` | Done | Returns nodes + edges from wiki-links |
+| **Backend - API** | `GET /api/vault/backlinks` | Done | Returns backlinks for a target file |
+| **Backend - API** | `GET /api/vault/tags` | Done | Returns tag map with associated files |
+| **Backend - API** | `POST /api/vault/parse` | Done | Parses markdown, extracts metadata/links/tags/headings |
+| **Frontend - UI** | Vault browser view (three-pane layout) | Done | File tree, preview, TOC + backlinks |
+| **Frontend - UI** | Knowledge graph (vis-network) | Done | Interactive node graph with click-to-navigate |
+| **Frontend - UI** | Backlinks panel | Done | Shows files linking to current note |
+| **Frontend - UI** | Tag cloud | Done | Aggregated tags with click-to-filter |
+| **Frontend - Markdown** | Wiki-link rendering | Done | Clickable links in rendered markdown |
+| **Frontend - Markdown** | Callout blocks (`> [!type]`) | Done | note, info, tip, warning, danger, quote, example |
+| **Frontend - Markdown** | Frontmatter display | Done | Rendered as metadata panel |
+| **Frontend - Markdown** | Inline tag rendering | Done | Clickable `#tag` spans |
+| **Testing** | Playwright API tests | Done | Tests for all 4 vault endpoints |
+| **Testing** | Playwright UI smoke tests | Done | Page load, navigation, static assets |
+| **Documentation** | API reference (actual implementation) | Done | docs/api-reference.md |
+
+## Not Yet Implemented
+
+| Module | Feature | Status | Notes |
+|--------|---------|--------|-------|
+| **Backend - API** | `GET /api/vault/config` | Planned | Return vault configuration to frontend |
+| **Backend - Vault Engine** | File watcher (fs.watch) | Planned | Auto-invalidate cache on file changes |
+| **Frontend - Markdown** | Embed rendering (`![[file]]`) | Planned | Async-load embedded note content |
+| **Frontend - Markdown** | Mermaid diagram rendering | Planned | Code blocks with `mermaid` language |
+| **Backend - API** | Advanced query params (groupBy, filter, maxNodes) | Planned | Currently uses simple scan-all approach |
+| **Backend - API** | Backlink context snippets | Planned | Show surrounding text for each backlink |
+
+---
+
 # WebFiles Obsidian 集成方案
 
 > 在 WebFiles 中集成 Obsidian vault 浏览和知识图谱功能  

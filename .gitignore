@@ -44,3 +44,7 @@ server.pid
 *.jpeg
 *.gif
 *.bmp
+
+# Playwright
+test-results/
+playwright-report/

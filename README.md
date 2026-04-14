@@ -2,7 +2,7 @@
 
 A modern web-based file manager with a VSCode-like interface.
 
-> 📸 Screenshots coming soon
+> Screenshots coming soon
 
 ## Features
 
@@ -11,6 +11,7 @@ A modern web-based file manager with a VSCode-like interface.
 | **File Management** | Browse, upload, download, rename, delete, search |
 | **Editing** | Multi-tab editor with syntax highlighting (50+ languages), code formatting |
 | **Preview** | Markdown, HTML, images, audio, video, PDF |
+| **Knowledge Base** | Obsidian vault browser, wiki-links, knowledge graph, backlinks, tag cloud |
 | **Batch Operations** | Multi-select, batch copy/move/delete/rename |
 | **Archives** | Create and extract zip/tar.gz files |
 | **Terminal** | Built-in terminal with tmux backend, persistent sessions |
@@ -35,6 +36,25 @@ npm install
 # On first visit, you'll be asked to set a password
 ```
 
+### Obsidian Vault
+
+WebFiles can browse Obsidian vaults with full support for wiki-links, tags, callouts, and knowledge graph visualization.
+
+To use the knowledge base feature:
+
+1. Start WebFiles with your home directory containing an Obsidian vault
+2. Click the **知识库** (Knowledge Base) button in the navigation bar
+3. Select your vault directory from the file browser
+4. Browse notes with rendered wiki-links, view the knowledge graph, explore backlinks and tags
+
+You can optionally configure allowed vault paths in `config.json`:
+
+```json
+{
+  "vaultPaths": ["/home/user/my-vault", "/home/user/notes"]
+}
+```
+
 ## Configuration
 
 ### Zero Config
@@ -52,6 +72,9 @@ WEBFILES_HOME=/data/files ./manage.sh start
 
 # Custom session secret (for multi-instance deployments)
 WEBFILES_SECRET=your-random-string ./manage.sh start
+
+# Disable authentication (for testing only)
+WEBFILES_NOAUTH=1 ./manage.sh start
 ```
 
 | Variable | Default | Description |
@@ -59,6 +82,7 @@ WEBFILES_SECRET=your-random-string ./manage.sh start
 | `WEBFILES_PORT` | `8765` | Server port |
 | `WEBFILES_HOME` | `$HOME` | Root directory for file access |
 | `WEBFILES_SECRET` | auto-generated | Session encryption key |
+| `WEBFILES_NOAUTH` | — | Set to `1` to disable authentication (testing only) |
 
 ### Optional: config.json
 
@@ -68,7 +92,8 @@ For persistent configuration, create `config.json` in the project root:
 {
   "port": 8765,
   "homeDir": "/path/to/files",
-  "sessionSecret": "your-random-string"
+  "sessionSecret": "your-random-string",
+  "vaultPaths": ["/path/to/vault"]
 }
 ```
 
@@ -76,7 +101,7 @@ For persistent configuration, create `config.json` in the project root:
 
 ### Change Password
 
-Click the ⚙️ (settings) icon in the top-right corner to change your password.
+Click the gear (settings) icon in the top-right corner to change your password.
 
 ## Management
 
@@ -134,6 +159,8 @@ webfiles/
 
 ## API
 
+### File Management
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/files` | List directory |
@@ -152,6 +179,33 @@ webfiles/
 | `*` | `/api/share` | Manage shares |
 | `*` | `/api/terminals` | Manage terminals |
 | `GET` | `/api/containers` | List Docker containers |
+
+### Vault (Knowledge Base)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/vault/graph?vault=PATH` | Knowledge graph — nodes and edges from wiki-links |
+| `GET` | `/api/vault/backlinks?vault=PATH&file=FILE` | Backlinks for a specific note |
+| `GET` | `/api/vault/tags?vault=PATH` | All tags and associated files |
+| `POST` | `/api/vault/parse` | Parse a Markdown file (body, links, tags, headings) |
+
+See [docs/api-reference.md](docs/api-reference.md) for full API documentation.
+
+## Testing
+
+```bash
+# Install test dependencies
+npx playwright install chromium
+
+# Run all tests
+npx playwright test
+
+# Run API tests only
+npx playwright test --project=api
+
+# Run UI tests only
+npx playwright test --project=ui
+```
 
 ## License
 

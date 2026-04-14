@@ -1,6 +1,6 @@
 const express = require('express');
 const session = require('express-session');
-const bodyParser = require('body-parser');
+// body-parser removed — using Express 5 built-in middleware
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const fs = require('fs');
@@ -153,8 +153,8 @@ const upload = multer({
 
 // 中间件
 app.use(cookieParser());
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(session({
     secret: sessionSecret,
     resave: true,
@@ -167,8 +167,12 @@ app.use(session({
     }
 }));
 
+// NOAUTH mode for testing
+const NOAUTH = process.env.WEBFILES_NOAUTH === '1';
+
 // 认证中间件
 function requireAuth(req, res, next) {
+    if (NOAUTH) return next();
     if (req.session && req.session.authenticated) {
         return next();
     }
@@ -1839,6 +1843,12 @@ app.post('/api/vault/parse', requireAuth, (req, res) => {
   } catch (e) {
     res.status(404).json({ error: 'File not found', message: e.message });
   }
+});
+
+// JSON error handler for API routes
+app.use("/api", (err, req, res, next) => {
+    console.error("API Error:", err.message);
+    res.status(err.status || 500).json({ error: "Internal server error", message: err.message });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
