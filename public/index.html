@@ -1910,26 +1910,167 @@
             border-top: 1px solid var(--border); margin-top: 8px;
         }
 
-        /* Vault empty state */
+        /* Vault empty state — enhanced */
         .vault-empty-state {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100%; color: var(--dim); font-size: 14px; gap: 8px;
+            height: 100%; color: var(--dim); font-size: 14px; gap: 12px; padding: 32px;
+            animation: fadeInUp 0.4s ease;
         }
-        .vault-empty-state .empty-icon { font-size: 48px; margin-bottom: 8px; }
+        .vault-empty-state .empty-icon { font-size: 64px; margin-bottom: 4px; filter: grayscale(0.3); }
+        .vault-empty-state p { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+        .vault-empty-state .empty-hint { font-size: 12px; color: var(--dim); margin-top: -4px; }
+        .vault-empty-state .empty-cta {
+            margin-top: 8px; padding: 8px 20px; border-radius: 8px; cursor: pointer;
+            background: var(--accent); color: #fff; border: none; font-size: 13px; font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .vault-empty-state .empty-cta:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(88,166,255,0.3); }
+
+        .panel-empty {
+            padding: 24px 16px; text-align: center; color: var(--dim); font-size: 13px;
+            animation: fadeIn 0.3s ease;
+        }
+        .panel-empty .empty-icon-sm { font-size: 32px; display: block; margin-bottom: 8px; }
+        .panel-empty .empty-sub { font-size: 11px; color: var(--dim); margin-top: 4px; opacity: 0.7; }
 
         /* Wiki-link broken state */
         .wiki-link.broken { color: var(--danger); border-bottom-color: var(--danger); opacity: 0.7; }
 
-        /* Responsive: hide info panel on small screens */
+        /* Vault selector modal */
+        .vault-selector-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1001;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        .vault-selector-overlay.show { display: flex; }
+        .vault-selector-modal {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 12px; width: 420px; max-width: 90vw; max-height: 80vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.4); animation: modalSlideIn 0.25s ease;
+        }
+        .vault-selector-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+        }
+        .vault-selector-header h3 { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .vault-selector-close {
+            background: none; border: none; color: var(--text-secondary); cursor: pointer;
+            font-size: 18px; padding: 4px 8px; border-radius: 6px; transition: all 0.15s ease;
+        }
+        .vault-selector-close:hover { background: var(--item-hover); color: var(--text); }
+        .vault-selector-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+        .vault-selector-empty {
+            padding: 32px 20px; text-align: center; color: var(--dim);
+        }
+        .vault-selector-empty .empty-icon-sm { font-size: 36px; display: block; margin-bottom: 8px; }
+        .vault-saved-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+            cursor: pointer; transition: all 0.15s ease; border-bottom: 1px solid transparent;
+        }
+        .vault-saved-item:hover { background: var(--item-hover); }
+        .vault-saved-item .vault-saved-icon { font-size: 20px; flex-shrink: 0; }
+        .vault-saved-item .vault-saved-info { flex: 1; min-width: 0; }
+        .vault-saved-item .vault-saved-name {
+            font-size: 13px; font-weight: 500; color: var(--text);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .vault-saved-item .vault-saved-path {
+            font-size: 11px; color: var(--dim); margin-top: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .vault-saved-item .vault-saved-delete {
+            background: none; border: none; color: var(--dim); cursor: pointer;
+            font-size: 14px; padding: 4px 8px; border-radius: 4px; opacity: 0;
+            transition: all 0.15s ease; flex-shrink: 0;
+        }
+        .vault-saved-item:hover .vault-saved-delete { opacity: 1; }
+        .vault-saved-item .vault-saved-delete:hover { background: var(--danger-subtle); color: var(--danger); }
+        .vault-selector-footer {
+            padding: 12px 16px; border-top: 1px solid var(--border);
+            display: flex; gap: 8px; align-items: center;
+        }
+        .vault-selector-footer input {
+            flex: 1; background: var(--item); border: 1px solid var(--border); color: var(--text);
+            padding: 8px 12px; border-radius: 8px; font-size: 13px; outline: none;
+            transition: border-color 0.15s ease;
+        }
+        .vault-selector-footer input:focus { border-color: var(--accent); }
+        .vault-selector-footer input::placeholder { color: var(--dim); }
+        .vault-add-btn {
+            background: var(--accent); color: #fff; border: none; padding: 8px 14px;
+            border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+            transition: all 0.15s ease; flex-shrink: 0;
+        }
+        .vault-add-btn:hover { background: var(--accent-hover); }
+        .vault-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Enhanced backlink cards */
+        .backlink-item {
+            border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;
+            margin: 6px 10px; transition: all 0.2s ease; background: var(--bg);
+        }
+        .backlink-item:hover { border-color: var(--accent); background: var(--item-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .backlink-item:last-child { border-bottom: 1px solid var(--border); }
+
+        /* Tag cloud gradient colors */
+        .tag-cloud-item { position: relative; overflow: hidden; }
+        .tag-cloud-item:nth-child(4n+1) { background: rgba(88,166,255,0.15); color: #58a6ff; }
+        .tag-cloud-item:nth-child(4n+2) { background: rgba(163,113,247,0.15); color: #a371f7; }
+        .tag-cloud-item:nth-child(4n+3) { background: rgba(63,185,80,0.15); color: #3fb950; }
+        .tag-cloud-item:nth-child(4n)   { background: rgba(210,153,34,0.15); color: #d29922; }
+        .tag-cloud-item:hover { transform: scale(1.08); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+        /* Graph modal loading spinner */
+        .graph-loading {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; gap: 16px; color: var(--text-secondary);
+        }
+        .graph-spinner {
+            width: 40px; height: 40px; border: 3px solid var(--border);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* View transitions */
+        .vault-view { animation: fadeIn 0.3s ease; }
+        .vault-preview .markdown-body { animation: fadeInUp 0.3s ease; }
+
+        /* Breadcrumb */
+        .vault-breadcrumb {
+            display: flex; align-items: center; gap: 4px; padding: 8px 0; margin-bottom: 12px;
+            font-size: 12px; color: var(--dim); flex-wrap: wrap;
+        }
+        .vault-breadcrumb span { cursor: pointer; transition: color 0.15s ease; }
+        .vault-breadcrumb span:hover { color: var(--accent); }
+        .vault-breadcrumb .bc-sep { color: var(--border); cursor: default; margin: 0 2px; }
+        .vault-breadcrumb .bc-sep:hover { color: var(--border); }
+        .vault-breadcrumb .bc-current { color: var(--text); font-weight: 500; cursor: default; }
+        .vault-breadcrumb .bc-current:hover { color: var(--text); }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes modalSlideIn { from { opacity: 0; transform: translateY(-12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        /* Responsive: vault view for mobile */
         @media (max-width: 900px) {
             .vault-sidebar { width: 200px; min-width: 160px; }
             .vault-info-panel { display: none; }
             .vault-preview { padding: 16px; }
         }
-        @media (max-width: 600px) {
-            .vault-sidebar { width: 100%; position: absolute; z-index: 10; left: 0; top: 0; bottom: 0; }
-            .vault-layout { position: relative; }
-            .vault-preview { padding: 12px; }
+        @media (max-width: 768px) {
+            .vault-layout { flex-direction: column; }
+            .vault-sidebar { width: 100%; height: auto; max-height: 35vh; border-right: none; border-bottom: 1px solid var(--border); }
+            .vault-preview { min-width: unset; padding: 16px; }
+            .vault-info-panel { width: 100%; height: auto; max-height: 30vh; border-left: none; border-top: 1px solid var(--border); }
+            .vault-toolbar { flex-wrap: wrap; gap: 4px; }
+            .vault-toolbar button { min-height: 44px; min-width: 44px; }
+            .graph-modal-header { flex-wrap: wrap; }
+            .vault-selector-modal { width: 95vw; max-height: 90vh; }
         }
 
     </style>
@@ -2358,14 +2499,15 @@
                         <div class="vault-empty-state">
                             <div class="empty-icon">📂</div>
                             <p>选择一个 Vault 目录开始</p>
-                        </div>
+                            <span class="empty-hint">点击上方"选择 Vault"按钮或使用快捷键</span>
                     </div>
                 </div>
                 <!-- Center: Preview -->
                 <div class="vault-preview" id="vaultPreview">
-                    <div class="vault-empty-state">
+                    <div class="vault-empty-state" id="vaultPreviewEmpty">
                         <div class="empty-icon">📑</div>
                         <p>选择文件开始浏览</p>
+                        <span class="empty-hint">从左侧文件树选择一个 Markdown 文件</span>
                     </div>
                 </div>
                 <!-- Right: TOC + Backlinks + Metadata -->
@@ -2376,13 +2518,13 @@
                         <button class="panel-tab" onclick="switchInfoTab('meta')">📊 元数据</button>
                     </div>
                     <div class="panel-content" id="panelToc">
-                        <div class="panel-empty">打开文件后显示大纲</div>
+                        <div class="panel-empty"><span class="empty-icon-sm">📋</span>打开文件后显示大纲<div class="empty-sub">文件标题将自动生成目录</div></div>
                     </div>
                     <div class="panel-content" id="panelBacklinks" style="display:none;">
-                        <div class="panel-empty">打开文件后显示反链</div>
+                        <div class="panel-empty"><span class="empty-icon-sm">↩️</span>打开文件后显示反链<div class="empty-sub">显示链接到当前文件的其他笔记</div></div>
                     </div>
                     <div class="panel-content" id="panelMeta" style="display:none;">
-                        <div class="panel-empty">打开文件后显示元数据</div>
+                        <div class="panel-empty"><span class="empty-icon-sm">📊</span>打开文件后显示元数据<div class="empty-sub">YAML frontmatter 属性</div></div>
                     </div>
                 </div>
             </div>
@@ -2405,6 +2547,26 @@
         <div class="graph-modal-body" id="graphContainer"></div>
     </div>
 
+    <!-- Vault Selector Modal -->
+    <div id="vaultSelectorOverlay" class="vault-selector-overlay" onclick="if(event.target===this)closeVaultSelector()">
+        <div class="vault-selector-modal">
+            <div class="vault-selector-header">
+                <h3>📚 选择 Vault</h3>
+                <button class="vault-selector-close" onclick="closeVaultSelector()">✕</button>
+            </div>
+            <div class="vault-selector-body" id="vaultSelectorList">
+                <div class="vault-selector-empty">
+                    <span class="empty-icon-sm">📂</span>
+                    <p>还没有保存的 Vault</p>
+                    <div class="empty-sub">在下方输入 Vault 路径并添加</div>
+                </div>
+            </div>
+            <div class="vault-selector-footer">
+                <input type="text" id="vaultPathInput" placeholder="输入 Vault 目录的绝对路径..." onkeydown="if(event.key==='Enter')addVaultPath()">
+                <button class="vault-add-btn" onclick="addVaultPath()" title="添加 Vault">＋</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 操作菜单 -->
     <div class="action-menu" id="actionMenu">
@@ -2692,7 +2854,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 
     <script>
-        const HOME = '/home/brad';
+        const HOME = '/Users/xinzhu_zhong';
         let currentPath = HOME;
         let currentFile = null;
         let currentFileType = null;
@@ -6673,13 +6835,15 @@
 
             // Custom code renderer with highlight.js
             const renderer = {
-                code(code, language) {
-                    const lang = language || '';
+                code(token) {
+                    var code = typeof token === 'object' ? (token.text || token.raw || '') : token;
+                    var language = typeof token === 'object' ? (token.lang || '') : (arguments[1] || '');
+                    var lang = language || '';
                     if (lang === 'mermaid' && typeof mermaid !== 'undefined') {
-                        const id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
-                        return `<div class="mermaid-container" id="${id}" data-code="${encodeURIComponent(code)}"><div class="embed-loading">渲染图表中...</div></div>`;
+                        var id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
+                        return '<div class="mermaid-container" id="' + id + '" data-code="' + encodeURIComponent(code) + '"><div class="embed-loading">渲染图表中...</div></div>';
                     }
-                    let highlighted;
+                    var highlighted;
                     if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
                         highlighted = hljs.highlight(code, { language: lang }).value;
                     } else if (typeof hljs !== 'undefined') {
@@ -6687,7 +6851,7 @@
                     } else {
                         highlighted = code;
                     }
-                    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+                    return '<pre><code class="hljs language-' + lang + '">' + highlighted + '</code></pre>';
                 }
             };
             marked.use({ renderer });
@@ -6806,8 +6970,17 @@
             function showVaultView() {
                 showView('vaultView');
                 document.getElementById('headerTitle').textContent = '📚 知识库';
+                // Auto-load last used vault
                 if (!currentVault) {
-                    openVaultSelector();
+                    var savedVaults = getSavedVaults();
+                    var lastUsed = localStorage.getItem('webfiles_last_vault');
+                    if (lastUsed && savedVaults.indexOf(lastUsed) !== -1) {
+                        selectVault(lastUsed);
+                    } else if (savedVaults.length > 0) {
+                        selectVault(savedVaults[0]);
+                    } else {
+                        openVaultSelector();
+                    }
                 }
             }
 
@@ -6815,16 +6988,108 @@
                 goBack();
             }
 
-            function openVaultSelector() {
-                const saved = localStorage.getItem('webfiles_vault_path') || '';
-                const vaultPath = prompt('请输入 Vault 目录的绝对路径：', saved || '/home/brad');
-                if (vaultPath && vaultPath.trim()) {
-                    const trimmed = vaultPath.trim();
-                    localStorage.setItem('webfiles_vault_path', trimmed);
-                    currentVault = trimmed;
-                    document.getElementById('vaultName').textContent = trimmed.split('/').pop() || trimmed;
-                    loadVaultTree(trimmed);
+            // --- Vault Selector Modal ---
+            function getSavedVaults() {
+                try {
+                    var data = JSON.parse(localStorage.getItem('webfiles_saved_vaults') || '[]');
+                    return Array.isArray(data) ? data : [];
+                } catch(e) { return []; }
+            }
+
+            function saveSavedVaults(vaults) {
+                localStorage.setItem('webfiles_saved_vaults', JSON.stringify(vaults));
+            }
+
+            function selectVault(vaultPath) {
+                currentVault = vaultPath;
+                localStorage.setItem('webfiles_last_vault', vaultPath);
+                document.getElementById('vaultName').textContent = vaultPath.split('/').pop() || vaultPath;
+                // Ensure this vault is in saved list
+                var vaults = getSavedVaults();
+                if (vaults.indexOf(vaultPath) === -1) {
+                    vaults.unshift(vaultPath);
+                    saveSavedVaults(vaults);
                 }
+                loadVaultTree(vaultPath);
+                closeVaultSelector();
+            }
+
+            function openVaultSelector() {
+                var overlay = document.getElementById('vaultSelectorOverlay');
+                overlay.classList.add('show');
+                renderVaultSelectorList();
+                // Focus the input
+                setTimeout(function() {
+                    document.getElementById('vaultPathInput').focus();
+                }, 100);
+            }
+
+            function closeVaultSelector() {
+                document.getElementById('vaultSelectorOverlay').classList.remove('show');
+                document.getElementById('vaultPathInput').value = '';
+            }
+
+            function renderVaultSelectorList() {
+                var container = document.getElementById('vaultSelectorList');
+                var vaults = getSavedVaults();
+                var lastUsed = localStorage.getItem('webfiles_last_vault');
+                if (vaults.length === 0) {
+                    container.innerHTML = '<div class="vault-selector-empty">'
+                        + '<span class="empty-icon-sm">📂</span>'
+                        + '<p>还没有保存的 Vault</p>'
+                        + '<div class="empty-sub">在下方输入 Vault 路径并添加</div>'
+                        + '</div>';
+                    return;
+                }
+                var html = '';
+                vaults.forEach(function(v) {
+                    var name = v.split('/').pop() || v;
+                    var isActive = v === lastUsed;
+                    html += '<div class="vault-saved-item' + (isActive ? ' active' : '') + '" onclick="selectVault(\'' + escapeHtml(v).replace(/'/g, "\\'") + '\')">';
+                    html += '<span class="vault-saved-icon">' + (isActive ? '📖' : '📁') + '</span>';
+                    html += '<div class="vault-saved-info">';
+                    html += '<div class="vault-saved-name">' + escapeHtml(name) + '</div>';
+                    html += '<div class="vault-saved-path">' + escapeHtml(v) + '</div>';
+                    html += '</div>';
+                    html += '<button class="vault-saved-delete" onclick="event.stopPropagation();removeVaultPath(\'' + escapeHtml(v).replace(/'/g, "\\'") + '\')" title="删除">✕</button>';
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+            }
+
+            function addVaultPath() {
+                var input = document.getElementById('vaultPathInput');
+                var path = input.value.trim();
+                if (!path) return;
+                // Basic validation: must start with /
+                if (path[0] !== '/') {
+                    showToast('请输入绝对路径（以 / 开头）', 'warning');
+                    return;
+                }
+                var vaults = getSavedVaults();
+                if (vaults.indexOf(path) !== -1) {
+                    // Already saved, just select it
+                    selectVault(path);
+                    return;
+                }
+                vaults.unshift(path);
+                saveSavedVaults(vaults);
+                input.value = '';
+                selectVault(path);
+            }
+
+            function removeVaultPath(path) {
+                var vaults = getSavedVaults();
+                var idx = vaults.indexOf(path);
+                if (idx !== -1) {
+                    vaults.splice(idx, 1);
+                    saveSavedVaults(vaults);
+                }
+                if (currentVault === path) {
+                    currentVault = null;
+                    document.getElementById('vaultName').textContent = '未选择 Vault';
+                }
+                renderVaultSelectorList();
             }
 
             // --- File Tree ---
@@ -6929,7 +7194,7 @@
                 });
 
                 var preview = document.getElementById('vaultPreview');
-                preview.innerHTML = '<div class="panel-empty">加载中...</div>';
+                preview.innerHTML = '<div class="panel-empty"><div class="graph-spinner" style="margin:20px auto;"></div>加载中...</div>';
 
                 try {
                     var resp = await fetch('/api/vault/parse', {
@@ -6964,12 +7229,29 @@
                 if (payload.html) {
                     html = payload.html;
                 } else if (payload.body) {
-                    html = marked.parse(payload.body);
+                    try { html = marked.parse(payload.body); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.body.replace(/</g,'&lt;') + '</pre>'; }
                 } else if (payload.raw) {
-                    html = marked.parse(payload.raw);
+                    try { html = marked.parse(payload.raw); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.raw.replace(/</g,'&lt;') + '</pre>'; }
                 }
 
-                container.innerHTML = '<div class="markdown-body">' + html + '</div>';
+                // Build breadcrumb
+                var bcHtml = '';
+                if (currentFile && currentVault) {
+                    var vaultName = currentVault.split('/').pop() || currentVault;
+                    var parts = currentFile.split('/');
+                    bcHtml = '<div class="vault-breadcrumb" style="display:flex;">';
+                    bcHtml += '<span>📚 ' + escapeHtml(vaultName) + '</span>';
+                    for (var i = 0; i < parts.length; i++) {
+                        bcHtml += '<span class="bc-sep">›</span>';
+                        if (i === parts.length - 1) {
+                            bcHtml += '<span class="bc-current">' + escapeHtml(parts[i].replace(/\.md$/, '')) + '</span>';
+                        } else {
+                            bcHtml += '<span>' + escapeHtml(parts[i]) + '</span>';
+                        }
+                    }
+                    bcHtml += '</div>';
+                }
+                container.innerHTML = bcHtml + '<div class="markdown-body">' + html + '</div>';
 
                 // Add IDs to headings for TOC navigation
                 var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
@@ -7013,7 +7295,7 @@
 
             function renderTOC(container, tocItems) {
                 if (!tocItems || tocItems.length === 0) {
-                    container.innerHTML = '<div class="panel-empty">无标题</div>';
+                    container.innerHTML = '<div class="panel-empty"><span class="empty-icon-sm">📋</span>未检测到标题<div class="empty-sub">当前文件没有标题结构</div></div>';
                     return;
                 }
                 var minLevel = Math.min.apply(null, tocItems.map(function(t) { return t.level; }));
@@ -7056,7 +7338,7 @@
             function renderBacklinks(container, backlinks) {
                 if (!backlinks || backlinks.length === 0) {
                     container.innerHTML = '<div class="panel-header"><span>↩</span><span>反向链接 (0)</span></div>'
-                        + '<div class="panel-empty">暂无反向链接</div>';
+                        + '<div class="panel-empty"><span class="empty-icon-sm">🔗</span>暂无反向链接<div class="empty-sub">其他笔记还没有链接到这里</div></div>';
                     return;
                 }
                 var html = '<div class="panel-header"><span>↩</span><span>反向链接 (' + backlinks.length + ')</span></div>';
@@ -7102,7 +7384,7 @@
             function renderMetadata(container, metadata) {
                 if (!metadata || Object.keys(metadata).length === 0) {
                     container.innerHTML = '<div class="panel-header"><span>📊</span><span>元数据</span></div>'
-                        + '<div class="panel-empty">无元数据</div>';
+                        + '<div class="panel-empty"><span class="empty-icon-sm">📄</span>无元数据<div class="empty-sub">文件缺少 YAML frontmatter</div></div>';
                     return;
                 }
                 var html = '<div class="panel-header"><span>📊</span><span>元数据</span></div>';
@@ -7130,7 +7412,7 @@
                 if (graphCache) {
                     initGraph(container, graphCache);
                 } else {
-                    container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">加载图谱数据...</div>';
+                    container.innerHTML = '<div class="graph-loading"><div class="graph-spinner"></div><span>正在加载知识图谱...</span></div>';
                     fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
@@ -7146,7 +7428,7 @@
 
             function initGraph(container, data) {
                 if (typeof vis === 'undefined' || !vis.Network) {
-                    container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">vis-network 库未加载</div>';
+                    container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">⚠️</span><span>vis-network 库未加载</span><span style="font-size:12px;color:var(--dim);">请检查网络连接</span></div>';
                     return;
                 }
 
@@ -7378,11 +7660,15 @@
             global.showVaultView = showVaultView;
             global.hideVaultView = hideVaultView;
             global.openVaultSelector = openVaultSelector;
+            global.closeVaultSelector = closeVaultSelector;
+            global.selectVault = selectVault;
+            global.addVaultPath = addVaultPath;
+            global.removeVaultPath = removeVaultPath;
             global.openVaultFile = openVaultFile;
             global.showGraph = showGraph;
             global.closeGraphModal = closeGraphModal;
             global.showTagCloud = showTagCloud;
-            global.filterByTag = filterByTag;   // Override placeholder
+            global.filterByTag = filterByTag;
             global.switchInfoTab = switchInfoTab;
             global.searchVault = searchVault;
             global.updateGraphGrouping = updateGraphGrouping;
@@ -7393,8 +7679,40 @@
                 openVaultFile: openVaultFile,
                 showGraph: showGraph,
                 filterByTag: filterByTag,
+                selectVault: selectVault,
                 get currentVault() { return currentVault; }
             };
+
+            // --- Keyboard Shortcuts ---
+            document.addEventListener('keydown', function(e) {
+                // Escape: close modals
+                if (e.key === 'Escape') {
+                    if (document.getElementById('vaultSelectorOverlay').classList.contains('show')) {
+                        closeVaultSelector();
+                        e.preventDefault();
+                        return;
+                    }
+                    if (document.getElementById('graphModal').classList.contains('show')) {
+                        closeGraphModal();
+                        e.preventDefault();
+                        return;
+                    }
+                }
+                // Ctrl+K or / : focus vault search (when vault view active)
+                if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !e.ctrlKey && !e.metaKey)) {
+                    var searchInput = document.getElementById('vaultSearchInput');
+                    var vaultView = document.querySelector('.vault-view');
+                    if (searchInput && vaultView && vaultView.offsetParent !== null) {
+                        // Only if vault view is visible and not in an input
+                        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                            if (e.key === '/') return; // Don't hijack / in inputs
+                        }
+                        e.preventDefault();
+                        searchInput.focus();
+                        searchInput.select();
+                    }
+                }
+            });
 
         })(window);
 
