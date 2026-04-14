@@ -2006,6 +2006,102 @@
         .vault-add-btn:hover { background: var(--accent-hover); }
         .vault-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* ========== Multi-Vault Sidebar ========== */
+        .vault-sidebar-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px; border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0;
+        }
+        .vault-sidebar-title {
+            flex: 1; font-size: 11px; font-weight: 700; color: var(--dim);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .vault-sidebar-actions { display: flex; gap: 2px; }
+        .vault-sidebar-actions button {
+            background: transparent; border: none; color: var(--dim); cursor: pointer;
+            padding: 4px 6px; border-radius: 4px; font-size: 14px; transition: all 0.15s ease;
+        }
+        .vault-sidebar-actions button:hover { background: var(--item-hover); color: var(--text); }
+        .vault-roots { flex: 1; overflow-y: auto; }
+        .vault-root { border-bottom: 1px solid var(--border); }
+        .vault-root:last-child { border-bottom: none; }
+        .vault-root-header {
+            display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+            cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text);
+            transition: background 0.1s ease; user-select: none;
+        }
+        .vault-root-header:hover { background: var(--item-hover); }
+        .vault-root-icon { font-size: 10px; color: var(--dim); width: 14px; text-align: center; flex-shrink: 0; transition: transform 0.15s ease; }
+        .vault-root.collapsed .vault-root-icon { transform: rotate(-90deg); }
+        .vault-root-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vault-root-remove {
+            background: none; border: none; color: var(--dim); cursor: pointer;
+            font-size: 14px; padding: 2px 6px; border-radius: 4px; opacity: 0;
+            transition: all 0.15s ease; flex-shrink: 0;
+        }
+        .vault-root-header:hover .vault-root-remove { opacity: 1; }
+        .vault-root-remove:hover { background: var(--danger-subtle); color: var(--danger); }
+        .vault-root.collapsed > .vault-root-tree { display: none; }
+        .vault-root-tree { padding: 0 0 4px 0; }
+        .vault-root-tree .vault-tree-item { padding-left: 24px; }
+        .vault-root-tree .vault-tree-children .vault-tree-item { padding-left: 12px; }
+
+        /* Add Vault Button */
+        .vault-add-section {
+            border-top: 1px solid var(--border); flex-shrink: 0;
+        }
+        .vault-add-trigger {
+            display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+            cursor: pointer; font-size: 12px; color: var(--dim); width: 100%;
+            background: none; border: none; transition: all 0.15s ease; text-align: left;
+        }
+        .vault-add-trigger:hover { background: var(--item-hover); color: var(--accent); }
+
+        /* Directory Browser */
+        .dir-browser { border-top: 1px solid var(--border); background: var(--bg); flex-shrink: 0; max-height: 50vh; display: flex; flex-direction: column; }
+        .dir-browser-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; border-bottom: 1px solid var(--border);
+            font-size: 12px; font-weight: 600; color: var(--text);
+        }
+        .dir-browser-header button {
+            background: none; border: none; color: var(--dim); cursor: pointer;
+            font-size: 14px; padding: 2px 6px; border-radius: 4px;
+        }
+        .dir-browser-header button:hover { background: var(--item-hover); color: var(--text); }
+        .dir-browser-path {
+            padding: 6px 12px; font-size: 11px; color: var(--dim);
+            border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .dir-browser-list { flex: 1; overflow-y: auto; max-height: 200px; }
+        .dir-browser-item {
+            display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+            cursor: pointer; font-size: 13px; color: var(--text-secondary);
+            transition: background 0.1s ease;
+        }
+        .dir-browser-item:hover { background: var(--item-hover); color: var(--text); }
+        .dir-browser-actions {
+            display: flex; gap: 6px; padding: 8px 12px;
+            border-top: 1px solid var(--border); background: var(--bg-secondary);
+        }
+        .dir-browser-actions button {
+            flex: 1; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 12px; font-weight: 500; border: 1px solid var(--border);
+            transition: all 0.15s ease;
+        }
+        .dir-browser-btn-up { background: var(--item); color: var(--text-secondary); }
+        .dir-browser-btn-up:hover { background: var(--item-hover); color: var(--text); }
+        .dir-browser-btn-select { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .dir-browser-btn-select:hover { background: var(--accent-hover); }
+
+        /* Vault empty inline state */
+        .vault-roots-empty {
+            padding: 32px 16px; text-align: center; color: var(--dim); font-size: 13px;
+        }
+        .vault-roots-empty .empty-icon { font-size: 48px; display: block; margin-bottom: 8px; }
+
+
         /* Enhanced backlink cards */
         .backlink-item {
             border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;
@@ -2064,13 +2160,12 @@
         }
         @media (max-width: 768px) {
             .vault-layout { flex-direction: column; }
-            .vault-sidebar { width: 100%; height: auto; max-height: 35vh; border-right: none; border-bottom: 1px solid var(--border); }
+            .vault-sidebar { width: 100%; height: auto; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
             .vault-preview { min-width: unset; padding: 16px; }
             .vault-info-panel { width: 100%; height: auto; max-height: 30vh; border-left: none; border-top: 1px solid var(--border); }
-            .vault-toolbar { flex-wrap: wrap; gap: 4px; }
-            .vault-toolbar button { min-height: 44px; min-width: 44px; }
             .graph-modal-header { flex-wrap: wrap; }
-            .vault-selector-modal { width: 95vw; max-height: 90vh; }
+            .dir-browser { max-height: 60vh; }
+            .dir-browser-list { max-height: 150px; }
         }
 
     </style>
@@ -2479,27 +2574,42 @@
     <!-- ========== Vault Browser View ========== -->
     <div class="view" id="vaultView">
         <div class="vault-view">
-            <!-- Toolbar -->
-            <div class="vault-toolbar">
-                <button onclick="openVaultSelector()">📂 选择 Vault</button>
-                <span id="vaultName" class="vault-name">未选择 Vault</span>
-                <div class="vault-toolbar-actions">
-                    <button onclick="showTagCloud()" title="标签云">🏷️</button>
-                    <button onclick="showGraph()" title="知识图谱">🌐</button>
-                </div>
-            </div>
-            <!-- Three-column layout -->
+            <!-- Three-column layout (no toolbar - actions in sidebar header) -->
             <div class="vault-layout">
-                <!-- Left: File tree -->
+                <!-- Left: Multi-vault sidebar -->
                 <div class="vault-sidebar" id="vaultSidebar">
+                    <div class="vault-sidebar-header">
+                        <span class="vault-sidebar-title">📚 Knowledge Bases</span>
+                        <div class="vault-sidebar-actions">
+                            <button onclick="showTagCloud()" title="标签云">🏷️</button>
+                            <button onclick="showGraph()" title="知识图谱">🌐</button>
+                        </div>
+                    </div>
+                    <div class="vault-roots" id="vaultRoots">
+                        <div class="vault-roots-empty" id="vaultRootsEmpty">
+                            <span class="empty-icon">📂</span>
+                            <p>No knowledge bases yet</p>
+                            <span style="font-size:11px;color:var(--dim);margin-top:4px;">Click "+ Add Vault" below to get started</span>
+                        </div>
+                    </div>
+                    <div class="vault-add-section">
+                        <button class="vault-add-trigger" id="vaultAddBtn" onclick="toggleDirBrowser()">＋ Add Vault</button>
+                    </div>
+                    <!-- Directory Browser (inline, hidden by default) -->
+                    <div class="dir-browser" id="dirBrowser" style="display:none;">
+                        <div class="dir-browser-header">
+                            <span>📂 Select Directory</span>
+                            <button onclick="closeDirBrowser()" title="Close">✕</button>
+                        </div>
+                        <div class="dir-browser-path" id="dirBrowserPath">Loading...</div>
+                        <div class="dir-browser-list" id="dirBrowserList"></div>
+                        <div class="dir-browser-actions">
+                            <button class="dir-browser-btn-up" onclick="dirBrowserUp()">⬆ Up</button>
+                            <button class="dir-browser-btn-select" onclick="dirBrowserSelect()">✓ Select This</button>
+                        </div>
+                    </div>
                     <div class="vault-search">
                         <input type="text" id="vaultSearchInput" placeholder="搜索文件..." oninput="searchVault(this.value)">
-                    </div>
-                    <div class="vault-tree" id="vaultTree">
-                        <div class="vault-empty-state">
-                            <div class="empty-icon">📂</div>
-                            <p>选择一个 Vault 目录开始</p>
-                            <span class="empty-hint">点击上方"选择 Vault"按钮或使用快捷键</span>
                     </div>
                 </div>
                 <!-- Center: Preview -->
@@ -2529,7 +2639,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
     <!-- Graph Modal (full-screen overlay) -->
     <div id="graphModal" class="graph-modal">
@@ -2547,26 +2656,7 @@
         <div class="graph-modal-body" id="graphContainer"></div>
     </div>
 
-    <!-- Vault Selector Modal -->
-    <div id="vaultSelectorOverlay" class="vault-selector-overlay" onclick="if(event.target===this)closeVaultSelector()">
-        <div class="vault-selector-modal">
-            <div class="vault-selector-header">
-                <h3>📚 选择 Vault</h3>
-                <button class="vault-selector-close" onclick="closeVaultSelector()">✕</button>
-            </div>
-            <div class="vault-selector-body" id="vaultSelectorList">
-                <div class="vault-selector-empty">
-                    <span class="empty-icon-sm">📂</span>
-                    <p>还没有保存的 Vault</p>
-                    <div class="empty-sub">在下方输入 Vault 路径并添加</div>
-                </div>
-            </div>
-            <div class="vault-selector-footer">
-                <input type="text" id="vaultPathInput" placeholder="输入 Vault 目录的绝对路径..." onkeydown="if(event.key==='Enter')addVaultPath()">
-                <button class="vault-add-btn" onclick="addVaultPath()" title="添加 Vault">＋</button>
-            </div>
-        </div>
-    </div>
+    <!-- Vault Selector Modal removed - replaced with inline directory browser -->
 
     <!-- 操作菜单 -->
     <div class="action-menu" id="actionMenu">
@@ -6919,7 +7009,7 @@
         // Initialize Obsidian Markdown on page load
 
         // ========== Vault Browser Module ==========
-        ;(function VaultModule(global) {
+;(function VaultModule(global) {
             'use strict';
 
             // --- Private State ---
@@ -6927,8 +7017,8 @@
             let currentFile = null;
             let graphNetwork = null;
             let graphCache = null;
-            let treeData = null;
-            let allNodes = [];
+            let savedVaultPaths = [];
+            let dirBrowserCurrentPath = null;
 
             const DIR_COLORS = {
                 'daily-notes': '#f38ba8', 'projects': '#3fb950', 'areas': '#58a6ff',
@@ -6941,11 +7031,10 @@
             ];
             const DEFAULT_COLOR = '#58a6ff';
 
-            // --- Utility Functions ---
+            // --- Utility ---
             function slugify(text) {
                 return text.toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-').replace(/^-|-$/g, '');
             }
-
             function hashCode(str) {
                 let hash = 0;
                 for (let i = 0; i < str.length; i++) {
@@ -6954,222 +7043,139 @@
                 }
                 return hash;
             }
-
             function getNodeColor(filePath, groupBy, tags) {
                 if (groupBy === 'tag' && tags && tags.length > 0) {
-                    const idx = Math.abs(hashCode(tags[0])) % TAG_COLORS.length;
-                    return TAG_COLORS[idx];
+                    return TAG_COLORS[Math.abs(hashCode(tags[0])) % TAG_COLORS.length];
                 }
-                // Default: by directory
-                const parts = filePath.split('/');
-                const dir = parts.length > 1 ? parts[0] : 'root';
+                var parts = filePath.split('/');
+                var dir = parts.length > 1 ? parts[0] : 'root';
                 return DIR_COLORS[dir.toLowerCase()] || DEFAULT_COLOR;
+            }
+            function vaultIdFromPath(vaultPath) {
+                return 'vr_' + Math.abs(hashCode(vaultPath));
             }
 
             // --- View Management ---
-            function showVaultView() {
+            async function showVaultView() {
                 showView('vaultView');
-                document.getElementById('headerTitle').textContent = '📚 知识库';
-                // Auto-load last used vault
-                if (!currentVault) {
-                    var savedVaults = getSavedVaults();
-                    var lastUsed = localStorage.getItem('webfiles_last_vault');
-                    if (lastUsed && savedVaults.indexOf(lastUsed) !== -1) {
-                        selectVault(lastUsed);
-                    } else if (savedVaults.length > 0) {
-                        selectVault(savedVaults[0]);
-                    } else {
-                        openVaultSelector();
-                    }
-                }
+                document.getElementById('headerTitle').textContent = '\ud83d\udcda \u77e5\u8bc6\u5e93';
+                await loadAllVaults();
             }
 
-            function hideVaultView() {
-                goBack();
-            }
-
-            // --- Vault Selector Modal ---
-            function getSavedVaults() {
+            // --- Multi-Vault Loading ---
+            async function loadAllVaults() {
                 try {
-                    var data = JSON.parse(localStorage.getItem('webfiles_saved_vaults') || '[]');
-                    return Array.isArray(data) ? data : [];
-                } catch(e) { return []; }
-            }
-
-            function saveSavedVaults(vaults) {
-                localStorage.setItem('webfiles_saved_vaults', JSON.stringify(vaults));
-            }
-
-            function selectVault(vaultPath) {
-                currentVault = vaultPath;
-                localStorage.setItem('webfiles_last_vault', vaultPath);
-                document.getElementById('vaultName').textContent = vaultPath.split('/').pop() || vaultPath;
-                // Ensure this vault is in saved list
-                var vaults = getSavedVaults();
-                if (vaults.indexOf(vaultPath) === -1) {
-                    vaults.unshift(vaultPath);
-                    saveSavedVaults(vaults);
+                    var resp = await fetch('/api/vault/paths');
+                    var data = await resp.json();
+                    savedVaultPaths = data.paths || [];
+                } catch (e) {
+                    savedVaultPaths = [];
                 }
-                loadVaultTree(vaultPath);
-                closeVaultSelector();
+                renderVaultRoots(savedVaultPaths);
             }
 
-            function openVaultSelector() {
-                var overlay = document.getElementById('vaultSelectorOverlay');
-                overlay.classList.add('show');
-                renderVaultSelectorList();
-                // Focus the input
-                setTimeout(function() {
-                    document.getElementById('vaultPathInput').focus();
-                }, 100);
-            }
-
-            function closeVaultSelector() {
-                document.getElementById('vaultSelectorOverlay').classList.remove('show');
-                document.getElementById('vaultPathInput').value = '';
-            }
-
-            function renderVaultSelectorList() {
-                var container = document.getElementById('vaultSelectorList');
-                var vaults = getSavedVaults();
-                var lastUsed = localStorage.getItem('webfiles_last_vault');
+            function renderVaultRoots(vaults) {
+                var container = document.getElementById('vaultRoots');
                 if (vaults.length === 0) {
-                    container.innerHTML = '<div class="vault-selector-empty">'
-                        + '<span class="empty-icon-sm">📂</span>'
-                        + '<p>还没有保存的 Vault</p>'
-                        + '<div class="empty-sub">在下方输入 Vault 路径并添加</div>'
-                        + '</div>';
+                    container.innerHTML = '<div class="vault-roots-empty" id="vaultRootsEmpty"><span class="empty-icon">\ud83d\udcc2</span><p>No knowledge bases yet</p><span style="font-size:11px;color:var(--dim);margin-top:4px;">Click \"+ Add Vault\" below to get started</span></div>';
                     return;
                 }
                 var html = '';
-                vaults.forEach(function(v) {
-                    var name = v.split('/').pop() || v;
-                    var isActive = v === lastUsed;
-                    html += '<div class="vault-saved-item' + (isActive ? ' active' : '') + '" onclick="selectVault(\'' + escapeHtml(v).replace(/'/g, "\\'") + '\')">';
-                    html += '<span class="vault-saved-icon">' + (isActive ? '📖' : '📁') + '</span>';
-                    html += '<div class="vault-saved-info">';
-                    html += '<div class="vault-saved-name">' + escapeHtml(name) + '</div>';
-                    html += '<div class="vault-saved-path">' + escapeHtml(v) + '</div>';
-                    html += '</div>';
-                    html += '<button class="vault-saved-delete" onclick="event.stopPropagation();removeVaultPath(\'' + escapeHtml(v).replace(/'/g, "\\'") + '\')" title="删除">✕</button>';
+                vaults.forEach(function(vaultPath) {
+                    var name = vaultPath.split('/').pop() || vaultPath;
+                    var vid = vaultIdFromPath(vaultPath);
+                    html += '<div class="vault-root" id="' + vid + '" data-vault="' + escapeHtml(vaultPath) + '">';
+                    html += '<div class="vault-root-header" onclick="toggleVaultRoot(\'' + vid + '\')"><span class="vault-root-icon">\u25bc</span><span class="vault-root-name">\ud83d\udcc2 ' + escapeHtml(name) + '</span>';
+                    html += '<button class="vault-root-remove" onclick="event.stopPropagation();removeVault(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="Remove">\u00d7</button></div>';
+                    html += '<div class="vault-root-tree" id="tree_' + vid + '"><div class="panel-empty" style="padding:8px 12px;font-size:12px;">Loading...</div></div>';
                     html += '</div>';
                 });
                 container.innerHTML = html;
+                // Load all trees in parallel
+                vaults.forEach(function(vp) { loadVaultTree(vp); });
+                if (!currentVault && vaults.length > 0) currentVault = vaults[0];
             }
 
-            function addVaultPath() {
-                var input = document.getElementById('vaultPathInput');
-                var path = input.value.trim();
-                if (!path) return;
-                // Basic validation: must start with /
-                if (path[0] !== '/') {
-                    showToast('请输入绝对路径（以 / 开头）', 'warning');
-                    return;
+            // --- Vault Root Toggle ---
+            function toggleVaultRoot(vid) {
+                var el = document.getElementById(vid);
+                if (el) {
+                    el.classList.toggle('collapsed');
+                    var icon = el.querySelector('.vault-root-icon');
+                    if (icon) icon.textContent = el.classList.contains('collapsed') ? '\u25b6' : '\u25bc';
                 }
-                var vaults = getSavedVaults();
-                if (vaults.indexOf(path) !== -1) {
-                    // Already saved, just select it
-                    selectVault(path);
-                    return;
-                }
-                vaults.unshift(path);
-                saveSavedVaults(vaults);
-                input.value = '';
-                selectVault(path);
             }
 
-            function removeVaultPath(path) {
-                var vaults = getSavedVaults();
-                var idx = vaults.indexOf(path);
-                if (idx !== -1) {
-                    vaults.splice(idx, 1);
-                    saveSavedVaults(vaults);
-                }
-                if (currentVault === path) {
-                    currentVault = null;
-                    document.getElementById('vaultName').textContent = '未选择 Vault';
-                }
-                renderVaultSelectorList();
+            // --- Remove Vault ---
+            async function removeVault(vaultPath) {
+                try {
+                    await fetch('/api/vault/paths', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: vaultPath })
+                    });
+                } catch (e) { /* ignore */ }
+                if (currentVault === vaultPath) { currentVault = null; currentFile = null; graphCache = null; }
+                await loadAllVaults();
+                showToast('Vault removed', 'info');
             }
 
             // --- File Tree ---
             async function loadVaultTree(vaultPath) {
-                const tree = document.getElementById('vaultTree');
-                tree.innerHTML = '<div class="panel-empty">加载中...</div>';
+                var vid = vaultIdFromPath(vaultPath);
+                var treeEl = document.getElementById('tree_' + vid);
+                if (!treeEl) return;
+                treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">Loading...</div>';
                 try {
-                    const resp = await fetch('/api/vault/graph?vault=' + encodeURIComponent(vaultPath));
-                    const data = await resp.json();
-                    const payload = data.data || data;
-                    const nodes = payload.nodes || [];
-                    allNodes = nodes;
-                    graphCache = payload;
-                    if (nodes.length === 0) {
-                        tree.innerHTML = '<div class="panel-empty">Vault 中没有 Markdown 文件</div>';
-                        return;
-                    }
-                    treeData = buildTreeFromNodes(nodes);
-                    renderTree(tree, treeData);
+                    var resp = await fetch('/api/vault/graph?vault=' + encodeURIComponent(vaultPath));
+                    if (!resp.ok) { treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;color:var(--danger);">Failed to load</div>'; return; }
+                    var data = await resp.json();
+                    var payload = data.data || data;
+                    var nodes = payload.nodes || [];
+                    if (nodes.length === 0) { treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">No Markdown files</div>'; return; }
+                    var tree = buildTreeFromNodes(nodes);
+                    renderTreeInto(treeEl, tree, vaultPath);
+                    if (vaultPath === currentVault) graphCache = payload;
                 } catch (e) {
-                    tree.innerHTML = '<div class="panel-empty">加载失败: ' + escapeHtml(e.message) + '</div>';
+                    treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;color:var(--danger);">' + escapeHtml(e.message) + '</div>';
                 }
             }
 
             function buildTreeFromNodes(nodes) {
-                const root = { name: '', children: {}, files: [] };
+                var root = { name: '', children: {}, files: [] };
                 nodes.forEach(function(node) {
-                    const parts = (node.path || node.id).split('/');
-                    let current = root;
-                    for (let i = 0; i < parts.length - 1; i++) {
-                        const dir = parts[i];
-                        if (!current.children[dir]) {
-                            current.children[dir] = { name: dir, children: {}, files: [] };
-                        }
+                    var parts = (node.path || node.id).split('/');
+                    var current = root;
+                    for (var i = 0; i < parts.length - 1; i++) {
+                        var dir = parts[i];
+                        if (!current.children[dir]) current.children[dir] = { name: dir, children: {}, files: [] };
                         current = current.children[dir];
                     }
-                    current.files.push({
-                        name: parts[parts.length - 1],
-                        label: node.label || parts[parts.length - 1].replace(/\.md$/, ''),
-                        path: node.path || node.id,
-                        tags: node.tags || []
-                    });
+                    current.files.push({ name: parts[parts.length - 1], label: node.label || parts[parts.length - 1].replace(/\.md$/, ''), path: node.path || node.id, tags: node.tags || [] });
                 });
                 return root;
             }
 
-            function renderTree(container, tree) {
+            function renderTreeInto(container, tree, vaultPath) {
                 var html = '';
-                // Sort and render directories first
                 var dirs = Object.keys(tree.children).sort();
-                dirs.forEach(function(dirName) {
-                    html += renderTreeFolder(tree.children[dirName], dirName);
-                });
-                // Then files at root level
+                dirs.forEach(function(dirName) { html += renderTreeFolder(tree.children[dirName], dirName, vaultPath); });
                 var files = (tree.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); });
                 files.forEach(function(f) {
-                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
-                         + '<span class="tree-icon">📄</span>'
-                         + '<span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
+                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" data-vault="' + escapeHtml(vaultPath) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\', \'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')">'
+                         + '<span class="tree-icon">\ud83d\udcc4</span><span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
                 });
-                container.innerHTML = html || '<div class="panel-empty">没有文件</div>';
+                container.innerHTML = html || '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">No files</div>';
             }
 
-            function renderTreeFolder(folder, name) {
+            function renderTreeFolder(folder, name, vaultPath) {
                 var html = '<div class="vault-tree-folder">';
-                html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)">';
-                html += '<span class="tree-icon">▶</span>';
-                html += '<span class="tree-label">📁 ' + escapeHtml(name) + '</span></div>';
+                html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)"><span class="tree-icon">\u25b6</span><span class="tree-label">\ud83d\udcc1 ' + escapeHtml(name) + '</span></div>';
                 html += '<div class="vault-tree-children">';
-                // Sub-directories
-                var dirs = Object.keys(folder.children).sort();
-                dirs.forEach(function(d) {
-                    html += renderTreeFolder(folder.children[d], d);
-                });
-                // Files
-                var files = (folder.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); });
-                files.forEach(function(f) {
-                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
-                         + '<span class="tree-icon">📄</span>'
-                         + '<span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
+                Object.keys(folder.children).sort().forEach(function(d) { html += renderTreeFolder(folder.children[d], d, vaultPath); });
+                (folder.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); }).forEach(function(f) {
+                    html += '<div class="vault-tree-item" data-path="' + escapeHtml(f.path) + '" data-vault="' + escapeHtml(vaultPath) + '" onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\', \'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')">'
+                         + '<span class="tree-icon">\ud83d\udcc4</span><span class="tree-label">' + escapeHtml(f.label) + '</span></div>';
                 });
                 html += '</div></div>';
                 return html;
@@ -7178,24 +7184,88 @@
             global.toggleTreeFolder = function(el) {
                 el.classList.toggle('open');
                 var icon = el.querySelector('.tree-icon');
-                if (icon) icon.textContent = el.classList.contains('open') ? '▼' : '▶';
+                if (icon) icon.textContent = el.classList.contains('open') ? '\u25bc' : '\u25b6';
             };
 
+            // --- Directory Browser ---
+            function toggleDirBrowser() {
+                var el = document.getElementById('dirBrowser');
+                if (el.style.display === 'none') {
+                    el.style.display = '';
+                    loadDirBrowser(null);
+                } else {
+                    el.style.display = 'none';
+                }
+            }
+            function closeDirBrowser() { document.getElementById('dirBrowser').style.display = 'none'; }
+
+            async function loadDirBrowser(dirPath) {
+                var list = document.getElementById('dirBrowserList');
+                var pathEl = document.getElementById('dirBrowserPath');
+                list.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--dim);">Loading...</div>';
+                try {
+                    var url = '/api/browse';
+                    if (dirPath) url += '?path=' + encodeURIComponent(dirPath);
+                    var resp = await fetch(url);
+                    var data = await resp.json();
+                    if (data.error) { list.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--danger);">' + escapeHtml(data.error) + '</div>'; return; }
+                    dirBrowserCurrentPath = data.path;
+                    pathEl.textContent = 'Current: ' + data.path;
+                    if (!data.dirs || data.dirs.length === 0) {
+                        list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center;">No subdirectories</div>';
+                        return;
+                    }
+                    var html = '';
+                    data.dirs.forEach(function(d) {
+                        html += '<div class="dir-browser-item" onclick="browseTo(\'' + escapeHtml(d.path).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc1 ' + escapeHtml(d.name) + '</div>';
+                    });
+                    list.innerHTML = html;
+                } catch (e) {
+                    list.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--danger);">Error: ' + escapeHtml(e.message) + '</div>';
+                }
+            }
+
+            function browseTo(dirPath) { loadDirBrowser(dirPath); }
+
+            function dirBrowserUp() {
+                if (!dirBrowserCurrentPath) return;
+                var parts = dirBrowserCurrentPath.split('/');
+                if (parts.length <= 2) return; // don't go above root
+                var parent = parts.slice(0, -1).join('/') || '/';
+                loadDirBrowser(parent);
+            }
+
+            async function dirBrowserSelect() {
+                if (!dirBrowserCurrentPath) return;
+                try {
+                    var resp = await fetch('/api/vault/paths', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: dirBrowserCurrentPath })
+                    });
+                    var data = await resp.json();
+                    if (data.error) { showToast(data.error, 'warning'); return; }
+                    closeDirBrowser();
+                    currentVault = dirBrowserCurrentPath;
+                    await loadAllVaults();
+                    showToast('Vault added: ' + dirBrowserCurrentPath.split('/').pop(), 'success');
+                } catch (e) {
+                    showToast('Failed: ' + e.message, 'error');
+                }
+            }
+
             // --- File Preview ---
-            async function openVaultFile(filePath) {
+            async function openVaultFile(filePath, vaultPath) {
+                if (vaultPath) currentVault = vaultPath;
                 if (!currentVault) return;
                 currentFile = filePath;
-
-                // Highlight active tree item
+                // Highlight active
                 document.querySelectorAll('.vault-tree-item.active').forEach(function(el) { el.classList.remove('active'); });
-                var items = document.querySelectorAll('.vault-tree-item[data-path]');
-                items.forEach(function(el) {
+                document.querySelectorAll('.vault-tree-item[data-path]').forEach(function(el) {
                     if (el.dataset.path === filePath) el.classList.add('active');
                 });
-
                 var preview = document.getElementById('vaultPreview');
-                preview.innerHTML = '<div class="panel-empty"><div class="graph-spinner" style="margin:20px auto;"></div>加载中...</div>';
-
+                preview.innerHTML = '<div class="panel-empty"><div class="graph-spinner" style="margin:20px auto;"></div>Loading...</div>';
                 try {
                     var resp = await fetch('/api/vault/parse', {
                         method: 'POST',
@@ -7205,177 +7275,104 @@
                     var data = await resp.json();
                     var payload = data.data || data;
                     renderPreview(preview, payload);
-
-                    // Load backlinks in parallel
                     loadBacklinks(filePath);
-
-                    // Render metadata
                     renderMetadata(document.getElementById('panelMeta'), payload.metadata || {});
-
-                    // Update header
-                    var title = payload.metadata && payload.metadata.title
-                        ? payload.metadata.title
-                        : filePath.split('/').pop().replace(/\.md$/, '');
-                    document.getElementById('headerTitle').textContent = '📚 ' + title;
-
+                    var title = payload.metadata && payload.metadata.title ? payload.metadata.title : filePath.split('/').pop().replace(/\.md$/, '');
+                    document.getElementById('headerTitle').textContent = '\ud83d\udcda ' + title;
                 } catch (e) {
-                    preview.innerHTML = '<div class="panel-empty">加载失败: ' + escapeHtml(e.message) + '</div>';
+                    preview.innerHTML = '<div class="panel-empty">Failed: ' + escapeHtml(e.message) + '</div>';
                 }
             }
 
             function renderPreview(container, payload) {
                 var html = '';
-                // Use pre-rendered HTML if available, else render from body/raw
-                if (payload.html) {
-                    html = payload.html;
-                } else if (payload.body) {
-                    try { html = marked.parse(payload.body); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.body.replace(/</g,'&lt;') + '</pre>'; }
-                } else if (payload.raw) {
-                    try { html = marked.parse(payload.raw); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.raw.replace(/</g,'&lt;') + '</pre>'; }
-                }
-
-                // Build breadcrumb
+                if (payload.html) { html = payload.html; }
+                else if (payload.body) { try { html = marked.parse(payload.body); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.body.replace(/</g,'&lt;') + '</pre>'; } }
+                else if (payload.raw) { try { html = marked.parse(payload.raw); } catch(e) { html = '<pre style="white-space:pre-wrap;color:var(--text-secondary);">' + payload.raw.replace(/</g,'&lt;') + '</pre>'; } }
                 var bcHtml = '';
                 if (currentFile && currentVault) {
                     var vaultName = currentVault.split('/').pop() || currentVault;
                     var parts = currentFile.split('/');
                     bcHtml = '<div class="vault-breadcrumb" style="display:flex;">';
-                    bcHtml += '<span>📚 ' + escapeHtml(vaultName) + '</span>';
+                    bcHtml += '<span>\ud83d\udcda ' + escapeHtml(vaultName) + '</span>';
                     for (var i = 0; i < parts.length; i++) {
-                        bcHtml += '<span class="bc-sep">›</span>';
-                        if (i === parts.length - 1) {
-                            bcHtml += '<span class="bc-current">' + escapeHtml(parts[i].replace(/\.md$/, '')) + '</span>';
-                        } else {
-                            bcHtml += '<span>' + escapeHtml(parts[i]) + '</span>';
-                        }
+                        bcHtml += '<span class="bc-sep">\u203a</span>';
+                        if (i === parts.length - 1) bcHtml += '<span class="bc-current">' + escapeHtml(parts[i].replace(/\.md$/, '')) + '</span>';
+                        else bcHtml += '<span>' + escapeHtml(parts[i]) + '</span>';
                     }
                     bcHtml += '</div>';
                 }
                 container.innerHTML = bcHtml + '<div class="markdown-body">' + html + '</div>';
-
-                // Add IDs to headings for TOC navigation
                 var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                headings.forEach(function(h) {
-                    if (!h.id) h.id = slugify(h.textContent);
-                });
-
-                // Generate and render TOC
+                headings.forEach(function(h) { if (!h.id) h.id = slugify(h.textContent); });
                 var tocItems = [];
-                if (payload.toc && payload.toc.length > 0) {
-                    tocItems = payload.toc;
-                } else {
-                    tocItems = generateTOC(container);
-                }
+                if (payload.toc && payload.toc.length > 0) tocItems = payload.toc;
+                else tocItems = generateTOC(container);
                 renderTOC(document.getElementById('panelToc'), tocItems);
-
-                // Render mermaid diagrams
-                if (typeof renderMermaidDiagrams === 'function') {
-                    renderMermaidDiagrams(container);
-                }
-
-                // Load embedded content
-                if (typeof loadEmbeds === 'function') {
-                    loadEmbeds(container);
-                }
+                if (typeof renderMermaidDiagrams === 'function') renderMermaidDiagrams(container);
+                if (typeof loadEmbeds === 'function') loadEmbeds(container);
             }
 
             // --- TOC ---
             function generateTOC(container) {
                 var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
                 var items = [];
-                headings.forEach(function(h) {
-                    items.push({
-                        level: parseInt(h.tagName[1]),
-                        text: h.textContent,
-                        id: h.id || slugify(h.textContent)
-                    });
-                });
+                headings.forEach(function(h) { items.push({ level: parseInt(h.tagName[1]), text: h.textContent, id: h.id || slugify(h.textContent) }); });
                 return items;
             }
-
             function renderTOC(container, tocItems) {
                 if (!tocItems || tocItems.length === 0) {
-                    container.innerHTML = '<div class="panel-empty"><span class="empty-icon-sm">📋</span>未检测到标题<div class="empty-sub">当前文件没有标题结构</div></div>';
+                    container.innerHTML = '<div class="panel-empty"><span class="empty-icon-sm">\ud83d\udccb</span>\u672a\u68c0\u6d4b\u5230\u6807\u9898<div class="empty-sub">\u5f53\u524d\u6587\u4ef6\u6ca1\u6709\u6807\u9898\u7ed3\u6784</div></div>';
                     return;
                 }
                 var minLevel = Math.min.apply(null, tocItems.map(function(t) { return t.level; }));
-                var html = '<div class="panel-header"><span>📋</span><span>大纲 (' + tocItems.length + ')</span></div>';
+                var html = '<div class="panel-header"><span>\ud83d\udccb</span><span>\u5927\u7eb2 (' + tocItems.length + ')</span></div>';
                 html += '<div class="toc-list">';
                 tocItems.forEach(function(item) {
                     var level = item.level - minLevel + 1;
-                    html += '<div class="toc-item toc-level-' + level + '" onclick="scrollToHeading(\'' + escapeHtml(item.id) + '\')">'
-                         + escapeHtml(item.text) + '</div>';
+                    html += '<div class="toc-item toc-level-' + level + '" onclick="scrollToHeading(\'' + escapeHtml(item.id) + '\')">' + escapeHtml(item.text) + '</div>';
                 });
                 html += '</div>';
                 container.innerHTML = html;
             }
-
             global.scrollToHeading = function(id) {
                 var el = document.getElementById(id);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    // Highlight briefly
-                    el.style.background = 'rgba(88,166,255,0.15)';
-                    setTimeout(function() { el.style.background = ''; }, 1500);
-                }
+                if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.style.background = 'rgba(88,166,255,0.15)'; setTimeout(function() { el.style.background = ''; }, 1500); }
             };
 
             // --- Backlinks ---
             async function loadBacklinks(filePath) {
                 var container = document.getElementById('panelBacklinks');
-                container.innerHTML = '<div class="panel-empty">加载中...</div>';
+                container.innerHTML = '<div class="panel-empty">Loading...</div>';
                 try {
                     var resp = await fetch('/api/vault/backlinks?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(filePath));
                     var data = await resp.json();
                     var payload = data.data || data;
-                    var backlinks = payload.backlinks || [];
-                    renderBacklinks(container, backlinks);
-                } catch (e) {
-                    container.innerHTML = '<div class="panel-empty">加载失败</div>';
-                }
+                    renderBacklinks(container, payload.backlinks || []);
+                } catch (e) { container.innerHTML = '<div class="panel-empty">Failed</div>'; }
             }
-
             function renderBacklinks(container, backlinks) {
                 if (!backlinks || backlinks.length === 0) {
-                    container.innerHTML = '<div class="panel-header"><span>↩</span><span>反向链接 (0)</span></div>'
-                        + '<div class="panel-empty"><span class="empty-icon-sm">🔗</span>暂无反向链接<div class="empty-sub">其他笔记还没有链接到这里</div></div>';
+                    container.innerHTML = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (0)</span></div><div class="panel-empty"><span class="empty-icon-sm">\ud83d\udd17</span>\u6682\u65e0\u53cd\u5411\u94fe\u63a5<div class="empty-sub">\u5176\u4ed6\u7b14\u8bb0\u8fd8\u6ca1\u6709\u94fe\u63a5\u5230\u8fd9\u91cc</div></div>';
                     return;
                 }
-                var html = '<div class="panel-header"><span>↩</span><span>反向链接 (' + backlinks.length + ')</span></div>';
+                var html = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (' + backlinks.length + ')</span></div>';
                 backlinks.forEach(function(bl) {
-                    html += '<div class="backlink-item">';
-                    html += '<div class="backlink-title" onclick="openVaultFile(\'' + escapeHtml(bl.file).replace(/'/g, "\\'") + '\')">'
-                         + '📄 ' + escapeHtml(bl.title || bl.file) + '</div>';
-                    if (bl.contexts) {
-                        bl.contexts.forEach(function(ctx) {
-                            html += '<div class="backlink-context" onclick="openVaultFile(\'' + escapeHtml(bl.file).replace(/'/g, "\\'") + '\')">'
-                                 + '<pre>' + escapeHtml(ctx.snippet || '') + '</pre>'
-                                 + '<span class="context-line">第 ' + (ctx.line || '?') + ' 行</span></div>';
-                        });
-                    }
+                    html += '<div class="backlink-item"><div class="backlink-title" onclick="openVaultFile(\'' + escapeHtml(bl.path || bl.file || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc4 ' + escapeHtml(bl.name || bl.title || bl.file || '') + '</div>';
+                    if (bl.contexts) { bl.contexts.forEach(function(ctx) { html += '<div class="backlink-context"><pre>' + escapeHtml(ctx.snippet || '') + '</pre></div>'; }); }
                     html += '</div>';
                 });
                 container.innerHTML = html;
             }
 
-            // --- Info Panel Tab Switching ---
+            // --- Info Panel Tab ---
             function switchInfoTab(tab) {
                 var tabs = document.querySelectorAll('.vault-info-panel .panel-tab');
                 tabs.forEach(function(t) { t.classList.remove('active'); });
-
-                var panels = {
-                    toc: document.getElementById('panelToc'),
-                    backlinks: document.getElementById('panelBacklinks'),
-                    meta: document.getElementById('panelMeta')
-                };
-
-                Object.keys(panels).forEach(function(key) {
-                    if (panels[key]) panels[key].style.display = key === tab ? '' : 'none';
-                });
-
-                // Activate the clicked tab
+                var panels = { toc: document.getElementById('panelToc'), backlinks: document.getElementById('panelBacklinks'), meta: document.getElementById('panelMeta') };
+                Object.keys(panels).forEach(function(key) { if (panels[key]) panels[key].style.display = key === tab ? '' : 'none'; });
                 tabs.forEach(function(t) {
-                    var tabName = t.textContent.includes('大纲') ? 'toc' : t.textContent.includes('反链') ? 'backlinks' : 'meta';
+                    var tabName = t.textContent.includes('\u5927\u7eb2') ? 'toc' : t.textContent.includes('\u53cd\u94fe') ? 'backlinks' : 'meta';
                     if (tabName === tab) t.classList.add('active');
                 });
             }
@@ -7383,19 +7380,14 @@
             // --- Metadata ---
             function renderMetadata(container, metadata) {
                 if (!metadata || Object.keys(metadata).length === 0) {
-                    container.innerHTML = '<div class="panel-header"><span>📊</span><span>元数据</span></div>'
-                        + '<div class="panel-empty"><span class="empty-icon-sm">📄</span>无元数据<div class="empty-sub">文件缺少 YAML frontmatter</div></div>';
+                    container.innerHTML = '<div class="panel-header"><span>\ud83d\udcca</span><span>\u5143\u6570\u636e</span></div><div class="panel-empty"><span class="empty-icon-sm">\ud83d\udcc4</span>\u65e0\u5143\u6570\u636e<div class="empty-sub">\u6587\u4ef6\u7f3a\u5c11 YAML frontmatter</div></div>';
                     return;
                 }
-                var html = '<div class="panel-header"><span>📊</span><span>元数据</span></div>';
-                html += '<table class="vault-meta-table">';
+                var html = '<div class="panel-header"><span>\ud83d\udcca</span><span>\u5143\u6570\u636e</span></div><table class="vault-meta-table">';
                 Object.keys(metadata).forEach(function(key) {
                     var val = metadata[key];
-                    if (Array.isArray(val)) {
-                        val = val.map(function(v) { return escapeHtml(String(v)); }).join(', ');
-                    } else {
-                        val = escapeHtml(String(val));
-                    }
+                    if (Array.isArray(val)) val = val.map(function(v) { return escapeHtml(String(v)); }).join(', ');
+                    else val = escapeHtml(String(val));
                     html += '<tr><td>' + escapeHtml(key) + '</td><td>' + val + '</td></tr>';
                 });
                 html += '</table>';
@@ -7404,266 +7396,149 @@
 
             // --- Knowledge Graph ---
             function showGraph() {
-                if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
+                if (!currentVault) { showToast('\u8bf7\u5148\u9009\u62e9 Vault', 'warning'); return; }
                 var modal = document.getElementById('graphModal');
                 modal.classList.add('show');
                 var container = document.getElementById('graphContainer');
-
-                if (graphCache) {
-                    initGraph(container, graphCache);
-                } else {
-                    container.innerHTML = '<div class="graph-loading"><div class="graph-spinner"></div><span>正在加载知识图谱...</span></div>';
+                if (graphCache) { initGraph(container, graphCache); }
+                else {
+                    container.innerHTML = '<div class="graph-loading"><div class="graph-spinner"></div><span>Loading graph...</span></div>';
                     fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
                         .then(function(r) { return r.json(); })
-                        .then(function(data) {
-                            var payload = data.data || data;
-                            graphCache = payload;
-                            initGraph(container, payload);
-                        })
-                        .catch(function(e) {
-                            container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">加载失败: ' + escapeHtml(e.message) + '</div>';
-                        });
+                        .then(function(data) { graphCache = data.data || data; initGraph(container, graphCache); })
+                        .catch(function(e) { container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">Failed: ' + escapeHtml(e.message) + '</div>'; });
                 }
             }
-
             function initGraph(container, data) {
-                if (typeof vis === 'undefined' || !vis.Network) {
-                    container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">⚠️</span><span>vis-network 库未加载</span><span style="font-size:12px;color:var(--dim);">请检查网络连接</span></div>';
-                    return;
-                }
-
+                if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
                 var nodes = (data.nodes || []).map(function(n) {
-                    return {
-                        id: n.id || n.path,
-                        label: n.label || n.path,
-                        path: n.path || n.id,
-                        color: n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []),
-                        size: n.size || 16,
-                        tags: n.tags || [],
-                        font: { color: '#e6edf3', size: 11 },
-                        title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '')
-                    };
+                    return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, color: n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []), size: n.size || 16, tags: n.tags || [], font: { color: '#e6edf3', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
                 });
-                var edges = (data.edges || []).map(function(e) {
-                    return { from: e.from, to: e.to };
-                });
-
+                var edges = (data.edges || []).map(function(e) { return { from: e.from, to: e.to }; });
                 container.innerHTML = '';
-
                 var nodesDS = new vis.DataSet(nodes);
                 var edgesDS = new vis.DataSet(edges);
-
-                var options = {
-                    nodes: {
-                        shape: 'dot', borderWidth: 2, borderWidthSelected: 3
-                    },
-                    edges: {
-                        color: { color: '#30363d', highlight: '#58a6ff', hover: '#58a6ff' },
-                        arrows: { to: { enabled: false } },
-                        smooth: { type: 'continuous' }
-                    },
-                    physics: {
-                        solver: 'forceAtlas2Based',
-                        forceAtlas2Based: {
-                            gravitationalConstant: -80,
-                            centralGravity: 0.01,
-                            springLength: 150,
-                            springConstant: 0.08
-                        },
-                        stabilization: { iterations: 200 }
-                    },
-                    interaction: {
-                        hover: true, tooltipDelay: 200,
-                        navigationButtons: true, keyboard: true
-                    }
-                };
-
+                var options = { nodes: { shape: 'dot', borderWidth: 2, borderWidthSelected: 3 }, edges: { color: { color: '#30363d', highlight: '#58a6ff', hover: '#58a6ff' }, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true } };
                 graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
-
-                // Store DataSets for later filtering
-                graphNetwork._nodesDS = nodesDS;
-                graphNetwork._edgesDS = edgesDS;
-                graphNetwork._allNodes = nodes;
-                graphNetwork._allEdges = edges;
-
+                graphNetwork._nodesDS = nodesDS; graphNetwork._edgesDS = edgesDS; graphNetwork._allNodes = nodes; graphNetwork._allEdges = edges;
                 graphNetwork.on('click', function(params) {
-                    if (params.nodes.length === 1) {
-                        var nodeId = params.nodes[0];
-                        var node = nodesDS.get(nodeId);
-                        if (node && node.path) {
-                            closeGraphModal();
-                            openVaultFile(node.path);
-                        }
-                    }
+                    if (params.nodes.length === 1) { var node = nodesDS.get(params.nodes[0]); if (node && node.path) { closeGraphModal(); openVaultFile(node.path, currentVault); } }
                 });
             }
-
             function updateGraphGrouping(value) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
                 var nodesDS = graphNetwork._nodesDS;
-                graphNetwork._allNodes.forEach(function(n) {
-                    var newColor = getNodeColor(n.path, value, n.tags || []);
-                    nodesDS.update({ id: n.id, color: newColor });
-                });
+                graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, color: getNodeColor(n.path, value, n.tags || []) }); });
             }
-
             function filterGraphNodes(query) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
                 var nodesDS = graphNetwork._nodesDS;
                 var q = query.toLowerCase().trim();
-                if (!q) {
-                    // Reset all nodes to normal
-                    graphNetwork._allNodes.forEach(function(n) {
-                        nodesDS.update({ id: n.id, opacity: 1, font: { color: '#e6edf3', size: 11 } });
-                    });
-                    return;
-                }
+                if (!q) { graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, opacity: 1, font: { color: '#e6edf3', size: 11 } }); }); return; }
                 graphNetwork._allNodes.forEach(function(n) {
-                    var match = (n.label || '').toLowerCase().includes(q) ||
-                                (n.path || '').toLowerCase().includes(q) ||
-                                (n.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
-                    nodesDS.update({
-                        id: n.id,
-                        opacity: match ? 1 : 0.15,
-                        font: { color: match ? '#e6edf3' : '#30363d', size: match ? 13 : 9 }
-                    });
-                    if (match && graphNetwork._allNodes.filter(function(x) { return (x.label || '').toLowerCase().includes(q); }).length === 1) {
-                        graphNetwork.focus(n.id, { scale: 1.2, animation: true });
-                    }
+                    var match = (n.label || '').toLowerCase().includes(q) || (n.path || '').toLowerCase().includes(q) || (n.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
+                    nodesDS.update({ id: n.id, opacity: match ? 1 : 0.15, font: { color: match ? '#e6edf3' : '#30363d', size: match ? 13 : 9 } });
                 });
             }
-
-            function closeGraphModal() {
-                document.getElementById('graphModal').classList.remove('show');
-            }
+            function closeGraphModal() { document.getElementById('graphModal').classList.remove('show'); }
 
             // --- Tag Cloud ---
             function showTagCloud() {
-                if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
-                // Switch to meta tab and show tag cloud there, or show in backlinks panel
+                if (!currentVault) { showToast('\u8bf7\u5148\u9009\u62e9 Vault', 'warning'); return; }
                 switchInfoTab('meta');
                 var container = document.getElementById('panelMeta');
-                container.innerHTML = '<div class="panel-empty">加载标签...</div>';
-
+                container.innerHTML = '<div class="panel-empty">Loading tags...</div>';
                 fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         var payload = data.data || data;
-                        var tags = payload.tags || [];
-                        if (tags.length === 0) {
-                            container.innerHTML = '<div class="panel-header"><span>🏷️</span><span>标签云</span></div>'
-                                + '<div class="panel-empty">暂无标签</div>';
-                            return;
-                        }
-                        var maxCount = Math.max.apply(null, tags.map(function(t) { return t.count; }));
-                        var minCount = Math.min.apply(null, tags.map(function(t) { return t.count; }));
-                        var html = '<div class="panel-header"><span>🏷️</span><span>标签 (' + tags.length + ')</span></div>';
-                        html += '<div class="tag-cloud">';
-                        tags.forEach(function(tag) {
+                        var tags = payload.tags || {};
+                        var tagEntries = Object.keys(tags).map(function(k) { return { name: k, count: tags[k].length }; });
+                        if (tagEntries.length === 0) { container.innerHTML = '<div class="panel-header"><span>\ud83c\udff7\ufe0f</span><span>Tags</span></div><div class="panel-empty">No tags found</div>'; return; }
+                        tagEntries.sort(function(a, b) { return b.count - a.count; });
+                        var maxCount = tagEntries[0].count;
+                        var minCount = tagEntries[tagEntries.length - 1].count;
+                        var html = '<div class="panel-header"><span>\ud83c\udff7\ufe0f</span><span>Tags (' + tagEntries.length + ')</span></div><div class="tag-cloud">';
+                        tagEntries.forEach(function(tag) {
                             var ratio = maxCount === minCount ? 0.5 : (tag.count - minCount) / (maxCount - minCount);
                             var size = 0.75 + ratio * 0.75;
-                            html += '<span class="tag-cloud-item" style="font-size:' + size + 'rem;" onclick="filterByTag(\'' + escapeHtml(tag.name).replace(/'/g, "\\'") + '\')">'
-                                 + '#' + escapeHtml(tag.name) + ' <small>(' + tag.count + ')</small></span>';
+                            html += '<span class="tag-cloud-item" style="font-size:' + size + 'rem;" onclick="filterByTag(\'' + escapeHtml(tag.name).replace(/'/g, "\\'") + '\')">#' + escapeHtml(tag.name) + ' <small>(' + tag.count + ')</small></span>';
                         });
-                        html += '</div>';
-                        html += '<div id="tagFilesContainer"></div>';
+                        html += '</div><div id="tagFilesContainer"></div>';
                         container.innerHTML = html;
                     })
-                    .catch(function(e) {
-                        container.innerHTML = '<div class="panel-empty">加载标签失败</div>';
-                    });
+                    .catch(function() { container.innerHTML = '<div class="panel-empty">Failed to load tags</div>'; });
             }
 
-            // Override existing placeholder filterByTag
             function filterByTag(tagName) {
-                if (!currentVault) {
-                    showToast('筛选标签: #' + tagName);
-                    return;
-                }
-                // If vault view is active, show filtered files
+                if (!currentVault) { showToast('#' + tagName); return; }
                 var tagContainer = document.getElementById('tagFilesContainer');
-                if (!tagContainer) {
-                    // Not in vault view, just show toast
-                    showToast('标签: #' + tagName, 'info');
-                    return;
-                }
-                tagContainer.innerHTML = '<div class="panel-empty">加载中...</div>';
-
-                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault) + '&tag=' + encodeURIComponent(tagName) + '&includeFiles=true')
+                if (!tagContainer) { showToast('#' + tagName, 'info'); return; }
+                tagContainer.innerHTML = '<div class="panel-empty" style="padding:8px;">Loading...</div>';
+                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         var payload = data.data || data;
-                        var files = payload.files || [];
-                        if (files.length === 0) {
-                            tagContainer.innerHTML = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' — 无文件</div>';
-                            return;
-                        }
-                        var html = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' (' + files.length + ' 个文件)</div>';
-                        html += '<ul class="tag-file-list">';
+                        var tags = payload.tags || {};
+                        var files = tags[tagName] || [];
+                        if (files.length === 0) { tagContainer.innerHTML = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' — no files</div>'; return; }
+                        var html = '<div class="tag-files-header">#' + escapeHtml(tagName) + ' (' + files.length + ' files)</div><ul class="tag-file-list">';
                         files.forEach(function(f) {
-                            html += '<li onclick="openVaultFile(\'' + escapeHtml(f.path).replace(/'/g, "\\'") + '\')">'
-                                 + '📄 ' + escapeHtml(f.title || f.path) + '</li>';
+                            html += '<li onclick="openVaultFile(\'' + escapeHtml(f.path || f.name || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc4 ' + escapeHtml(f.name || f.path || '') + '</li>';
                         });
                         html += '</ul>';
                         tagContainer.innerHTML = html;
                     })
-                    .catch(function() {
-                        tagContainer.innerHTML = '<div class="panel-empty">加载失败</div>';
-                    });
+                    .catch(function() { tagContainer.innerHTML = '<div class="panel-empty">Failed</div>'; });
             }
 
-            // --- Search ---
+            // --- Search across all vaults ---
             function searchVault(query) {
                 var q = query.toLowerCase().trim();
-                var items = document.querySelectorAll('#vaultTree .vault-tree-item[data-path]');
-                var folders = document.querySelectorAll('#vaultTree .vault-tree-folder');
-
+                var items = document.querySelectorAll('#vaultRoots .vault-tree-item[data-path]');
+                var folders = document.querySelectorAll('#vaultRoots .vault-tree-folder');
+                var vaultRoots = document.querySelectorAll('#vaultRoots .vault-root');
                 if (!q) {
-                    // Show all
                     items.forEach(function(el) { el.style.display = ''; });
                     folders.forEach(function(f) { f.style.display = ''; });
                     return;
                 }
-
-                // Hide non-matching files, show matching ones
                 var visiblePaths = new Set();
                 items.forEach(function(el) {
-                    var path = (el.dataset.path || '').toLowerCase();
+                    var p = (el.dataset.path || '').toLowerCase();
                     var label = (el.querySelector('.tree-label') || {}).textContent || '';
-                    var match = path.includes(q) || label.toLowerCase().includes(q);
+                    var match = p.includes(q) || label.toLowerCase().includes(q);
                     el.style.display = match ? '' : 'none';
                     if (match) {
-                        // Mark parent folders as needing to be visible
                         var parent = el.closest('.vault-tree-folder');
                         while (parent) {
                             visiblePaths.add(parent);
                             parent.classList.add('open');
                             var icon = parent.querySelector(':scope > .vault-tree-item .tree-icon');
-                            if (icon) icon.textContent = '▼';
+                            if (icon) icon.textContent = '\u25bc';
                             parent = parent.parentElement.closest('.vault-tree-folder');
                         }
+                        var vr = el.closest('.vault-root');
+                        if (vr) vr.classList.remove('collapsed');
                     }
                 });
-
                 folders.forEach(function(f) {
                     if (!visiblePaths.has(f)) {
-                        // Check if any child is visible
                         var hasVisible = f.querySelector('.vault-tree-item[data-path]:not([style*="display: none"])');
                         f.style.display = hasVisible ? '' : 'none';
-                    } else {
-                        f.style.display = '';
-                    }
+                    } else { f.style.display = ''; }
                 });
             }
 
-            // --- Public API: expose to global scope ---
+            // --- Public API ---
             global.showVaultView = showVaultView;
-            global.hideVaultView = hideVaultView;
-            global.openVaultSelector = openVaultSelector;
-            global.closeVaultSelector = closeVaultSelector;
-            global.selectVault = selectVault;
-            global.addVaultPath = addVaultPath;
-            global.removeVaultPath = removeVaultPath;
+            global.toggleVaultRoot = toggleVaultRoot;
+            global.removeVault = removeVault;
+            global.toggleDirBrowser = toggleDirBrowser;
+            global.closeDirBrowser = closeDirBrowser;
+            global.browseTo = browseTo;
+            global.dirBrowserUp = dirBrowserUp;
+            global.dirBrowserSelect = dirBrowserSelect;
             global.openVaultFile = openVaultFile;
             global.showGraph = showGraph;
             global.closeGraphModal = closeGraphModal;
@@ -7679,37 +7554,28 @@
                 openVaultFile: openVaultFile,
                 showGraph: showGraph,
                 filterByTag: filterByTag,
-                selectVault: selectVault,
                 get currentVault() { return currentVault; }
             };
 
             // --- Keyboard Shortcuts ---
             document.addEventListener('keydown', function(e) {
-                // Escape: close modals
                 if (e.key === 'Escape') {
-                    if (document.getElementById('vaultSelectorOverlay').classList.contains('show')) {
-                        closeVaultSelector();
-                        e.preventDefault();
-                        return;
-                    }
                     if (document.getElementById('graphModal').classList.contains('show')) {
-                        closeGraphModal();
-                        e.preventDefault();
-                        return;
+                        closeGraphModal(); e.preventDefault(); return;
+                    }
+                    var db = document.getElementById('dirBrowser');
+                    if (db && db.style.display !== 'none') {
+                        closeDirBrowser(); e.preventDefault(); return;
                     }
                 }
-                // Ctrl+K or / : focus vault search (when vault view active)
                 if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !e.ctrlKey && !e.metaKey)) {
                     var searchInput = document.getElementById('vaultSearchInput');
                     var vaultView = document.querySelector('.vault-view');
                     if (searchInput && vaultView && vaultView.offsetParent !== null) {
-                        // Only if vault view is visible and not in an input
                         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-                            if (e.key === '/') return; // Don't hijack / in inputs
+                            if (e.key === '/') return;
                         }
-                        e.preventDefault();
-                        searchInput.focus();
-                        searchInput.select();
+                        e.preventDefault(); searchInput.focus(); searchInput.select();
                     }
                 }
             });

@@ -1702,22 +1702,78 @@ function scanVault(vaultPath) {
   return files;
 }
 
-function validateVaultPath(vaultPath, HOME_DIR) {
+function validateVaultPath(vaultPath, homeDir) {
   const resolved = path.resolve(vaultPath);
-  // 必须在 HOME_DIR 下
-  if (!resolved.startsWith(HOME_DIR)) return false;
-  // 如果配置了 vaultPaths，必须匹配其中之一
-  if (vaultPaths.length > 0 && !vaultPaths.some(vp => resolved.startsWith(path.resolve(vp)))) return false;
-  // 必须是存在的目录
-  try {
-    return fs.statSync(resolved).isDirectory();
-  } catch { return false; }
+  if (!resolved.startsWith(homeDir)) return false;
+  try { return fs.statSync(resolved).isDirectory(); } catch { return false; }
 }
 
-// Vault API 端点
+// GET /api/browse - browse directories for vault selector
+app.get('/api/browse', requireAuth, (req, res) => {
+  const dirPath = req.query.path || HOME_DIR;
+  const resolved = path.resolve(dirPath);
+  if (!resolved.startsWith(HOME_DIR)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  try {
+    const entries = fs.readdirSync(resolved, { withFileTypes: true });
+    const dirs = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => ({ name: e.name, path: path.join(resolved, e.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ path: resolved, dirs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+      });
 
-// GET /api/vault/graph - 构建笔记关系图
-app.get('/api/vault/graph', requireAuth, (req, res) => {
+    // GET /api/vault/paths - retrieve saved vault paths from config
+  app.get('/api/vault/paths', requireAuth, (req, res) => {
+  const config = loadConfigFile();
+  res.json({ paths: config.vaultPaths || [] });
+});
+
+// POST /api/vault/paths - add a vault path to config
+app.post('/api/vault/paths', requireAuth, (req, res) => {
+  const { path: vaultPath } = req.body;
+  if (!vaultPath) return res.status(400).json({ error: 'Missing path' });
+  const resolved = path.resolve(vaultPath);
+  if (!resolved.startsWith(HOME_DIR)) {
+    return res.status(403).json({ error: 'Path must be under home directory' });
+  }
+  try {
+    if (!fs.statSync(resolved).isDirectory()) {
+      return res.status(400).json({ error: 'Not a directory' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Directory does not exist' });
+  }
+  const config = loadConfigFile();
+  if (!config.vaultPaths) config.vaultPaths = [];
+  if (!config.vaultPaths.includes(resolved)) {
+    config.vaultPaths.push(resolved);
+  }
+  config.sessionSecret = sessionSecret;
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  res.json({ paths: config.vaultPaths });
+  });
+
+  // DELETE /api/vault/paths - remove a vault path from config
+  app.delete('/api/vault/paths', requireAuth, (req, res) => {
+  const { path: vaultPath } = req.body;
+  if (!vaultPath) return res.status(400).json({ error: 'Missing path' });
+  const config = loadConfigFile();
+  if (!config.vaultPaths) config.vaultPaths = [];
+  config.vaultPaths = config.vaultPaths.filter(p => p !== vaultPath);
+  config.sessionSecret = sessionSecret;
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  res.json({ paths: config.vaultPaths });
+  });
+
+  // Vault API 端点
+
+  // GET /api/vault/graph - 构建笔记关系图
+  app.get('/api/vault/graph', requireAuth, (req, res) => {
   const vaultPath = req.query.vault;
   if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
     return res.status(400).json({ error: 'Invalid vault path' });
