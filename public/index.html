@@ -1888,7 +1888,7 @@
             padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 14px;
         }
         .graph-controls button:hover { background: var(--item-hover); color: var(--text); }
-        .graph-modal-body { flex: 1; position: relative; }
+        .graph-modal-body { flex: 1; position: relative; min-height: 400px; }
 
         /* Tag Cloud */
         .tag-cloud { padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
@@ -6817,6 +6817,7 @@
                 level: 'block',
                 start(src) { return src.indexOf('> [!'); },
                 tokenizer(src) {
+                    let token;
                     const match = /^> \[!(\w+)\]\s*(.*?)\n((?:>.*\n?)*)/.exec(src);
                     if (match) {
                         const type = match[1].toLowerCase();
@@ -6826,17 +6827,20 @@
                             note: '笔记', info: '信息', tip: '提示',
                             warning: '警告', danger: '危险', quote: '引用', example: '示例'
                         };
-                        return {
+                        token = {
                             type: 'callout',
                             raw: match[0],
                             calloutType: type,
                             calloutTitle: title || defaultTitles[type] || type,
-                            calloutBody: body
+                            calloutBody: body,
+                            tokens: []
                         };
+                        this.lexer.blockTokens(body, token.tokens);
+                        return token;
                     }
                 },
                 renderer(token) {
-                    const bodyHtml = this.parser.parseInline(token.calloutBody);
+                    const bodyHtml = this.parser.parse(token.tokens);
                     return `<div class="callout callout-${token.calloutType}"><div class="callout-title">${token.calloutTitle}</div><div class="callout-body">${bodyHtml}</div></div>`;
                 }
             };
@@ -7411,24 +7415,33 @@
             }
             function initGraph(container, data) {
                 if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
+                function graphNodeColor(baseColor) {
+                    return {
+                        background: baseColor || '#89b4fa',
+                        border: '#74c7ec',
+                        highlight: { background: '#f38ba8', border: '#f38ba8' },
+                        hover: { background: '#a6e3a1', border: '#a6e3a1' }
+                    };
+                }
                 var nodes = (data.nodes || []).map(function(n) {
-                    return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, color: n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []), size: n.size || 16, tags: n.tags || [], font: { color: '#e6edf3', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+                    return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, color: graphNodeColor(n.color || getNodeColor(n.path || n.id, 'directory', n.tags || [])), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
                 });
                 var edges = (data.edges || []).map(function(e) { return { from: e.from, to: e.to }; });
                 container.innerHTML = '';
                 var nodesDS = new vis.DataSet(nodes);
                 var edgesDS = new vis.DataSet(edges);
-                var options = { nodes: { shape: 'dot', borderWidth: 2, borderWidthSelected: 3 }, edges: { color: { color: '#30363d', highlight: '#58a6ff', hover: '#58a6ff' }, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true } };
+                var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true } };
                 graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
                 graphNetwork._nodesDS = nodesDS; graphNetwork._edgesDS = edgesDS; graphNetwork._allNodes = nodes; graphNetwork._allEdges = edges;
                 graphNetwork.on('click', function(params) {
                     if (params.nodes.length === 1) { var node = nodesDS.get(params.nodes[0]); if (node && node.path) { closeGraphModal(); openVaultFile(node.path, currentVault); } }
                 });
+                setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
             }
             function updateGraphGrouping(value) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
                 var nodesDS = graphNetwork._nodesDS;
-                graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, color: getNodeColor(n.path, value, n.tags || []) }); });
+                graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, color: { background: getNodeColor(n.path, value, n.tags || []), border: '#74c7ec', highlight: { background: '#f38ba8', border: '#f38ba8' }, hover: { background: '#a6e3a1', border: '#a6e3a1' } } }); });
             }
             function filterGraphNodes(query) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
