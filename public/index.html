@@ -2645,6 +2645,7 @@
         <div class="graph-modal-header">
             <h3>🌐 知识图谱</h3>
             <div class="graph-controls">
+                <select id="graphVaultSelect" onchange="switchGraphVault(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;"></select>
                 <select id="graphGroupBy" onchange="updateGraphGrouping(this.value)">
                     <option value="directory">按目录分组</option>
                     <option value="tag">按标签分组</option>
@@ -7400,18 +7401,40 @@
 
             // --- Knowledge Graph ---
             function showGraph() {
-                if (!currentVault) { showToast('\u8bf7\u5148\u9009\u62e9 Vault', 'warning'); return; }
+                var vaults = savedVaultPaths || [];
+                if (vaults.length === 0) { showToast('请先添加 Vault', 'warning'); return; }
                 var modal = document.getElementById('graphModal');
                 modal.classList.add('show');
+                var select = document.getElementById('graphVaultSelect');
+                select.innerHTML = '';
+                vaults.forEach(function(v) {
+                    var opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v.split('/').pop() || v;
+                    if (v === currentVault) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                var targetVault = currentVault || vaults[0];
+                select.value = targetVault;
+                loadGraphForVault(targetVault);
+            }
+
+            function switchGraphVault(vaultPath) {
+                graphCache = null;
+                loadGraphForVault(vaultPath);
+            }
+
+            function loadGraphForVault(vaultPath) {
                 var container = document.getElementById('graphContainer');
-                if (graphCache) { initGraph(container, graphCache); }
-                else {
-                    container.innerHTML = '<div class="graph-loading"><div class="graph-spinner"></div><span>Loading graph...</span></div>';
-                    fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
-                        .then(function(r) { return r.json(); })
-                        .then(function(data) { graphCache = data.data || data; initGraph(container, graphCache); })
-                        .catch(function(e) { container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">Failed: ' + escapeHtml(e.message) + '</div>'; });
-                }
+                container.innerHTML = '<div class="graph-loading"><div class="graph-spinner"></div><span>Loading graph...</span></div>';
+                fetch('/api/vault/graph?vault=' + encodeURIComponent(vaultPath))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var payload = data.data || data;
+                        if (vaultPath === currentVault) graphCache = payload;
+                        initGraph(container, payload);
+                    })
+                    .catch(function(e) { container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">Failed: ' + escapeHtml(e.message) + '</div>'; });
             }
             function initGraph(container, data) {
                 if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
@@ -7554,6 +7577,8 @@
             global.dirBrowserSelect = dirBrowserSelect;
             global.openVaultFile = openVaultFile;
             global.showGraph = showGraph;
+            global.switchGraphVault = switchGraphVault;
+            global.loadGraphForVault = loadGraphForVault;
             global.closeGraphModal = closeGraphModal;
             global.showTagCloud = showTagCloud;
             global.filterByTag = filterByTag;
