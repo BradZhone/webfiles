@@ -1905,6 +1905,43 @@ app.post('/api/vault/parse', requireAuth, (req, res) => {
   }
 });
 
+// POST /api/vault/write — Create or update a markdown file
+app.post('/api/vault/write', requireAuth, (req, res) => {
+    const { vault, file, content } = req.body;
+    if (!vault || !file) return res.status(400).json({ error: 'vault and file required' });
+    if (!validateVaultPath(vault, HOME_DIR)) return res.status(400).json({ error: 'Invalid vault path' });
+    const filePath = path.join(vault, file);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(vault))) return res.status(400).json({ error: 'Path traversal' });
+    const dir = path.dirname(resolved);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    try {
+        fs.writeFileSync(resolved, content || '', 'utf-8');
+        if (vaultCache) { vaultCache.invalidatePrefix(vault); }
+        res.json({ success: true, path: file });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/vault/file — Delete a file
+app.delete('/api/vault/file', requireAuth, (req, res) => {
+    const { vault, file } = req.body;
+    if (!vault || !file) return res.status(400).json({ error: 'vault and file required' });
+    if (!validateVaultPath(vault, HOME_DIR)) return res.status(400).json({ error: 'Invalid vault path' });
+    const filePath = path.join(vault, file);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(vault))) return res.status(400).json({ error: 'Path traversal' });
+    try {
+        if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'File not found' });
+        fs.unlinkSync(resolved);
+        if (vaultCache) { vaultCache.invalidatePrefix(vault); }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // JSON error handler for API routes
 app.use("/api", (err, req, res, next) => {
     console.error("API Error:", err.message);
