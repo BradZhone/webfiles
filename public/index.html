@@ -1758,10 +1758,10 @@
         .vault-toolbar button:hover { background: var(--item-hover); color: var(--text); border-color: var(--accent); }
         .vault-name { flex: 1; font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .vault-toolbar-actions { display: flex; gap: 4px; }
-        .vault-layout { display: flex; flex: 1; overflow: hidden; }
+        .vault-layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; overflow: hidden; }
         .vault-sidebar {
-            width: 260px; min-width: 180px; border-right: 1px solid var(--border);
-            display: flex; flex-direction: column; background: var(--bg-secondary); flex-shrink: 0;
+            display: flex; flex-direction: column; overflow-y: auto;
+            border-right: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0;
         }
         .vault-search {
             padding: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -1797,22 +1797,42 @@
             scroll-margin-top: 20px;
         }
 
-        .vault-info-panel {
-            width: 280px; min-width: 200px; border-left: 1px solid var(--border);
-            background: var(--bg-secondary); display: flex; flex-direction: column;
-            overflow: hidden; flex-shrink: 0;
+        .vault-info-panel { display: none !important; }
+        /* Collapsible sidebar panels */
+        .vault-panels {
+            border-top: 1px solid var(--border); flex-shrink: 0;
         }
-        .vault-info-panel .panel-tabs {
-            display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        .vault-panel {
+            border-bottom: 1px solid var(--border);
         }
-        .vault-info-panel .panel-tab {
-            flex: 1; padding: 8px 4px; text-align: center; background: none; border: none;
-            color: var(--text-secondary); cursor: pointer; font-size: 12px; font-weight: 500;
-            border-bottom: 2px solid transparent; transition: all 0.15s ease;
+        .vault-panel-header {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 12px; cursor: pointer;
+            font-size: 12px; font-weight: 600;
+            color: var(--text-secondary); text-transform: uppercase;
+            letter-spacing: 0.5px; user-select: none;
         }
-        .vault-info-panel .panel-tab:hover { color: var(--text); background: var(--item-hover); }
-        .vault-info-panel .panel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-        .vault-info-panel .panel-content { flex: 1; overflow-y: auto; }
+        .vault-panel-header:hover {
+            background: var(--item-hover); color: var(--text);
+        }
+        .panel-arrow {
+            font-size: 10px; width: 12px; transition: transform 0.15s;
+        }
+        .panel-count {
+            margin-left: auto; font-size: 10px; color: var(--dim); font-weight: normal;
+        }
+        .vault-panel-body {
+            max-height: 300px; overflow-y: auto; padding: 0 8px 8px;
+        }
+        .vault-panel-body.collapsed {
+            display: none;
+        }
+        #panelGraph {
+            position: relative; min-height: 200px;
+        }
+        #panelGraph canvas {
+            width: 100% !important;
+        }
         .panel-header {
             padding: 10px 12px; font-weight: 600; font-size: 12px; color: var(--text);
             border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
@@ -1866,29 +1886,9 @@
         .vault-meta-table td:last-child { color: var(--text-secondary); word-break: break-word; }
 
         /* Graph Modal */
-        .graph-modal {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000;
-            background: rgba(0,0,0,0.92); display: none; flex-direction: column;
-        }
-        .graph-modal.show { display: flex; }
-        .graph-modal-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-        }
-        .graph-modal-header h3 { font-size: 14px; color: var(--text); font-weight: 600; }
-        .graph-controls { display: flex; align-items: center; gap: 8px; }
-        .graph-controls select, .graph-controls input {
-            background: var(--item); border: 1px solid var(--border); color: var(--text);
-            padding: 5px 10px; border-radius: 6px; font-size: 12px; outline: none;
-        }
-        .graph-controls input { width: 160px; }
-        .graph-controls select:focus, .graph-controls input:focus { border-color: var(--accent); }
-        .graph-controls button {
-            background: var(--item); border: 1px solid var(--border); color: var(--text-secondary);
-            padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 14px;
-        }
-        .graph-controls button:hover { background: var(--item-hover); color: var(--text); }
-        .graph-modal-body { flex: 1; position: relative; min-height: 400px; }
+        /* Graph modal hidden - graph is now inline in sidebar */
+        .graph-modal { display: none !important; }
+        .graph-modal-header, .graph-modal-body, .graph-controls { display: none; }
 
         /* Tag Cloud */
         .tag-cloud { padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
@@ -2154,16 +2154,13 @@
 
         /* Responsive: vault view for mobile */
         @media (max-width: 900px) {
-            .vault-sidebar { width: 200px; min-width: 160px; }
-            .vault-info-panel { display: none; }
+            .vault-sidebar { width: 220px; min-width: 160px; }
             .vault-preview { padding: 16px; }
         }
         @media (max-width: 768px) {
-            .vault-layout { flex-direction: column; }
-            .vault-sidebar { width: 100%; height: auto; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+            .vault-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .vault-sidebar { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
             .vault-preview { min-width: unset; padding: 16px; }
-            .vault-info-panel { width: 100%; height: auto; max-height: 30vh; border-left: none; border-top: 1px solid var(--border); }
-            .graph-modal-header { flex-wrap: wrap; }
             .dir-browser { max-height: 60vh; }
             .dir-browser-list { max-height: 150px; }
         }
@@ -2581,8 +2578,8 @@
                     <div class="vault-sidebar-header">
                         <span class="vault-sidebar-title">📚 Knowledge Bases</span>
                         <div class="vault-sidebar-actions">
-                            <button onclick="showTagCloud()" title="标签云">🏷️</button>
-                            <button onclick="showGraph()" title="知识图谱">🌐</button>
+                            <button onclick="togglePanel('tags')" title="标签云">🏷️</button>
+                            <button onclick="togglePanel('graph')" title="知识图谱">🌐</button>
                         </div>
                     </div>
                     <div class="vault-roots" id="vaultRoots">
@@ -2611,6 +2608,52 @@
                     <div class="vault-search">
                         <input type="text" id="vaultSearchInput" placeholder="搜索文件..." oninput="searchVault(this.value)">
                     </div>
+                    <!-- Collapsible panels -->
+                    <div class="vault-panels">
+                        <div class="vault-panel" id="panelTocSection">
+                            <div class="vault-panel-header" onclick="togglePanel('toc')">
+                                <span class="panel-arrow" id="panelTocArrow">▼</span>
+                                <span>📋 大纲</span>
+                                <span class="panel-count" id="panelTocCount"></span>
+                            </div>
+                            <div class="vault-panel-body" id="panelToc">
+                                <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示大纲</div>
+                            </div>
+                        </div>
+                        <div class="vault-panel" id="panelGraphSection">
+                            <div class="vault-panel-header" onclick="togglePanel('graph')">
+                                <span class="panel-arrow" id="panelGraphArrow">▶</span>
+                                <span>🌐 知识图谱</span>
+                            </div>
+                            <div class="vault-panel-body collapsed" id="panelGraph" style="height:250px;"></div>
+                        </div>
+                        <div class="vault-panel" id="panelBacklinksSection">
+                            <div class="vault-panel-header" onclick="togglePanel('backlinks')">
+                                <span class="panel-arrow" id="panelBacklinksArrow">▶</span>
+                                <span>↩ 反链</span>
+                                <span class="panel-count" id="panelBacklinksCount"></span>
+                            </div>
+                            <div class="vault-panel-body collapsed" id="panelBacklinks">
+                                <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示反链</div>
+                            </div>
+                        </div>
+                        <div class="vault-panel" id="panelTagsSection">
+                            <div class="vault-panel-header" onclick="togglePanel('tags')">
+                                <span class="panel-arrow" id="panelTagsArrow">▶</span>
+                                <span>🏷 标签云</span>
+                            </div>
+                            <div class="vault-panel-body collapsed" id="panelTags"></div>
+                        </div>
+                        <div class="vault-panel" id="panelMetaSection">
+                            <div class="vault-panel-header" onclick="togglePanel('meta')">
+                                <span class="panel-arrow" id="panelMetaArrow">▶</span>
+                                <span>📊 元数据</span>
+                            </div>
+                            <div class="vault-panel-body collapsed" id="panelMeta">
+                                <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示元数据</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Center: Preview -->
                 <div class="vault-preview" id="vaultPreview">
@@ -2620,44 +2663,11 @@
                         <span class="empty-hint">从左侧文件树选择一个 Markdown 文件</span>
                     </div>
                 </div>
-                <!-- Right: TOC + Backlinks + Metadata -->
-                <div class="vault-info-panel" id="vaultInfoPanel">
-                    <div class="panel-tabs">
-                        <button class="panel-tab active" onclick="switchInfoTab('toc')">📋 大纲</button>
-                        <button class="panel-tab" onclick="switchInfoTab('backlinks')">↩ 反链</button>
-                        <button class="panel-tab" onclick="switchInfoTab('meta')">📊 元数据</button>
-                    </div>
-                    <div class="panel-content" id="panelToc">
-                        <div class="panel-empty"><span class="empty-icon-sm">📋</span>打开文件后显示大纲<div class="empty-sub">文件标题将自动生成目录</div></div>
-                    </div>
-                    <div class="panel-content" id="panelBacklinks" style="display:none;">
-                        <div class="panel-empty"><span class="empty-icon-sm">↩️</span>打开文件后显示反链<div class="empty-sub">显示链接到当前文件的其他笔记</div></div>
-                    </div>
-                    <div class="panel-content" id="panelMeta" style="display:none;">
-                        <div class="panel-empty"><span class="empty-icon-sm">📊</span>打开文件后显示元数据<div class="empty-sub">YAML frontmatter 属性</div></div>
-                    </div>
-                </div>
             </div>
         </div>
 
     </div>
 
-    <!-- Graph Modal (full-screen overlay) -->
-    <div id="graphModal" class="graph-modal">
-        <div class="graph-modal-header">
-            <h3>🌐 知识图谱</h3>
-            <div class="graph-controls">
-                <select id="graphVaultSelect" onchange="switchGraphVault(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;"></select>
-                <select id="graphGroupBy" onchange="updateGraphGrouping(this.value)">
-                    <option value="directory">按目录分组</option>
-                    <option value="tag">按标签分组</option>
-                </select>
-                <input type="text" id="graphSearchInput" placeholder="搜索节点..." oninput="filterGraphNodes(this.value)">
-                <button onclick="closeGraphModal()" title="关闭">✕</button>
-            </div>
-        </div>
-        <div class="graph-modal-body" id="graphContainer"></div>
-    </div>
 
     <!-- Vault Selector Modal removed - replaced with inline directory browser -->
 
@@ -7286,6 +7296,13 @@
                     renderMetadata(document.getElementById('panelMeta'), payload.metadata || {});
                     var title = payload.metadata && payload.metadata.title ? payload.metadata.title : filePath.split('/').pop().replace(/\.md$/, '');
                     document.getElementById('headerTitle').textContent = '\ud83d\udcda ' + title;
+                    // Auto-open TOC panel when file loaded
+                    var tocBody = document.getElementById('panelToc');
+                    var tocArrow = document.getElementById('panelTocArrow');
+                    if (tocBody && tocBody.classList.contains('collapsed')) {
+                        tocBody.classList.remove('collapsed');
+                        if (tocArrow) tocArrow.textContent = '▼';
+                    }
                 } catch (e) {
                     preview.innerHTML = '<div class="panel-empty">Failed: ' + escapeHtml(e.message) + '</div>';
                 }
@@ -7330,6 +7347,7 @@
             function renderTOC(container, tocItems) {
                 if (!tocItems || tocItems.length === 0) {
                     container.innerHTML = '<div class="panel-empty"><span class="empty-icon-sm">\ud83d\udccb</span>\u672a\u68c0\u6d4b\u5230\u6807\u9898<div class="empty-sub">\u5f53\u524d\u6587\u4ef6\u6ca1\u6709\u6807\u9898\u7ed3\u6784</div></div>';
+                    var cEl = document.getElementById('panelTocCount'); if (cEl) cEl.textContent = '';
                     return;
                 }
                 var minLevel = Math.min.apply(null, tocItems.map(function(t) { return t.level; }));
@@ -7341,6 +7359,7 @@
                 });
                 html += '</div>';
                 container.innerHTML = html;
+                var cEl = document.getElementById('panelTocCount'); if (cEl) cEl.textContent = '(' + tocItems.length + ')';
             }
             global.scrollToHeading = function(id) {
                 var el = document.getElementById(id);
@@ -7361,6 +7380,7 @@
             function renderBacklinks(container, backlinks) {
                 if (!backlinks || backlinks.length === 0) {
                     container.innerHTML = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (0)</span></div><div class="panel-empty"><span class="empty-icon-sm">\ud83d\udd17</span>\u6682\u65e0\u53cd\u5411\u94fe\u63a5<div class="empty-sub">\u5176\u4ed6\u7b14\u8bb0\u8fd8\u6ca1\u6709\u94fe\u63a5\u5230\u8fd9\u91cc</div></div>';
+                    var cEl = document.getElementById('panelBacklinksCount'); if (cEl) cEl.textContent = '(0)';
                     return;
                 }
                 var html = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (' + backlinks.length + ')</span></div>';
@@ -7370,6 +7390,7 @@
                     html += '</div>';
                 });
                 container.innerHTML = html;
+                var cEl = document.getElementById('panelBacklinksCount'); if (cEl) cEl.textContent = '(' + backlinks.length + ')';
             }
 
             // --- Info Panel Tab ---
@@ -7403,22 +7424,8 @@
 
             // --- Knowledge Graph ---
             function showGraph() {
-                var vaults = savedVaultPaths || [];
-                if (vaults.length === 0) { showToast('请先添加 Vault', 'warning'); return; }
-                var modal = document.getElementById('graphModal');
-                modal.classList.add('show');
-                var select = document.getElementById('graphVaultSelect');
-                select.innerHTML = '';
-                vaults.forEach(function(v) {
-                    var opt = document.createElement('option');
-                    opt.value = v;
-                    opt.textContent = v.split('/').pop() || v;
-                    if (v === currentVault) opt.selected = true;
-                    select.appendChild(opt);
-                });
-                var targetVault = currentVault || vaults[0];
-                select.value = targetVault;
-                loadGraphForVault(targetVault);
+                if (!currentVault) { showToast('请先添加 Vault', 'warning'); return; }
+                togglePanel('graph');
             }
 
             function switchGraphVault(vaultPath) {
@@ -7459,7 +7466,7 @@
                 graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
                 graphNetwork._nodesDS = nodesDS; graphNetwork._edgesDS = edgesDS; graphNetwork._allNodes = nodes; graphNetwork._allEdges = edges;
                 graphNetwork.on('click', function(params) {
-                    if (params.nodes.length === 1) { var node = nodesDS.get(params.nodes[0]); if (node && node.path) { closeGraphModal(); openVaultFile(node.path, currentVault); } }
+                    if (params.nodes.length === 1) { var node = nodesDS.get(params.nodes[0]); if (node && node.path) { openVaultFile(node.path, currentVault); } }
                 });
                 setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
             }
@@ -7478,34 +7485,12 @@
                     nodesDS.update({ id: n.id, opacity: match ? 1 : 0.15, font: { color: match ? '#e6edf3' : '#30363d', size: match ? 13 : 9 } });
                 });
             }
-            function closeGraphModal() { document.getElementById('graphModal').classList.remove('show'); }
+            function closeGraphModal() { var m = document.getElementById('graphModal'); if (m) m.classList.remove('show'); }
 
             // --- Tag Cloud ---
             function showTagCloud() {
-                if (!currentVault) { showToast('\u8bf7\u5148\u9009\u62e9 Vault', 'warning'); return; }
-                switchInfoTab('meta');
-                var container = document.getElementById('panelMeta');
-                container.innerHTML = '<div class="panel-empty">Loading tags...</div>';
-                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        var payload = data.data || data;
-                        var tags = payload.tags || {};
-                        var tagEntries = Object.keys(tags).map(function(k) { return { name: k, count: tags[k].length }; });
-                        if (tagEntries.length === 0) { container.innerHTML = '<div class="panel-header"><span>\ud83c\udff7\ufe0f</span><span>Tags</span></div><div class="panel-empty">No tags found</div>'; return; }
-                        tagEntries.sort(function(a, b) { return b.count - a.count; });
-                        var maxCount = tagEntries[0].count;
-                        var minCount = tagEntries[tagEntries.length - 1].count;
-                        var html = '<div class="panel-header"><span>\ud83c\udff7\ufe0f</span><span>Tags (' + tagEntries.length + ')</span></div><div class="tag-cloud">';
-                        tagEntries.forEach(function(tag) {
-                            var ratio = maxCount === minCount ? 0.5 : (tag.count - minCount) / (maxCount - minCount);
-                            var size = 0.75 + ratio * 0.75;
-                            html += '<span class="tag-cloud-item" style="font-size:' + size + 'rem;" onclick="filterByTag(\'' + escapeHtml(tag.name).replace(/'/g, "\\'") + '\')">#' + escapeHtml(tag.name) + ' <small>(' + tag.count + ')</small></span>';
-                        });
-                        html += '</div><div id="tagFilesContainer"></div>';
-                        container.innerHTML = html;
-                    })
-                    .catch(function() { container.innerHTML = '<div class="panel-empty">Failed to load tags</div>'; });
+                if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
+                togglePanel('tags');
             }
 
             function filterByTag(tagName) {
@@ -7568,6 +7553,66 @@
                 });
             }
 
+            // --- Collapsible Panel Toggle ---
+            function togglePanel(name) {
+                var capName = name.charAt(0).toUpperCase() + name.slice(1);
+                var body = document.getElementById('panel' + capName);
+                var arrow = document.getElementById('panel' + capName + 'Arrow');
+                if (!body) return;
+                var isCollapsed = body.classList.contains('collapsed');
+                body.classList.toggle('collapsed');
+                if (arrow) arrow.textContent = isCollapsed ? '▼' : '▶';
+                if (name === 'graph' && isCollapsed && currentVault) {
+                    loadInlineGraph();
+                }
+                if (name === 'tags' && isCollapsed && currentVault) {
+                    loadTagCloud();
+                }
+            }
+
+            // --- Inline Graph ---
+            function loadInlineGraph() {
+                var container = document.getElementById('panelGraph');
+                if (!container || !currentVault) return;
+                container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="graph-spinner"></div></div>';
+                fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var payload = data.data || data;
+                        initGraph(container, payload);
+                        setTimeout(function() { if (graphNetwork) graphNetwork.fit(); }, 500);
+                    })
+                    .catch(function(e) { container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--dim);">Failed to load graph</div>'; });
+            }
+
+            // --- Tag Cloud (inline panel) ---
+            function loadTagCloud() {
+                var container = document.getElementById('panelTags');
+                if (!container || !currentVault) return;
+                container.innerHTML = '<div style="text-align:center;padding:10px;color:var(--dim);">Loading...</div>';
+                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var payload = data.data || data;
+                        var tags = payload.tags || {};
+                        var tagEntries = Object.keys(tags).map(function(k) { return { name: k, count: tags[k].length }; });
+                        if (tagEntries.length === 0) {
+                            container.innerHTML = '<div style="padding:8px;color:var(--dim);font-size:12px;">No tags found</div>';
+                            return;
+                        }
+                        tagEntries.sort(function(a, b) { return b.count - a.count; });
+                        var maxCount = tagEntries[0].count;
+                        var html = '<div style="padding:4px;display:flex;flex-wrap:wrap;gap:4px;">';
+                        tagEntries.forEach(function(tag) {
+                            var size = 0.7 + (tag.count / maxCount) * 0.6;
+                            html += '<span class="tag-cloud-item" style="font-size:' + size + 'rem;cursor:pointer;" onclick="filterByTag(\'' + escapeHtml(tag.name).replace(/'/g, "\\'") + '\')"> #' + escapeHtml(tag.name) + ' <small>(' + tag.count + ')</small></span> ';
+                        });
+                        html += '</div><div id="tagFilesContainer"></div>';
+                        container.innerHTML = html;
+                    })
+                    .catch(function(e) { container.innerHTML = '<div style="padding:8px;color:var(--dim);">Failed to load tags</div>'; });
+            }
+
             // --- Public API ---
             global.showVaultView = showVaultView;
             global.toggleVaultRoot = toggleVaultRoot;
@@ -7588,19 +7633,24 @@
             global.searchVault = searchVault;
             global.updateGraphGrouping = updateGraphGrouping;
             global.filterGraphNodes = filterGraphNodes;
+            global.togglePanel = togglePanel;
+            global.loadInlineGraph = loadInlineGraph;
+            global.loadTagCloud = loadTagCloud;
 
             global.VaultModule = {
                 showVaultView: showVaultView,
                 openVaultFile: openVaultFile,
                 showGraph: showGraph,
                 filterByTag: filterByTag,
+                togglePanel: togglePanel,
                 get currentVault() { return currentVault; }
             };
 
             // --- Keyboard Shortcuts ---
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
-                    if (document.getElementById('graphModal').classList.contains('show')) {
+                    var gm = document.getElementById('graphModal');
+                    if (gm && gm.classList.contains('show')) {
                         closeGraphModal(); e.preventDefault(); return;
                     }
                     var db = document.getElementById('dirBrowser');
