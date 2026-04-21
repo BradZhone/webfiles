@@ -54,17 +54,23 @@
             gap: 16px;
             border-bottom: 1px solid var(--border);
             font-size: 12px;
-            overflow: hidden;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
             flex-shrink: 0;
             position: relative;
             z-index: 101;
             width: 100%;
         }
+        .stats-bar::-webkit-scrollbar { display: none; }
         .stats-item {
             display: flex;
             align-items: center;
             gap: 6px;
             white-space: nowrap;
+            flex-shrink: 0;
         }
         .stats-item-icon {
             font-size: 14px;
