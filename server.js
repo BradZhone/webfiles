@@ -1804,7 +1804,7 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
   files.forEach(f => {
     f.links.forEach(target => {
       const key = `${f.basename}->${target}`;
-      if (nodeMap.has(target) && !edgeSet.has(key)) {
+      if (nodeMap.has(target) && !edgeSet.has(key) && f.basename !== target) {
         edgeSet.add(key);
         edges.push({ from: f.basename, to: target });
       }
