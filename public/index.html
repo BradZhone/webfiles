@@ -1795,6 +1795,26 @@
         .vault-preview {
             flex: 1; display: flex; flex-direction: column; background: var(--bg);
             min-width: 0; min-height: 0;
+            position: relative;
+        }
+        .vault-sidebar-toggle {
+            display: none;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 50;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .vault-sidebar-toggle:hover {
+            background: var(--hover);
         }
         .vault-preview .markdown-body { max-width: 800px; margin: 0 auto; }
         .vault-preview .markdown-body h1, .vault-preview .markdown-body h2,
@@ -2187,13 +2207,43 @@
             .vault-content-body { padding: 16px; }
         }
         @media (max-width: 768px) {
-            .vault-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-            .vault-sidebar { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
-            .vault-preview { min-width: unset; }
-            .vault-content-body { padding: 16px; }
+            .vault-layout {
+                display: block;
+                position: relative;
+                height: 100%;
+            }
+            .vault-sidebar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 280px;
+                max-height: none;
+                z-index: 100;
+                background: var(--bg);
+                border-right: 1px solid var(--border);
+                border-bottom: none;
+                transform: translateX(0);
+                transition: transform 0.25s ease;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+            }
+            .vault-sidebar.collapsed {
+                transform: translateX(-100%);
+                box-shadow: none;
+            }
+            .vault-preview {
+                width: 100%;
+                height: 100%;
+                min-width: unset;
+            }
+            .vault-content-body { padding: 12px; }
             .vault-panels-zone { max-height: none; }
             .dir-browser { max-height: 60vh; }
             .dir-browser-list { max-height: 150px; }
+            /* Toggle button */
+            .vault-sidebar-toggle {
+                display: block !important;
+            }
         }
 
     </style>
@@ -2678,6 +2728,7 @@
                 </div>
                 <!-- Center: Preview -->
                 <div class="vault-preview" id="vaultPreview">
+                    <button class="vault-sidebar-toggle" id="vaultSidebarToggle" onclick="toggleVaultSidebar()" style="display:none;">☰</button>
                     <div class="vault-content-tabs">
                         <button class="content-tab active" onclick="switchContentTab('preview')" id="tabPreview">📄 预览</button>
                         <button class="content-tab" onclick="switchContentTab('edit')" id="tabEdit">✏️ 编辑</button>
@@ -7314,6 +7365,11 @@
             async function openVaultFile(filePath, vaultPath) {
                 if (vaultPath) currentVault = vaultPath;
                 if (!currentVault) return;
+                // Auto-collapse sidebar on mobile
+                if (window.innerWidth <= 768) {
+                    var sidebar = document.getElementById('vaultSidebar');
+                    if (sidebar) sidebar.classList.add('collapsed');
+                }
                 currentFile = filePath;
                 // Highlight active
                 document.querySelectorAll('.vault-tree-item.active').forEach(function(el) { el.classList.remove('active'); });
@@ -7503,7 +7559,7 @@
                 container.innerHTML = '';
                 var nodesDS = new vis.DataSet(nodes);
                 var edgesDS = new vis.DataSet(edges);
-                var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true } };
+                var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true } };
                 graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
                 graphNetwork._nodesDS = nodesDS; graphNetwork._edgesDS = edgesDS; graphNetwork._allNodes = nodes; graphNetwork._allEdges = edges;
                 graphNetwork.on('click', function(params) {
@@ -7792,6 +7848,11 @@
             }
 
 
+            function toggleVaultSidebar() {
+                var sidebar = document.getElementById('vaultSidebar');
+                if (sidebar) sidebar.classList.toggle('collapsed');
+            }
+
             // --- Public API ---
             global.showVaultView = showVaultView;
             global.toggleVaultRoot = toggleVaultRoot;
@@ -7802,6 +7863,7 @@
             global.dirBrowserUp = dirBrowserUp;
             global.dirBrowserSelect = dirBrowserSelect;
             global.openVaultFile = openVaultFile;
+            global.toggleVaultSidebar = toggleVaultSidebar;
             global.showGraph = showGraph;
             global.switchGraphVault = switchGraphVault;
             global.loadGraphForVault = loadGraphForVault;
