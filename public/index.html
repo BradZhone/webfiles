@@ -1801,26 +1801,23 @@
         }
         .vault-sidebar-toggle {
             display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            z-index: 150;
-            background: var(--accent, #89b4fa);
-            border: none;
-            color: #1e1e2e;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            font-size: 20px;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 13px;
             cursor: pointer;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-            transition: transform 0.2s, opacity 0.2s;
-        }
-        .vault-sidebar-toggle:hover {
-            transform: scale(1.1);
+            flex-shrink: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .vault-sidebar-toggle:active {
-            transform: scale(0.95);
+            background: var(--hover);
+        }
+        .vault-sidebar-toggle .toggle-icon {
+            font-size: 16px;
         }
         .vault-sidebar-close {
             display: none;
@@ -1855,7 +1852,32 @@
         .content-tab:hover { color: var(--text); background: var(--item-hover); }
         .content-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
         .vault-content-body { flex: 1; overflow-y: auto; position: relative; padding: 24px 32px; min-height: 0; }
-        #contentGraph { padding: 0; overflow: hidden; }
+        #contentGraph { padding: 0; overflow: hidden; display: flex; flex-direction: column; width: 100%; height: 100%; }
+        #graphCanvas { flex: 1; width: 100%; position: relative; overflow: hidden; min-height: 0; }
+        .graph-toolbar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 12px; border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0; flex-wrap: wrap;
+        }
+        .graph-search-input {
+            background: var(--item); border: 1px solid var(--border); color: var(--text);
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 160px; outline: none;
+        }
+        .graph-search-input:focus { border-color: var(--accent); }
+        .graph-toggles { display: flex; gap: 8px; }
+        .graph-toggle {
+            display: flex; align-items: center; gap: 4px;
+            font-size: 11px; color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+        }
+        .graph-toggle input { width: 14px; height: 14px; cursor: pointer; }
+        .graph-mode-switch { display: flex; gap: 0; margin-left: auto; }
+        .graph-mode-btn {
+            padding: 3px 10px; font-size: 11px; border: 1px solid var(--border);
+            background: var(--item); color: var(--text-secondary); cursor: pointer;
+        }
+        .graph-mode-btn:first-child { border-radius: 4px 0 0 4px; }
+        .graph-mode-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+        .graph-mode-btn.active { background: var(--accent, #89b4fa); color: #1e1e2e; border-color: var(--accent); }
 
         .vault-info-panel { display: none !important; }
         /* Collapsible sidebar panels */
@@ -2264,7 +2286,7 @@
             .dir-browser-list { max-height: 150px; }
             /* Toggle button */
             .vault-sidebar-toggle {
-                display: block !important;
+                display: flex;
             }
             .vault-sidebar-close {
                 display: block !important;
@@ -2754,7 +2776,9 @@
                 </div>
                 <!-- Center: Preview -->
                 <div class="vault-preview" id="vaultPreview">
-                    <button class="vault-sidebar-toggle" id="vaultSidebarToggle" onclick="toggleVaultSidebar()">☰</button>
+                    <div class="vault-sidebar-toggle" id="vaultSidebarToggle" onclick="toggleVaultSidebar()">
+                        <span class="toggle-icon">☰</span> 文件列表
+                    </div>
                     <div class="vault-content-tabs">
                         <button class="content-tab active" onclick="switchContentTab('preview')" id="tabPreview">📄 预览</button>
                         <button class="content-tab" onclick="switchContentTab('edit')" id="tabEdit">✏️ 编辑</button>
@@ -7081,21 +7105,18 @@
 
         // Global wiki link handler
         function openWikiLink(encodedTarget) {
-            const target = decodeURIComponent(encodedTarget);
-            // Search for the file in current vault
-            if (typeof currentVaultPath !== 'undefined' && currentVaultPath) {
-                fetch(`/api/search?query=${encodeURIComponent(target + '.md')}&path=${encodeURIComponent(currentVaultPath)}`)
-                    .then(r => r.json())
-                    .then(results => {
-                        if (results && results.length > 0) {
-                            openFile(results[0].path);
-                        } else {
-                            showToast(`找不到笔记: ${target}`);
-                        }
-                    })
-                    .catch(() => showToast(`搜索失败: ${target}`));
+            var target = decodeURIComponent(encodedTarget);
+            var vault = window._currentVaultPath || null;
+            if (!vault) {
+                var activeItem = document.querySelector('.vault-tree-item.active');
+                if (activeItem) vault = activeItem.dataset.vault;
+            }
+            if (vault) {
+                var filePath = target;
+                if (!filePath.endsWith('.md')) filePath += '.md';
+                openVaultFile(filePath, vault);
             } else {
-                showToast('请先打开一个 Vault');
+                showToast('请先打开一个 vault');
             }
         }
 
@@ -7150,6 +7171,8 @@
             var currentFileRaw = '';
             let graphNetwork = null;
             let graphCache = null;
+            var graphMode = 'global';
+            var graphData = null;
             let savedVaultPaths = [];
             let dirBrowserCurrentPath = null;
 
@@ -7205,6 +7228,8 @@
                     savedVaultPaths = [];
                 }
                 renderVaultRoots(savedVaultPaths);
+                if (!currentVault && savedVaultPaths.length > 0) currentVault = savedVaultPaths[0];
+                window._currentVaultPath = currentVault;
             }
 
             function renderVaultRoots(vaults) {
@@ -7248,7 +7273,7 @@
                         body: JSON.stringify({ path: vaultPath })
                     });
                 } catch (e) { /* ignore */ }
-                if (currentVault === vaultPath) { currentVault = null; currentFile = null; graphCache = null; }
+                if (currentVault === vaultPath) { currentVault = null; window._currentVaultPath = currentVault; currentFile = null; graphCache = null; }
                 await loadAllVaults();
                 showToast('Vault removed', 'info');
             }
@@ -7380,6 +7405,7 @@
                     if (data.error) { showToast(data.error, 'warning'); return; }
                     closeDirBrowser();
                     currentVault = dirBrowserCurrentPath;
+                    window._currentVaultPath = currentVault;
                     await loadAllVaults();
                     showToast('Vault added: ' + dirBrowserCurrentPath.split('/').pop(), 'success');
                 } catch (e) {
@@ -7390,6 +7416,7 @@
             // --- File Preview ---
             async function openVaultFile(filePath, vaultPath) {
                 if (vaultPath) currentVault = vaultPath;
+                window._currentVaultPath = currentVault;
                 if (!currentVault) return;
                 // Auto-collapse sidebar on mobile
                 if (window.innerWidth <= 768) {
@@ -7585,28 +7612,125 @@
                 container.innerHTML = '';
                 var nodesDS = new vis.DataSet(nodes);
                 var edgesDS = new vis.DataSet(edges);
-                var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true } };
-                graphNetwork = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
-                graphNetwork._nodesDS = nodesDS; graphNetwork._edgesDS = edgesDS; graphNetwork._allNodes = nodes; graphNetwork._allEdges = edges;
-                graphNetwork.on('click', function(params) {
-                    if (params.nodes.length === 1) { var node = nodesDS.get(params.nodes[0]); if (node && node.path) { openVaultFile(node.path, currentVault); } }
+                var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
+                var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
+                graphNetwork = network;
+                network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
+                network.on('click', function(params) {
+                    if (params.nodes.length === 1) {
+                        var node = nodesDS.get(params.nodes[0]);
+                        if (node && node.path) {
+                            var filePath = node.path;
+                            if (!filePath.endsWith('.md')) filePath += '.md';
+                            switchContentTab('preview');
+                            openVaultFile(filePath, currentVault);
+                        }
+                    }
                 });
-                setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
+                network.on('hoverNode', function(params) {
+                    var nodeId = params.node;
+                    var connectedNodes = network.getConnectedNodes(nodeId);
+                    var connectedEdges = network.getConnectedEdges(nodeId);
+                    var connectedEdgeSet = {};
+                    connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
+                    nodesDS.forEach(function(n) {
+                        var isConnected = n.id === nodeId || connectedNodes.indexOf(n.id) !== -1;
+                        nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : '#313244', size: isConnected ? 16 : 10 } });
+                    });
+                    edgesDS.forEach(function(e) {
+                        edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5 });
+                    });
+                });
+                network.on('blurNode', function() {
+                    nodesDS.forEach(function(n) {
+                        nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 14 } });
+                    });
+                    edgesDS.forEach(function(e) {
+                        edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5 });
+                    });
+                });
+                setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
             }
             function updateGraphGrouping(value) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
                 var nodesDS = graphNetwork._nodesDS;
                 graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, color: { background: getNodeColor(n.path, value, n.tags || []), border: '#74c7ec', highlight: { background: '#f38ba8', border: '#f38ba8' }, hover: { background: '#a6e3a1', border: '#a6e3a1' } } }); });
             }
-            function filterGraphNodes(query) {
+            function filterGraphBySearch(query) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
                 var nodesDS = graphNetwork._nodesDS;
-                var q = query.toLowerCase().trim();
-                if (!q) { graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, opacity: 1, font: { color: '#e6edf3', size: 11 } }); }); return; }
+                var q = (query || '').toLowerCase().trim();
+                if (!q) {
+                    graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 14 } }); });
+                    return;
+                }
                 graphNetwork._allNodes.forEach(function(n) {
-                    var match = (n.label || '').toLowerCase().includes(q) || (n.path || '').toLowerCase().includes(q) || (n.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
-                    nodesDS.update({ id: n.id, opacity: match ? 1 : 0.15, font: { color: match ? '#e6edf3' : '#30363d', size: match ? 13 : 9 } });
+                    var match = (n.label || '').toLowerCase().indexOf(q) !== -1 || (n.path || '').toLowerCase().indexOf(q) !== -1 || (n.tags || []).some(function(t) { return t.toLowerCase().indexOf(q) !== -1; });
+                    nodesDS.update({ id: n.id, opacity: match ? 1 : 0.15, font: { color: match ? '#f9e2af' : '#45475a', size: match ? 16 : 10 } });
                 });
+            }
+            function filterGraphNodes(query) { filterGraphBySearch(query); }
+            function setupGraphToolbar() {
+                var tb = document.getElementById('graphToolbar');
+                if (!tb) return;
+                tb.className = 'graph-toolbar';
+                tb.innerHTML = '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
+                    '<div class="graph-toggles">' +
+                    '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立节点</label>' +
+                    '</div>' +
+                    '<div class="graph-mode-switch">' +
+                    '<button class="graph-mode-btn active" id="graphGlobalBtn" onclick="setGraphMode(\'global\')">全局</button>' +
+                    '<button class="graph-mode-btn" id="graphLocalBtn" onclick="setGraphMode(\'local\')">本地</button>' +
+                    '</div>';
+            }
+            function setGraphMode(mode) {
+                graphMode = mode;
+                var globalBtn = document.getElementById('graphGlobalBtn');
+                var localBtn = document.getElementById('graphLocalBtn');
+                if (globalBtn) globalBtn.classList.toggle('active', mode === 'global');
+                if (localBtn) localBtn.classList.toggle('active', mode === 'local');
+                renderCurrentGraph();
+            }
+            function refreshGraph() {
+                renderCurrentGraph();
+            }
+            function renderCurrentGraph() {
+                var graphArea = document.getElementById('graphCanvas');
+                if (!graphArea) {
+                    var container = document.getElementById('contentGraph');
+                    if (!container) return;
+                    graphArea = document.createElement('div');
+                    graphArea.id = 'graphCanvas';
+                    graphArea.style.cssText = 'flex:1;width:100%;position:relative;';
+                    container.appendChild(graphArea);
+                }
+                if (!graphData) { graphArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);">No graph data</div>'; return; }
+                var displayNodes = graphData.nodes ? graphData.nodes.slice() : [];
+                var displayEdges = graphData.edges ? graphData.edges.slice() : [];
+                if (graphMode === 'local' && currentFile) {
+                    var fileId = currentFile.replace(/\.md$/, '');
+                    var centerIds = {};
+                    centerIds[fileId] = true;
+                    centerIds[currentFile] = true;
+                    var connectedNodeIds = {};
+                    connectedNodeIds[fileId] = true;
+                    connectedNodeIds[currentFile] = true;
+                    displayEdges.forEach(function(e) {
+                        if (centerIds[e.from]) connectedNodeIds[e.to] = true;
+                        if (centerIds[e.to]) connectedNodeIds[e.from] = true;
+                    });
+                    displayNodes = displayNodes.filter(function(n) { return connectedNodeIds[n.id || n.path]; });
+                    displayEdges = displayEdges.filter(function(e) { return connectedNodeIds[e.from] && connectedNodeIds[e.to]; });
+                }
+                var showOrphansEl = document.getElementById('graphShowOrphans');
+                if (showOrphansEl && !showOrphansEl.checked) {
+                    var connectedIds = {};
+                    displayEdges.forEach(function(e) { connectedIds[e.from] = true; connectedIds[e.to] = true; });
+                    displayNodes = displayNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
+                }
+                graphArea.style.cssText = '';
+                initGraph(graphArea, { nodes: displayNodes, edges: displayEdges });
+                setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 300);
             }
             function closeGraphModal() { var m = document.getElementById('graphModal'); if (m) m.classList.remove('show'); }
 
@@ -7846,7 +7970,7 @@
                 var tabGraphBtn = document.getElementById('tabGraph');
                 if (previewEl) previewEl.style.display = tab === 'preview' ? '' : 'none';
                 if (editEl) editEl.style.display = tab === 'edit' ? 'flex' : 'none';
-                if (graphEl) graphEl.style.display = tab === 'graph' ? '' : 'none';
+                if (graphEl) graphEl.style.display = tab === 'graph' ? 'flex' : 'none';
                 if (tabPreviewBtn) tabPreviewBtn.classList.toggle('active', tab === 'preview');
                 if (tabEditBtn) tabEditBtn.classList.toggle('active', tab === 'edit');
                 if (tabGraphBtn) tabGraphBtn.classList.toggle('active', tab === 'graph');
@@ -7861,16 +7985,18 @@
             function loadContentGraph() {
                 var container = document.getElementById('contentGraph');
                 if (!container || !currentVault) return;
-                container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;"><div class="graph-spinner"></div></div>';
+                container.innerHTML = '<div id="graphToolbar"></div><div id="graphCanvas" style="flex:1;width:100%;display:flex;align-items:center;justify-content:center;"><div class="graph-spinner"></div></div>';
+                setupGraphToolbar();
                 fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
-                        var payload = data.data || data;
-                        container.innerHTML = '';
-                        initGraph(container, payload);
-                        setTimeout(function() { if (graphNetwork) graphNetwork.fit(); }, 300);
+                        graphData = data.data || data;
+                        renderCurrentGraph();
                     })
-                    .catch(function(e) { container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);">Failed to load graph</div>'; });
+                    .catch(function(e) {
+                        var canvas = document.getElementById('graphCanvas');
+                        if (canvas) canvas.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Failed: ' + (e.message || e) + '</div>';
+                    });
             }
 
 
@@ -7900,6 +8026,10 @@
             global.onVaultSearch = onVaultSearch;
             global.updateGraphGrouping = updateGraphGrouping;
             global.filterGraphNodes = filterGraphNodes;
+            global.filterGraphBySearch = filterGraphBySearch;
+            global.setGraphMode = setGraphMode;
+            global.refreshGraph = refreshGraph;
+            global.setupGraphToolbar = setupGraphToolbar;
             global.togglePanel = togglePanel;
             global.loadContentGraph = loadContentGraph;
             global.switchContentTab = switchContentTab;
