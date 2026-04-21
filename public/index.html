@@ -1560,6 +1560,72 @@
             border: none;
             padding: 2px 6px;
         }
+        /* Quick Commands Row */
+        .quick-commands {
+            display: flex;
+            gap: 4px;
+            padding: 4px 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .quick-commands::-webkit-scrollbar { display: none; }
+        .quick-cmd-btn {
+            padding: 4px 10px;
+            background: var(--item);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            touch-action: manipulation;
+            user-select: none;
+            transition: all 0.1s ease;
+        }
+        .quick-cmd-btn:hover, .quick-cmd-btn:active {
+            background: var(--item-hover);
+            color: var(--text);
+        }
+        .quick-cmd-btn.more-btn {
+            background: var(--accent-subtle);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        /* Terminal Context Menu (desktop right-click) */
+        .term-context-menu {
+            position: fixed;
+            z-index: 1000;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+            min-width: 140px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            display: none;
+        }
+        .term-context-menu.show { display: block; }
+        .term-context-menu-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.1s ease;
+        }
+        .term-context-menu-item:hover {
+            background: var(--item-hover);
+            color: var(--text);
+        }
+        .term-context-menu-separator {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
         /* Custom shortcut modal */
         .shortcut-config-item {
             display: flex;
@@ -1669,6 +1735,24 @@
             cursor: pointer;
             transition: all 0.15s ease;
         }
+        .terminal-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); margin-left: auto; padding: 0 12px; flex-shrink: 0; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .status-dot.connected { background: #a6e3a1; }
+        .status-dot.disconnected { background: #f38ba8; animation: pulse 1.5s infinite; }
+        .status-dot.reconnecting { background: #f9e2af; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .terminal-search-bar {
+            display: flex; align-items: center; gap: 4px;
+            padding: 4px 8px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .terminal-search-bar input {
+            flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none;
+        }
+        .terminal-search-bar button {
+            background: none; border: none; color: var(--dim); cursor: pointer; padding: 4px 6px; font-size: 12px;
+        }
+        .terminal-search-bar button:hover { color: var(--text); }
         /* === Obsidian Markdown Enhancements === */
 
         /* Callout blocks */
@@ -2480,6 +2564,15 @@
         <div class="terminal-view">
             <div class="terminal-tabs" id="terminalTabs">
                 <button class="terminal-add-btn" onclick="createTerminal()" title="新建终端">+</button>
+                <span class="terminal-status" id="terminalStatus">
+                    <span class="status-dot connected"></span> <span class="status-text">已连接</span>
+                </span>
+            </div>
+            <div class="terminal-search-bar" id="terminalSearchBar" style="display:none;">
+                <input type="text" id="terminalSearchInput" placeholder="搜索..." oninput="terminalSearchNext()" onkeydown="if(event.key==='Enter'){event.shiftKey?terminalSearchPrev():terminalSearchNext()}if(event.key==='Escape')toggleTerminalSearch()">
+                <button onclick="terminalSearchPrev()">▲</button>
+                <button onclick="terminalSearchNext()">▼</button>
+                <button onclick="toggleTerminalSearch()">✕</button>
             </div>
             <div class="terminal-container" id="terminalContainer">
                 <div class="empty" id="terminalEmpty">
@@ -2491,6 +2584,8 @@
         </div>
         <div class="bottom-bar">
             <button class="btn-secondary" onclick="closeTerminalView()">返回</button>
+            <button class="btn-secondary" onclick="terminalFontSize(-1)" title="缩小字体">A-</button>
+            <button class="btn-secondary" onclick="terminalFontSize(1)" title="放大字体">A+</button>
             <button class="btn-secondary" onclick="scrollTerminalUp()">上翻</button>
             <button class="btn-secondary" onclick="scrollTerminalDown()">下翻</button>
             <button class="btn-secondary" id="selectModeBtn" onclick="toggleTerminalSelectMode()">选择</button>
@@ -2533,6 +2628,7 @@
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Escape')">Esc</button>
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Enter')">⏎</button>
                 <button class="terminal-keyboard-btn danger" onclick="sendMobileKey('Control+C')">^C</button>
+                <button class="terminal-keyboard-btn" onclick="mobilePaste()" title="粘贴">📋</button>
             </div>
         </div>
 
@@ -2555,6 +2651,7 @@
             <div class="terminal-keyboard-btns" style="flex:1;">
                 <button class="terminal-keyboard-btn modifier-key" id="stickyShift" onclick="toggleModifier('Shift')">⇧ Shift</button>
                 <button class="terminal-keyboard-btn modifier-key" id="stickyCtrl" onclick="toggleModifier('Ctrl')">^ Ctrl</button>
+                <button class="terminal-keyboard-btn modifier-key" id="stickyAlt" onclick="toggleModifier('Alt')">⌥ Alt</button>
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Backspace')">⌫</button>
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Delete')">Del</button>
                 <button class="terminal-keyboard-btn" onclick="sendMobileKey('Home')">Home</button>
@@ -2571,7 +2668,15 @@
             </div>
             <button class="terminal-keyboard-config-btn" onclick="showShortcutConfig()">⚙️</button>
         </div>
+        <!-- Quick Commands Row -->
+        <div class="terminal-keyboard-row" id="quickCommandsRow">
+            <div class="quick-commands" id="quickCommandsList">
+                <!-- Populated by JS renderQuickCommands() -->
+            </div>
     </div>
+
+    <!-- Terminal Context Menu (Desktop) -->
+    <div class="term-context-menu" id="termContextMenu"></div>
 
     <!-- 快捷键配置模态框 -->
     <div class="modal-overlay" id="shortcutConfigModal">
@@ -2831,6 +2936,7 @@
         <div class="action-menu-item" onclick="doAction('favorite')">⭐ 收藏</div>
         <div class="action-menu-item" onclick="doAction('rename')">✏️ 重命名</div>
         <div class="action-menu-item" onclick="doAction('unzip')">📦 解压</div>
+        <div class="action-menu-item" onclick="doAction('terminal')">💻 在此打开终端</div>
         <div class="action-menu-item danger" onclick="doAction('delete')">🗑️ 删除</div>
         <div class="action-menu-close" onclick="hideActionMenu()">取消</div>
     </div>
@@ -3106,6 +3212,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-search@0.13.0/lib/xterm-addon-search.min.js"></script>
 
     <script>
         const HOME = '__HOME_DIR__';
@@ -3140,6 +3247,8 @@
         let terminalSocket = null;
         let terminalFitAddons = {};
         let terminalPathCallback = null;
+        let currentTermFontSize = parseInt(localStorage.getItem('termFontSize') || '14');
+        let searchAddons = {};
 
         // ========== 统一按钮组件 ==========
         const Button = {
@@ -5322,6 +5431,10 @@
                 });
             } else if (action === 'unzip') {
                 await unzipFile(actionTarget.path);
+            } else if (action === 'terminal') {
+                const dirPath = actionTarget.isDir ? actionTarget.path : actionTarget.path.substring(0, actionTarget.path.lastIndexOf('/'));
+                showTerminalView();
+                createTerminal(dirPath);
             } else if (action === 'delete') {
                 if (!confirm('确定删除 ' + actionTarget.name + '？')) return;
                 try {
@@ -5915,7 +6028,7 @@
                     brightWhite: '#e6edf3'
                 },
                 fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
-                fontSize: window.innerWidth < 768 ? 14 : 13,
+                fontSize: currentTermFontSize,
                 lineHeight: 1.2,
                 allowTransparency: true,
                 scrollback: 10000,
@@ -5925,11 +6038,30 @@
             term.loadAddon(fitAddon);
             term.open(termDiv);
 
+            // Load search addon
+            if (typeof SearchAddon !== 'undefined') {
+                const sAddon = new SearchAddon.SearchAddon();
+                term.loadAddon(sAddon);
+                searchAddons[terminalId] = sAddon;
+            }
+
+            // Ctrl+F search handler
+            term.attachCustomKeyEventHandler(e => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    toggleTerminalSearch();
+                    return false;
+                }
+                return true;
+            });
+
             terminals[terminalId] = { term, fitAddon, ws: null, name, cwd: workDir };
             terminalFitAddons[terminalId] = fitAddon;
 
             // 设置选择功能（用于选择模式）
             setupTerminalSelection(terminalId, term);
+
+            // Setup right-click context menu (desktop)
+            setupTerminalContextMenu(terminalId, term);
 
             // 先自适应大小，再连接 WebSocket
             setTimeout(() => {
@@ -5979,13 +6111,12 @@
             let isWsOpen = false;
 
             ws.onopen = () => {
-                if (ws._isReplaced) return; // 如果已被替换，忽略
+                if (ws._isReplaced) return;
                 isWsOpen = true;
                 if (terminals[terminalId]) {
                     terminals[terminalId].ws = ws;
-                    // 清除本地缓冲区，让 tmux 内容重新渲染
+                    terminals[terminalId]._reconnectAttempts = 0;
                     term.clear();
-                    // 发送 resize 确保终端大小正确
                     const fitAddon = terminals[terminalId].fitAddon;
                     if (fitAddon) {
                         setTimeout(() => {
@@ -5996,6 +6127,7 @@
                         }, 100);
                     }
                 }
+                updateTerminalStatus('connected');
             };
 
             // 写入队列和节流控制
@@ -6062,15 +6194,27 @@
                 if (terminals[terminalId] && terminals[terminalId].ws === ws) {
                     terminals[terminalId].ws = null;
                 }
-                // 清空写入队列
                 writeQueue = [];
+
+                // Auto-reconnect
+                if (ws._isReplaced || !terminals[terminalId]) return;
+                updateTerminalStatus('disconnected');
+
+                if (!terminals[terminalId]._reconnectAttempts) terminals[terminalId]._reconnectAttempts = 0;
+                if (terminals[terminalId]._reconnectAttempts < 10) {
+                    terminals[terminalId]._reconnectAttempts++;
+                    updateTerminalStatus('reconnecting');
+                    const delay = Math.min(1000 * Math.pow(1.5, terminals[terminalId]._reconnectAttempts), 10000);
+                    setTimeout(() => {
+                        if (terminals[terminalId]) {
+                            connectTerminalWebSocket(terminalId, terminals[terminalId].term);
+                        }
+                    }, delay);
+                }
             };
 
             ws.onerror = (error) => {
                 console.error('Terminal WebSocket error:', error);
-                if (!ws._isReplaced) {
-                    showToast('终端连接错误', 'error');
-                }
             };
 
             // 安全发送函数，检查缓冲区
@@ -6111,6 +6255,13 @@
 
         function switchTerminal(terminalId) {
             activeTerminalId = terminalId;
+
+            // Update connection status indicator
+            if (terminals[terminalId] && terminals[terminalId].ws && terminals[terminalId].ws.readyState === WebSocket.OPEN) {
+                updateTerminalStatus('connected');
+            } else {
+                updateTerminalStatus('disconnected');
+            }
 
             // 更新标签状态
             document.querySelectorAll('.terminal-tab').forEach(tab => {
@@ -6155,6 +6306,7 @@
 
             // 清理
             delete terminals[terminalId];
+            delete searchAddons[terminalId];
             delete terminalFitAddons[terminalId];
 
             updateTerminalEmptyState();
@@ -6227,6 +6379,62 @@
             if (e.key === 'Enter') confirmTerminalPath();
             if (e.key === 'Escape') hideTerminalPathModal();
         });
+
+        // === Terminal Connection Status ===
+        function updateTerminalStatus(state) {
+            const el = document.getElementById('terminalStatus');
+            if (!el) return;
+            const dot = el.querySelector('.status-dot');
+            const text = el.querySelector('.status-text');
+            if (state === 'connected') {
+                dot.className = 'status-dot connected';
+                if (text) text.textContent = '已连接';
+            } else if (state === 'disconnected') {
+                dot.className = 'status-dot disconnected';
+                if (text) text.textContent = '已断开';
+            } else if (state === 'reconnecting') {
+                dot.className = 'status-dot reconnecting';
+                if (text) text.textContent = '重连中...';
+            }
+        }
+
+        // === Terminal Font Size ===
+        function terminalFontSize(delta) {
+            currentTermFontSize = Math.max(8, Math.min(24, currentTermFontSize + delta));
+            localStorage.setItem('termFontSize', currentTermFontSize);
+            Object.values(terminals).forEach(t => {
+                if (t.term) {
+                    t.term.options.fontSize = currentTermFontSize;
+                    if (t.fitAddon) t.fitAddon.fit();
+                }
+            });
+        }
+
+        // === Terminal Search ===
+        function toggleTerminalSearch() {
+            const bar = document.getElementById('terminalSearchBar');
+            if (!bar) return;
+            if (bar.style.display === 'none') {
+                bar.style.display = 'flex';
+                document.getElementById('terminalSearchInput').focus();
+            } else {
+                bar.style.display = 'none';
+                const addon = searchAddons[activeTerminalId];
+                if (addon && addon.clearDecorations) addon.clearDecorations();
+            }
+        }
+
+        function terminalSearchNext() {
+            const query = document.getElementById('terminalSearchInput').value;
+            const addon = searchAddons[activeTerminalId];
+            if (addon && query) addon.findNext(query);
+        }
+
+        function terminalSearchPrev() {
+            const query = document.getElementById('terminalSearchInput').value;
+            const addon = searchAddons[activeTerminalId];
+            if (addon && query) addon.findPrevious(query);
+        }
 
         // 窗口大小变化时重新适应终端
         window.addEventListener('resize', () => {
@@ -6388,6 +6596,7 @@
             const helper = document.getElementById('mobileKeyboardHelper');
             helper.classList.add('active');
             loadCustomShortcuts();
+            renderQuickCommands();
             document.getElementById('mobileTerminalInput').focus();
         }
 
@@ -6528,6 +6737,98 @@
             });
         }
 
+        // ========== Terminal Context Menu (Desktop) ==========
+        function showTerminalContextMenu(x, y, hasSelection, term) {
+            let menu = document.getElementById('termContextMenu');
+            if (!menu) {
+                menu = document.createElement('div');
+                menu.id = 'termContextMenu';
+                menu.className = 'term-context-menu';
+                document.body.appendChild(menu);
+            }
+            menu.innerHTML = '';
+
+            if (hasSelection) {
+                const copyItem = document.createElement('div');
+                copyItem.className = 'term-context-menu-item';
+                copyItem.innerHTML = '📋 复制';
+                copyItem.onclick = () => {
+                    const text = term.getSelection();
+                    navigator.clipboard.writeText(text).then(() => showToast('已复制', 'success'));
+                    hideTerminalContextMenu();
+                };
+                menu.appendChild(copyItem);
+
+                const sep = document.createElement('div');
+                sep.className = 'term-context-menu-separator';
+                menu.appendChild(sep);
+            }
+
+            const pasteItem = document.createElement('div');
+            pasteItem.className = 'term-context-menu-item';
+            pasteItem.innerHTML = '📥 粘贴';
+            pasteItem.onclick = () => {
+                navigator.clipboard.readText().then(text => {
+                    const ws = terminals[activeTerminalId]?.ws;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'input', data: text }));
+                    }
+                }).catch(() => showToast('无法读取剪贴板', 'error'));
+                hideTerminalContextMenu();
+            };
+            menu.appendChild(pasteItem);
+
+            const sep2 = document.createElement('div');
+            sep2.className = 'term-context-menu-separator';
+            menu.appendChild(sep2);
+
+            const clearItem = document.createElement('div');
+            clearItem.className = 'term-context-menu-item';
+            clearItem.innerHTML = '🗑️ 清屏';
+            clearItem.onclick = () => {
+                const ws = terminals[activeTerminalId]?.ws;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'input', data: 'clear\n' }));
+                }
+                hideTerminalContextMenu();
+            };
+            menu.appendChild(clearItem);
+
+            // Position menu within viewport
+            const menuWidth = 160;
+            const menuHeight = hasSelection ? 140 : 100;
+            const posX = Math.min(x, window.innerWidth - menuWidth - 8);
+            const posY = Math.min(y, window.innerHeight - menuHeight - 8);
+            menu.style.left = posX + 'px';
+            menu.style.top = posY + 'px';
+            menu.classList.add('show');
+
+            // Auto-close on click outside
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        hideTerminalContextMenu();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 50);
+        }
+
+        function hideTerminalContextMenu() {
+            const menu = document.getElementById('termContextMenu');
+            if (menu) menu.classList.remove('show');
+        }
+
+        function setupTerminalContextMenu(terminalId, term) {
+            const termDiv = document.getElementById('instance_' + terminalId);
+            if (!termDiv) return;
+            termDiv.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                const hasSelection = term.hasSelection();
+                showTerminalContextMenu(e.clientX, e.clientY, hasSelection, term);
+            });
+        }
+
         function sendMobileInput() {
             const input = document.getElementById('mobileTerminalInput');
             const text = input.value;
@@ -6542,6 +6843,19 @@
 
             input.value = '';
             input.focus();
+        }
+
+        // ========== Mobile Paste ==========
+        async function mobilePaste() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const ws = terminals[activeTerminalId]?.ws;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'input', data: text }));
+                }
+            } catch(e) {
+                showToast('无法读取剪贴板', 'error');
+            }
         }
 
         // Sticky modifier key state
@@ -6581,7 +6895,7 @@
 
             // Handle sticky modifier combinations
             let finalKey = key;
-            if (activeModifier && key !== 'Shift' && key !== 'Ctrl') {
+            if (activeModifier && key !== 'Shift' && key !== 'Ctrl' && key !== 'Alt') {
                 // Combine modifier with key
                 if (activeModifier === 'Shift') {
                     // Shift + key: mostly for uppercase letters
@@ -6599,6 +6913,11 @@
                         finalKey = 'Ctrl+' + key.toUpperCase();
                     } else if (key === 'ArrowUp' || key === 'ArrowDown') {
                         finalKey = 'Ctrl+' + key;
+                    }
+                } else if (activeModifier === 'Alt') {
+                    // Alt + key
+                    if (key.length === 1) {
+                        finalKey = 'Alt+' + key.toUpperCase();
                     }
                 }
                 // Clear modifier after use
@@ -6676,6 +6995,43 @@
             renderSavedShortcutsList();
             renderCustomShortcuts();
             showToast('已重置', 'success');
+        }
+
+        // ========== Quick Commands ==========
+        const defaultQuickCommands = [
+            { name: 'ls', cmd: 'ls -la\n' },
+            { name: 'cd ..', cmd: 'cd ..\n' },
+            { name: 'clear', cmd: 'clear\n' },
+            { name: 'top', cmd: 'top\n' },
+            { name: 'exit', cmd: 'exit\n' },
+            { name: 'pwd', cmd: 'pwd\n' },
+            { name: 'df -h', cmd: 'df -h\n' },
+            { name: 'free -m', cmd: 'free -m\n' },
+            { name: 'ps aux', cmd: 'ps aux\n' },
+            { name: 'history', cmd: 'history\n' },
+        ];
+
+        let quickCommandsExpanded = false;
+
+        function sendQuickCommand(cmd) {
+            const ws = terminals[activeTerminalId]?.ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'input', data: cmd }));
+            }
+        }
+
+        function renderQuickCommands() {
+            const container = document.getElementById('quickCommandsList');
+            if (!container) return;
+            const cmds = quickCommandsExpanded ? defaultQuickCommands : defaultQuickCommands.slice(0, 5);
+            container.innerHTML = cmds.map(c =>
+                `<button class="quick-cmd-btn" onclick="sendQuickCommand('${c.cmd.replace(/'/g, "\\'")}')"><span>${c.name}</span></button>`
+            ).join('') + `<button class="quick-cmd-btn more-btn" onclick="toggleQuickCommands()">${quickCommandsExpanded ? '收起▴' : '更多▾'}</button>`;
+        }
+
+        function toggleQuickCommands() {
+            quickCommandsExpanded = !quickCommandsExpanded;
+            renderQuickCommands();
         }
 
         // Mobile terminal input enter key
