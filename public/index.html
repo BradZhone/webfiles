@@ -90,6 +90,12 @@
         @media (max-width: 768px) {
             .stats-item-label { display: none; }
             .stats-bar { gap: 12px; padding: 0 12px; }
+            .file-arrow,
+            .icon-view .file-arrow {
+                opacity: 0.8;
+                font-size: 20px;
+                padding: 8px 12px;
+            }
         }
 
         .stats-boost-btn {
@@ -3580,9 +3586,13 @@
         }
 
         function updateBreadcrumb(path) {
-            const parts = path.split('/').filter(p => p);
+            let displayPath = path;
+            if (path.startsWith(HOME)) {
+                displayPath = path.substring(HOME.length);
+            }
+            const parts = displayPath.split('/').filter(p => p);
             let html = '<span onclick="loadFiles(\'' + HOME + '\')">~</span>';
-            let acc = '';
+            let acc = HOME;
             parts.forEach((p, i) => {
                 acc += '/' + p;
                 html += ' / <span onclick="loadFiles(\'' + acc + '\')">' + p + '</span>';
