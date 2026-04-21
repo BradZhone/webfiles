@@ -1774,9 +1774,11 @@
         .vault-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
         .vault-tree-zone {
             flex: 1; overflow-y: auto; min-height: 100px;
+            -webkit-overflow-scrolling: touch;
         }
         .vault-panels-zone {
-            max-height: 45%; overflow-y: auto; border-top: 1px solid var(--border); flex-shrink: 0;
+            min-height: 120px; max-height: 50%; overflow-y: auto; border-top: 1px solid var(--border); flex-shrink: 1;
+            -webkit-overflow-scrolling: touch;
         }
         .vault-tree-item {
             display: flex; align-items: center; gap: 6px; padding: 5px 12px;
@@ -1799,22 +1801,40 @@
         }
         .vault-sidebar-toggle {
             display: none;
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            z-index: 50;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--text);
-            width: 36px;
-            height: 36px;
-            border-radius: 6px;
-            font-size: 18px;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 150;
+            background: var(--accent, #89b4fa);
+            border: none;
+            color: #1e1e2e;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            font-size: 20px;
             cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            transition: transform 0.2s, opacity 0.2s;
         }
         .vault-sidebar-toggle:hover {
+            transform: scale(1.1);
+        }
+        .vault-sidebar-toggle:active {
+            transform: scale(0.95);
+        }
+        .vault-sidebar-close {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .vault-sidebar-close:hover {
             background: var(--hover);
+            color: var(--text);
         }
         .vault-preview .markdown-body { max-width: 800px; margin: 0 auto; }
         .vault-preview .markdown-body h1, .vault-preview .markdown-body h2,
@@ -2226,6 +2246,8 @@
                 transform: translateX(0);
                 transition: transform 0.25s ease;
                 box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
             .vault-sidebar.collapsed {
                 transform: translateX(-100%);
@@ -2237,11 +2259,14 @@
                 min-width: unset;
             }
             .vault-content-body { padding: 12px; }
-            .vault-panels-zone { max-height: none; }
+            .vault-panels-zone { max-height: none; flex-shrink: 1; }
             .dir-browser { max-height: 60vh; }
             .dir-browser-list { max-height: 150px; }
             /* Toggle button */
             .vault-sidebar-toggle {
+                display: block !important;
+            }
+            .vault-sidebar-close {
                 display: block !important;
             }
         }
@@ -2660,6 +2685,7 @@
                         <span class="vault-sidebar-title">📚 Knowledge Bases</span>
                         <div class="vault-sidebar-actions">
                         </div>
+                        <button class="vault-sidebar-close" onclick="toggleVaultSidebar()">✕</button>
                     </div>
                     <div class="vault-tree-zone">
                     <div class="vault-roots" id="vaultRoots">
@@ -2728,7 +2754,7 @@
                 </div>
                 <!-- Center: Preview -->
                 <div class="vault-preview" id="vaultPreview">
-                    <button class="vault-sidebar-toggle" id="vaultSidebarToggle" onclick="toggleVaultSidebar()" style="display:none;">☰</button>
+                    <button class="vault-sidebar-toggle" id="vaultSidebarToggle" onclick="toggleVaultSidebar()">☰</button>
                     <div class="vault-content-tabs">
                         <button class="content-tab active" onclick="switchContentTab('preview')" id="tabPreview">📄 预览</button>
                         <button class="content-tab" onclick="switchContentTab('edit')" id="tabEdit">✏️ 编辑</button>
