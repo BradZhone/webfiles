@@ -1626,6 +1626,61 @@
             background: var(--border);
             margin: 4px 0;
         }
+
+        /* Graph Node Tooltip */
+        .graph-tooltip {
+            position: absolute;
+            z-index: 20;
+            background: var(--surface, #313244);
+            border: 1px solid var(--border, #45475a);
+            border-radius: 8px;
+            padding: 10px 14px;
+            min-width: 180px;
+            max-width: 260px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.15s, transform 0.15s;
+            pointer-events: none;
+        }
+        .graph-tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .graph-tooltip-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text, #cdd6f4);
+            margin-bottom: 6px;
+        }
+        .graph-tooltip-meta {
+            font-size: 11px;
+            color: var(--text-secondary, #a6adc8);
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .graph-tooltip-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .graph-tooltip-tag {
+            background: rgba(137,180,250,0.15);
+            color: #89b4fa;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        .graph-tooltip-hint {
+            margin-top: 8px;
+            font-size: 10px;
+            color: var(--dim, #6c7086);
+            font-style: italic;
+            text-align: center;
+            border-top: 1px solid var(--border, #45475a);
+            padding-top: 6px;
+        }
         /* Custom shortcut modal */
         .shortcut-config-item {
             display: flex;
@@ -2673,6 +2728,7 @@
             <div class="quick-commands" id="quickCommandsList">
                 <!-- Populated by JS renderQuickCommands() -->
             </div>
+        </div>
     </div>
 
     <!-- Terminal Context Menu (Desktop) -->
@@ -7545,6 +7601,8 @@
             let graphCache = null;
             var graphMode = 'global';
             var graphData = null;
+            var selectedGraphNode = null;
+            var graphTooltipEl = null;
             let savedVaultPaths = [];
             let dirBrowserCurrentPath = null;
 
@@ -7980,7 +8038,7 @@
                 var nodes = (data.nodes || []).map(function(n) {
                     return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, color: graphNodeColor(n.color || getNodeColor(n.path || n.id, 'directory', n.tags || [])), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
                 });
-                var edges = (data.edges || []).map(function(e) { return { from: e.from, to: e.to }; });
+                var edges = (data.edges || []).map(function(e, i) { return { id: 'e' + i, from: e.from, to: e.to }; });
                 container.innerHTML = '';
                 var nodesDS = new vis.DataSet(nodes);
                 var edgesDS = new vis.DataSet(edges);
@@ -7989,17 +8047,43 @@
                 graphNetwork = network;
                 network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
                 network.on('click', function(params) {
-                    if (params.nodes.length === 1) {
-                        var node = nodesDS.get(params.nodes[0]);
-                        if (node && node.path) {
-                            var filePath = node.path;
-                            if (!filePath.endsWith('.md')) filePath += '.md';
-                            switchContentTab('preview');
-                            openVaultFile(filePath, currentVault);
-                        }
+                    if (params.nodes.length === 0) {
+                        hideGraphTooltip();
+                        resetGraphHighlight();
+                        selectedGraphNode = null;
+                        return;
+                    }
+                    var nodeId = params.nodes[0];
+                    if (selectedGraphNode === nodeId) {
+                        hideGraphTooltip();
+                        resetGraphHighlight();
+                        selectedGraphNode = null;
+                        var node = nodesDS.get(nodeId);
+                        var filePath = node ? (node.path || nodeId) : nodeId;
+                        if (!filePath.endsWith('.md')) filePath += '.md';
+                        switchContentTab('preview');
+                        openVaultFile(filePath, currentVault);
+                        return;
+                    }
+                    selectedGraphNode = nodeId;
+                    highlightGraphConnections(nodeId);
+                    showGraphTooltip(nodeId, params.pointer.DOM);
+                });
+                network.on('doubleClick', function(params) {
+                    if (params.nodes.length > 0) {
+                        var nodeId = params.nodes[0];
+                        hideGraphTooltip();
+                        resetGraphHighlight();
+                        selectedGraphNode = null;
+                        var node = nodesDS.get(nodeId);
+                        var filePath = node ? (node.path || nodeId) : nodeId;
+                        if (!filePath.endsWith('.md')) filePath += '.md';
+                        switchContentTab('preview');
+                        openVaultFile(filePath, currentVault);
                     }
                 });
                 network.on('hoverNode', function(params) {
+                    if (selectedGraphNode) return;
                     var nodeId = params.node;
                     var connectedNodes = network.getConnectedNodes(nodeId);
                     var connectedEdges = network.getConnectedEdges(nodeId);
@@ -8014,6 +8098,7 @@
                     });
                 });
                 network.on('blurNode', function() {
+                    if (selectedGraphNode) return;
                     nodesDS.forEach(function(n) {
                         nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 14 } });
                     });
@@ -8022,6 +8107,78 @@
                     });
                 });
                 setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
+            }
+            function showGraphTooltip(nodeId, position) {
+                hideGraphTooltip();
+                if (!graphNetwork) return;
+                var node = graphNetwork._nodesDS.get(nodeId);
+                if (!node) return;
+                var connections = graphNetwork.getConnectedNodes(nodeId);
+                var tags = node.tags || [];
+                var tooltip = document.createElement('div');
+                tooltip.id = 'graphTooltip';
+                tooltip.className = 'graph-tooltip';
+                tooltip.innerHTML =
+                    '<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
+                    '<div class="graph-tooltip-meta">' +
+                    (tags.length > 0 ? '<div class="graph-tooltip-tags">' + tags.map(function(t) { return '<span class="graph-tooltip-tag">#' + t + '</span>'; }).join(' ') + '</div>' : '') +
+                    '<div class="graph-tooltip-connections">🔗 ' + connections.length + ' 个连接</div>' +
+                    (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +
+                    '</div>' +
+                    '<div class="graph-tooltip-hint">再次点击打开文档</div>';
+                var container = document.getElementById('graphCanvas');
+                if (!container) return;
+                container.style.position = 'relative';
+                tooltip.style.left = Math.min(position.x + 10, container.offsetWidth - 220) + 'px';
+                tooltip.style.top = Math.min(position.y + 10, container.offsetHeight - 120) + 'px';
+                container.appendChild(tooltip);
+                graphTooltipEl = tooltip;
+                requestAnimationFrame(function() { tooltip.classList.add('show'); });
+            }
+            function hideGraphTooltip() {
+                var el = document.getElementById('graphTooltip');
+                if (el) el.remove();
+                graphTooltipEl = null;
+            }
+            function highlightGraphConnections(nodeId) {
+                if (!graphNetwork) return;
+                var connected = graphNetwork.getConnectedNodes(nodeId);
+                var connectedEdges = graphNetwork.getConnectedEdges(nodeId);
+                var connectedEdgeSet = {};
+                connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
+                graphNetwork._nodesDS.forEach(function(n) {
+                    var isHighlighted = n.id === nodeId || connected.indexOf(n.id) !== -1;
+                    graphNetwork._nodesDS.update({
+                        id: n.id,
+                        opacity: isHighlighted ? 1 : 0.15,
+                        font: { color: isHighlighted ? '#cdd6f4' : '#313244', size: isHighlighted ? 16 : 10 }
+                    });
+                });
+                graphNetwork._edgesDS.forEach(function(e) {
+                    var isHighlighted = connectedEdgeSet[e.id];
+                    graphNetwork._edgesDS.update({
+                        id: e.id,
+                        color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
+                        width: isHighlighted ? 3 : 0.5
+                    });
+                });
+            }
+            function resetGraphHighlight() {
+                if (!graphNetwork) return;
+                graphNetwork._nodesDS.forEach(function(n) {
+                    graphNetwork._nodesDS.update({
+                        id: n.id,
+                        opacity: 1,
+                        font: { color: '#cdd6f4', size: 14 }
+                    });
+                });
+                graphNetwork._edgesDS.forEach(function(e) {
+                    graphNetwork._edgesDS.update({
+                        id: e.id,
+                        color: { color: '#585b70', highlight: '#89b4fa' },
+                        width: 1.5
+                    });
+                });
             }
             function updateGraphGrouping(value) {
                 if (!graphNetwork || !graphNetwork._allNodes) return;
