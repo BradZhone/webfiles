@@ -1603,7 +1603,7 @@ class VaultCache {
 
   invalidatePrefix(prefix) {
     for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) this.cache.delete(key);
+      if (key.includes(prefix)) this.cache.delete(key);
     }
   }
 
