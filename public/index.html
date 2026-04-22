@@ -254,6 +254,62 @@
             border-color: var(--accent);
         }
 
+        .frontmatter-block {
+            margin: 12px 24px 0;
+            background: var(--surface, #1e1e2e);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .frontmatter-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: rgba(137,180,250,0.05);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .frontmatter-edit-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .frontmatter-edit-btn:hover {
+            background: var(--item-hover);
+            color: var(--text);
+        }
+        .frontmatter-table {
+            width: 100%;
+            font-size: 13px;
+        }
+        .frontmatter-table td {
+            padding: 4px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            vertical-align: top;
+        }
+        .frontmatter-table tr:last-child td { border-bottom: none; }
+        .fm-key {
+            color: var(--accent, #89b4fa);
+            font-weight: 500;
+            width: 100px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .fm-val {
+            color: var(--text);
+            word-break: break-word;
+        }
+        .frontmatter-editor {
+            padding: 8px 12px;
+        }
+
         /* 文件列表 */
         .file-list {
             flex: 1;
@@ -7956,7 +8012,51 @@
                     }
                     bcHtml += '</div>';
                 }
-                container.innerHTML = bcHtml + '<div class="markdown-body">' + html + '</div>';
+                var propsHtml = '';
+                var meta = payload.metadata;
+                if (meta && Object.keys(meta).length > 0) {
+                    propsHtml = '<div class="frontmatter-block" id="frontmatterBlock">';
+                    propsHtml += '<div class="frontmatter-header"><span>⚙ Properties</span><button type="button" class="frontmatter-edit-btn" onclick="toggleFrontmatterEdit()">编辑</button></div>';
+                    propsHtml += '<div class="frontmatter-display" id="frontmatterDisplay"><table class="frontmatter-table">';
+                    Object.keys(meta).forEach(function(key) {
+                        var val = meta[key];
+                        var valHtml = '';
+                        if (key === 'tags' && Array.isArray(val)) {
+                            valHtml = val.map(function(t) {
+                                return '<span class="obsidian-tag" style="cursor:pointer;" onclick="filterByTag(\'' + escapeHtml(String(t)).replace(/'/g, "\\'") + '\')">#' + escapeHtml(String(t)) + '</span>';
+                            }).join(' ');
+                        } else if (Array.isArray(val)) {
+                            valHtml = val.map(function(v) {
+                                var s = String(v);
+                                var wm = s.match(/^\[\[(.+?)\]\]$/);
+                                if (wm) return '<a class="wiki-link" href="javascript:void(0)" onclick="openWikiLink(\'' + encodeURIComponent(wm[1]) + '\')">' + escapeHtml(wm[1]) + '</a>';
+                                return escapeHtml(s);
+                            }).join(' · ');
+                        } else {
+                            valHtml = escapeHtml(String(val || ''));
+                        }
+                        propsHtml += '<tr><td class="fm-key">' + escapeHtml(key) + '</td><td class="fm-val">' + valHtml + '</td></tr>';
+                    });
+                    propsHtml += '</table></div>';
+                    propsHtml += '<div class="frontmatter-editor" id="frontmatterEditor" style="display:none;">';
+                    propsHtml += '<textarea id="frontmatterEditArea" style="width:100%;min-height:120px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;">';
+                    Object.keys(meta).forEach(function(key) {
+                        var val = meta[key];
+                        if (Array.isArray(val)) {
+                            propsHtml += key + ':\n';
+                            val.forEach(function(v) { propsHtml += '  - ' + String(v) + '\n'; });
+                        } else {
+                            propsHtml += key + ': ' + String(val || '') + '\n';
+                        }
+                    });
+                    propsHtml += '</textarea>';
+                    propsHtml += '<div style="display:flex;gap:6px;margin-top:6px;">';
+                    propsHtml += '<button type="button" onclick="saveFrontmatter()" style="padding:4px 12px;background:var(--accent,#89b4fa);color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:12px;">💾 保存</button>';
+                    propsHtml += '<button type="button" onclick="toggleFrontmatterEdit()" style="padding:4px 12px;background:var(--item);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:12px;">取消</button>';
+                    propsHtml += '</div></div>';
+                    propsHtml += '</div>';
+                }
+                container.innerHTML = bcHtml + propsHtml + '<div class="markdown-body">' + html + '</div>';
                 var headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
                 headings.forEach(function(h) { if (!h.id) h.id = slugify(h.textContent); });
                 var tocItems = [];
@@ -8068,6 +8168,43 @@
                 });
                 html += '</table>';
                 container.innerHTML = html;
+            }
+
+            function toggleFrontmatterEdit() {
+                var display = document.getElementById('frontmatterDisplay');
+                var editor = document.getElementById('frontmatterEditor');
+                if (!display || !editor) return;
+                if (editor.style.display === 'none') {
+                    editor.style.display = '';
+                    display.style.display = 'none';
+                } else {
+                    editor.style.display = 'none';
+                    display.style.display = '';
+                }
+            }
+
+            async function saveFrontmatter() {
+                if (!currentVault || !currentFile) return;
+                var area = document.getElementById('frontmatterEditArea');
+                if (!area) return;
+                var newYaml = area.value.trim();
+                var body = currentFileRaw || '';
+                var newContent = '---\n' + newYaml + '\n---\n\n' + body.replace(/^---[\s\S]*?---\n*/, '');
+                try {
+                    var resp = await fetch('/api/vault/write', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vault: currentVault, file: currentFile, content: newContent })
+                    });
+                    var data = await resp.json();
+                    if (data.success) {
+                        showToast('元数据已保存', 'success');
+                        currentFileRaw = newContent;
+                        openVaultFile(currentFile, currentVault);
+                    } else {
+                        showToast('保存失败: ' + (data.error || ''), 'error');
+                    }
+                } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
             }
 
             // --- Knowledge Graph ---
@@ -8658,6 +8795,8 @@
             global.loadContentGraph = loadContentGraph;
             global.switchContentTab = switchContentTab;
             global.saveVaultFile = saveVaultFile;
+            global.toggleFrontmatterEdit = toggleFrontmatterEdit;
+            global.saveFrontmatter = saveFrontmatter;
             global.createVaultFile = createVaultFile;
             global.deleteVaultFile = deleteVaultFile;
             global.jumpToVaultPath = jumpToVaultPath;
@@ -8672,6 +8811,8 @@
                 switchContentTab: switchContentTab,
                 loadContentGraph: loadContentGraph,
                 saveVaultFile: saveVaultFile,
+                toggleFrontmatterEdit: toggleFrontmatterEdit,
+                saveFrontmatter: saveFrontmatter,
                 createVaultFile: createVaultFile,
                 deleteVaultFile: deleteVaultFile,
                 get currentVault() { return currentVault; }
