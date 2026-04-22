@@ -347,7 +347,7 @@
             color: var(--dim);
             font-size: 14px;
             padding: 6px;
-            opacity: 0;
+            opacity: 0.7;
             transition: opacity 0.15s ease;
         }
         .file-item:hover .file-arrow { opacity: 1; }
@@ -459,9 +459,12 @@
             position: absolute;
             top: 8px;
             right: 8px;
-            opacity: 0;
+            opacity: 0.7;
         }
         .icon-view .file-item:hover .file-arrow { opacity: 1; }
+        @media (max-width: 768px) {
+            .file-arrow { opacity: 1 !important; }
+        }
 
         /* 紧凑视图 */
         .file-list.compact-view .file-item {
@@ -2290,6 +2293,28 @@
         }
         .vault-root-header:hover .vault-root-remove { opacity: 1; }
         .vault-root-remove:hover { background: var(--danger-subtle); color: var(--danger); }
+        .vault-root-new, .vault-root-jump {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+            opacity: 0.5;
+            transition: all 0.15s;
+        }
+        .vault-root-new { font-size: 16px; }
+        .vault-root-jump { font-size: 13px; }
+        .vault-root-header:hover .vault-root-new,
+        .vault-root-header:hover .vault-root-jump {
+            display: inline-block;
+        }
+        .vault-root-new:hover, .vault-root-jump:hover {
+            opacity: 1;
+            color: var(--accent, #89b4fa);
+            background: rgba(137,180,250,0.1);
+        }
         .vault-root.collapsed > .vault-root-tree { display: none; }
         .vault-root-tree { padding: 0 0 4px 0; }
         .vault-root-tree .vault-tree-item { padding-left: 24px; }
@@ -2998,6 +3023,7 @@
         <div class="action-menu-item" onclick="doAction('share')">🔗 分享</div>
         <div class="action-menu-item" onclick="doAction('favorite')">⭐ 收藏</div>
         <div class="action-menu-item" onclick="doAction('rename')">✏️ 重命名</div>
+        <div class="action-menu-item" onclick="doAction('compress')">📦 压缩</div>
         <div class="action-menu-item" onclick="doAction('unzip')">📦 解压</div>
         <div class="action-menu-item" onclick="doAction('terminal')">💻 在此打开终端</div>
         <div class="action-menu-item danger" onclick="doAction('delete')">🗑️ 删除</div>
@@ -5492,6 +5518,22 @@
                         showToast(e.message, 'error');
                     }
                 });
+            } else if (action === 'compress') {
+                hideActionMenu();
+                var compressName = prompt('压缩包名称:', actionTarget.name + '.zip');
+                if (compressName) {
+                    try {
+                        showToast('正在压缩...', 'success');
+                        var format = compressName.endsWith('.tar.gz') ? 'tar.gz' : 'zip';
+                        var res = await fetch('/api/compress', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ files: [actionTarget.path], dest: currentPath + '/' + compressName, format: format })
+                        });
+                        if (res.ok) { showToast('压缩完成', 'success'); loadFiles(currentPath); }
+                        else { var d = await res.json(); showToast('压缩失败: ' + (d.error || ''), 'error'); }
+                    } catch(e) { showToast('压缩失败: ' + e.message, 'error'); }
+                }
             } else if (action === 'unzip') {
                 await unzipFile(actionTarget.path);
             } else if (action === 'terminal') {
@@ -7681,6 +7723,8 @@
                     var vid = vaultIdFromPath(vaultPath);
                     html += '<div class="vault-root" id="' + vid + '" data-vault="' + escapeHtml(vaultPath) + '">';
                     html += '<div class="vault-root-header" onclick="toggleVaultRoot(\'' + vid + '\')"><span class="vault-root-icon">\u25bc</span><span class="vault-root-name">\ud83d\udcc2 ' + escapeHtml(name) + '</span>';
+                    html += '<button class="vault-root-new" onclick="event.stopPropagation();createVaultFileInVault(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="新建文档">+</button>';
+                    html += '<button class="vault-root-jump" onclick="event.stopPropagation();jumpToVaultPath(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="在文件管理器中打开">↗</button>';
                     html += '<button class="vault-root-remove" onclick="event.stopPropagation();removeVault(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="Remove">\u00d7</button></div>';
                     html += '<div class="vault-root-tree" id="tree_' + vid + '"><div class="panel-empty" style="padding:8px 12px;font-size:12px;">Loading...</div></div>';
                     html += '</div>';
@@ -8542,6 +8586,32 @@
                 if (sidebar) sidebar.classList.toggle('collapsed');
             }
 
+            function jumpToVaultPath(vaultPath) {
+                goBack();
+                loadFiles(vaultPath);
+            }
+
+            async function createVaultFileInVault(vaultPath) {
+                var fileName = prompt('新建文档 (例如: notes/my-note.md):');
+                if (!fileName) return;
+                if (!fileName.endsWith('.md')) fileName += '.md';
+                try {
+                    var resp = await fetch('/api/vault/write', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vault: vaultPath, file: fileName, content: '# ' + fileName.replace(/\.md$/, '').split('/').pop() + '\n\n' })
+                    });
+                    var data = await resp.json();
+                    if (data.success) {
+                        showToast('文件已创建', 'success');
+                        await loadAllVaults();
+                        openVaultFile(fileName, vaultPath);
+                    } else {
+                        showToast('创建失败: ' + (data.error || ''), 'error');
+                    }
+                } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+            }
+
             // --- Public API ---
             global.showVaultView = showVaultView;
             global.toggleVaultRoot = toggleVaultRoot;
@@ -8573,6 +8643,8 @@
             global.saveVaultFile = saveVaultFile;
             global.createVaultFile = createVaultFile;
             global.deleteVaultFile = deleteVaultFile;
+            global.jumpToVaultPath = jumpToVaultPath;
+            global.createVaultFileInVault = createVaultFileInVault;
 
             global.VaultModule = {
                 showVaultView: showVaultView,
