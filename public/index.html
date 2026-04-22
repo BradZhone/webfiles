@@ -1653,6 +1653,13 @@
             color: var(--text, #cdd6f4);
             margin-bottom: 6px;
         }
+        .graph-tooltip-path {
+            font-size: 10px;
+            color: var(--dim, #6c7086);
+            margin-bottom: 6px;
+            font-family: monospace;
+            word-break: break-all;
+        }
         .graph-tooltip-meta {
             font-size: 11px;
             color: var(--text-secondary, #a6adc8);
@@ -8119,8 +8126,9 @@
                 tooltip.id = 'graphTooltip';
                 tooltip.className = 'graph-tooltip';
                 tooltip.innerHTML =
-                    '<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
-                    '<div class="graph-tooltip-meta">' +
+'<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
+'<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
+'<div class="graph-tooltip-meta">' +
                     (tags.length > 0 ? '<div class="graph-tooltip-tags">' + tags.map(function(t) { return '<span class="graph-tooltip-tag">#' + t + '</span>'; }).join(' ') + '</div>' : '') +
                     '<div class="graph-tooltip-connections">🔗 ' + connections.length + ' 个连接</div>' +
                     (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +

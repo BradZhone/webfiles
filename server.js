@@ -1559,7 +1559,8 @@ const HEARTBEAT_INTERVAL = 30000; // 30秒
 setInterval(() => {
     wss.clients.forEach(ws => {
         if (ws.isAlive === false) {
-            return ws.terminate();
+            ws.terminate();
+            return;
         }
         ws.isAlive = false;
         ws.ping();
@@ -1619,9 +1620,10 @@ const vaultCache = new VaultCache(20, 5 * 60 * 1000);
 function extractWikiLinks(content) {
   const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
   const links = [];
-  let match;
-  while ((match = regex.exec(content)) !== null) {
+  let match = regex.exec(content);
+  while (match !== null) {
     links.push(match[1].trim());
+    match = regex.exec(content);
   }
   return links;
 }
@@ -1629,19 +1631,35 @@ function extractWikiLinks(content) {
 function extractTags(content) {
   const tags = new Set();
   // frontmatter tags
-  const fmMatch = content.match(/^---[\s\S]*?tags:\s*\[([^\]]+)\]/);
-  if (fmMatch) {
-    fmMatch[1].split(',').forEach(t => tags.add(t.trim()));
-  }
+// frontmatter tags - bracket format: tags: [a, b, c]
+const fmBracket = content.match(/^---[\s\S]*?tags:\s*\[([^\]]+)\]/);
+if (fmBracket) {
+  fmBracket[1].split(',').forEach(t => {
+    const cleaned = t.trim().replace(/^["']|["']$/g, '');
+    if (cleaned) tags.add(cleaned);
+  });
+}
+// frontmatter tags - YAML list format: tags:\n  - tag1\n  - tag2
+const fmList = content.match(/^---[\s\S]*?tags:\s*\n((?:\s+-\s+.+\n?)*)/);
+if (fmList) {
+  fmList[1].split('\n').forEach(line => {
+    const m = line.match(/^\s+-\s+(.+)/);
+    if (m) {
+      const cleaned = m[1].trim().replace(/^["']|["']$/g, '');
+      if (cleaned) tags.add(cleaned);
+    }
+  });
+}
   // 行内 tags（排除 Markdown 标题）
   const body = content.replace(/^---[\s\S]*?---\n?/, '');
   const lines = body.split('\n');
   lines.forEach(line => {
     if (/^#{1,6}\s/.test(line)) return; // 跳过标题行
     const tagRegex = /(?:^|[\s(])#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/]*)/g;
-    let m;
-    while ((m = tagRegex.exec(line)) !== null) {
+    let m = tagRegex.exec(line);
+    while (m !== null) {
       tags.add(m[1]);
+      m = tagRegex.exec(line);
     }
   });
   return [...tags];
