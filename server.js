@@ -1671,18 +1671,43 @@ function parseFrontmatter(content) {
   const yamlStr = match[1];
   const body = content.slice(match[0].length).replace(/^\n+/, '');
   const metadata = {};
-  yamlStr.split('\n').forEach(line => {
-    const kv = line.match(/^(\w[\w-]*):\s*(.*)$/);
+  const lines = yamlStr.split('\n');
+  let currentKey = null;
+  let currentList = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const listItem = line.match(/^\s+-\s+(.+)/);
+    if (listItem && currentKey) {
+      if (!currentList) currentList = [];
+      currentList.push(listItem[1].trim().replace(/^["']|["']$/g, ''));
+      continue;
+    }
+    if (currentKey && currentList) {
+      metadata[currentKey] = currentList;
+      currentList = null;
+    }
+    const kv = line.match(/^(\w[\w-]*):\s*(.*)?$/);
     if (kv) {
-      const key = kv[1].trim();
-      const val = kv[2].trim();
-      if (val.startsWith('[') && val.endsWith(']')) {
-        metadata[key] = val.slice(1, -1).split(',').map(s => s.trim());
+      currentKey = kv[1].trim();
+      const val = (kv[2] || '').trim();
+      if (val === '') {
+        currentList = null;
+      } else if (val.startsWith('[') && val.endsWith(']')) {
+        metadata[currentKey] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+        currentKey = null;
       } else {
-        metadata[key] = val;
+        metadata[currentKey] = val.replace(/^["']|["']$/g, '');
+        currentKey = null;
       }
     }
-  });
+  }
+  if (currentKey && currentList) {
+    metadata[currentKey] = currentList;
+  }
+  if (currentKey && !currentList && !(currentKey in metadata)) {
+    metadata[currentKey] = '';
+  }
   return { metadata, body };
 }
 

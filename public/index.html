@@ -2924,7 +2924,6 @@
                     </div>
                     <div class="vault-add-section">
                         <button class="vault-add-trigger" id="vaultAddBtn" onclick="toggleDirBrowser()">＋ Add Vault</button>
-                        <button class="vault-add-trigger" onclick="createVaultFile()" style="font-size:12px;">📝 New</button>
                     </div>
                     <!-- Directory Browser (inline, hidden by default) -->
                     <div class="dir-browser" id="dirBrowser" style="display:none;">
@@ -8045,9 +8044,27 @@
                 var html = '<div class="panel-header"><span>\ud83d\udcca</span><span>\u5143\u6570\u636e</span></div><table class="vault-meta-table">';
                 Object.keys(metadata).forEach(function(key) {
                     var val = metadata[key];
-                    if (Array.isArray(val)) val = val.map(function(v) { return escapeHtml(String(v)); }).join(', ');
-                    else val = escapeHtml(String(val));
-                    html += '<tr><td>' + escapeHtml(key) + '</td><td>' + val + '</td></tr>';
+                    var valHtml = '';
+                    if (key === 'tags' && Array.isArray(val)) {
+                        valHtml = val.map(function(t) {
+                            return '<span class="obsidian-tag" style="cursor:pointer;margin:1px 2px;" onclick="filterByTag(\'' + escapeHtml(String(t)).replace(/'/g, "\\'") + '\')">#' + escapeHtml(String(t)) + '</span>';
+                        }).join(' ');
+                    } else if (key === 'related' && Array.isArray(val)) {
+                        valHtml = val.map(function(v) {
+                            var s = String(v);
+                            var wikiMatch = s.match(/^\[\[(.+?)\]\]$/);
+                            if (wikiMatch) {
+                                var target = wikiMatch[1];
+                                return '<a class="wiki-link" href="javascript:void(0)" onclick="openWikiLink(\'' + encodeURIComponent(target) + '\')">' + escapeHtml(target) + '</a>';
+                            }
+                            return escapeHtml(s);
+                        }).join(', ');
+                    } else if (Array.isArray(val)) {
+                        valHtml = val.map(function(v) { return escapeHtml(String(v)); }).join(', ');
+                    } else {
+                        valHtml = escapeHtml(String(val));
+                    }
+                    html += '<tr><td>' + escapeHtml(key) + '</td><td>' + valHtml + '</td></tr>';
                 });
                 html += '</table>';
                 container.innerHTML = html;
