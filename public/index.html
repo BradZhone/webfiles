@@ -8090,14 +8090,21 @@
                     propsHtml = '<div class="frontmatter-block" id="frontmatterBlock">';
                     propsHtml += '<div class="frontmatter-header" onclick="toggleFrontmatterCollapse()" style="cursor:pointer;"><span>⚙ Properties</span><span class="frontmatter-toggle" id="fmToggle">▼</span></div>';
                     propsHtml += '<div class="frontmatter-display" id="frontmatterDisplay"><table class="frontmatter-table">';
-                    var createdVal = meta.created || meta.date || '';
-                    var updatedVal = meta.updated || meta.modified || '';
-                    var skipKeys = new Set();
-                    if (createdVal || updatedVal) {
-                        skipKeys.add('created'); skipKeys.add('updated'); skipKeys.add('date'); skipKeys.add('modified');
-                    }
-                    Object.keys(meta).forEach(function(key) {
-                        if (skipKeys.has(key)) return;
+                    var keys = Object.keys(meta);
+                    var orderedKeys = [];
+                    var dateKeys = [];
+                    keys.forEach(function(key) {
+                        if (key === 'created' || key === 'updated' || key === 'date' || key === 'modified') {
+                            dateKeys.push(key);
+                        } else {
+                            orderedKeys.push(key);
+                        }
+                    });
+                    var titleIdx = orderedKeys.indexOf('title');
+                    var insertPos = titleIdx >= 0 ? titleIdx + 1 : 0;
+                    orderedKeys.splice.apply(orderedKeys, [insertPos, 0].concat(dateKeys));
+                    orderedKeys.forEach(function(key) {
+                        if (!(key in meta)) return;
                         var val = meta[key];
                         var valHtml = '';
                         if (key === 'tags' && Array.isArray(val)) {
@@ -8116,13 +8123,6 @@
                         }
                         propsHtml += '<tr><td class="fm-key">' + escapeHtml(key) + '</td><td class="fm-val">' + valHtml + '</td></tr>';
                     });
-                    if (createdVal || updatedVal) {
-                        var dateHtml = '';
-                        if (createdVal) dateHtml += '📅 ' + escapeHtml(String(createdVal));
-                        if (createdVal && updatedVal) dateHtml += '  →  ';
-                        if (updatedVal) dateHtml += '✏️ ' + escapeHtml(String(updatedVal));
-                        propsHtml += '<tr><td class="fm-key">dates</td><td class="fm-val" style="font-size:12px;">' + dateHtml + '</td></tr>';
-                    }
                     propsHtml += '</table></div>';
                     propsHtml += '</div>';
                 }
