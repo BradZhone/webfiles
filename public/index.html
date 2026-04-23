@@ -2014,9 +2014,15 @@
         }
         .vault-search input {
             width: 100%; background: var(--item); border: 1px solid var(--border); color: var(--text);
-            padding: 6px 10px; border-radius: 6px; font-size: 13px; outline: none;
+            padding: 6px 28px 6px 10px; border-radius: 6px; font-size: 13px; outline: none;
         }
         .vault-search input:focus { border-color: var(--accent); }
+        .search-clear-btn {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--text-secondary); cursor: pointer;
+            font-size: 14px; padding: 2px 4px; border-radius: 3px; line-height: 1; z-index: 1;
+        }
+        .search-clear-btn:hover { color: var(--text); background: var(--item-hover); }
         .vault-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
         .vault-tree-zone {
             flex-shrink: 0; overflow: visible; min-height: 100px;
@@ -3012,7 +3018,8 @@
                         <button class="vault-sidebar-close" onclick="toggleVaultSidebar()">✕</button>
                     </div>
                     <div class="vault-search" style="position:relative;">
-                        <input type="text" id="vaultSearchInput" placeholder="搜索文件... (# 查看标签)" oninput="onVaultSearch(this.value)">
+                        <input type="text" id="vaultSearchInput" placeholder="搜索文件或 #标签..." oninput="onVaultSearch(this.value)">
+                        <button class="search-clear-btn" id="searchClearBtn" onclick="clearVaultSearch()" style="display:none;">✕</button>
                         <div class="tag-suggestions" id="tagSuggestions" style="display:none;"></div>
                     </div>
                     <div class="vault-tree-zone">
@@ -7670,18 +7677,21 @@
         // Global wiki link handler
         function openWikiLink(encodedTarget) {
             var target = decodeURIComponent(encodedTarget);
-            var vault = window._currentVaultPath || null;
-            if (!vault) {
-                var activeItem = document.querySelector('.vault-tree-item.active');
-                if (activeItem) vault = activeItem.dataset.vault;
-            }
+            var filePath = target;
+            if (!filePath.endsWith('.md')) filePath += '.md';
+            // Try current vault first
+            var vault = window._currentVaultPath;
             if (vault) {
-                var filePath = target;
-                if (!filePath.endsWith('.md')) filePath += '.md';
                 openVaultFile(filePath, vault);
-            } else {
-                showToast('请先打开一个 vault');
+                return;
             }
+            // Try all saved vaults from DOM
+            var vaultRoots = document.querySelectorAll('.vault-root[data-vault]');
+            for (var i = 0; i < vaultRoots.length; i++) {
+                openVaultFile(filePath, vaultRoots[i].dataset.vault);
+                return;
+            }
+            showToast('请先打开一个知识库', 'warning');
         }
 
         function mermaidZoom(btn, factor) {
@@ -7894,6 +7904,8 @@
                 treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">Loading...</div>';
                 try {
                     var resp = await fetch('/api/vault/graph?vault=' + encodeURIComponent(vaultPath));
+                    treeEl = document.getElementById('tree_' + vid);
+                    if (!treeEl) return;
                     if (!resp.ok) { treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;color:var(--danger);">Failed to load</div>'; return; }
                     var data = await resp.json();
                     var payload = data.data || data;
@@ -7903,7 +7915,8 @@
                     renderTreeInto(treeEl, tree, vaultPath);
                     if (vaultPath === currentVault) graphCache = payload;
                 } catch (e) {
-                    treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;color:var(--danger);">' + escapeHtml(e.message) + '</div>';
+                    treeEl = document.getElementById('tree_' + vid);
+                    if (treeEl) treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;color:var(--danger);">' + escapeHtml(e.message) + '</div>';
                 }
             }
 
@@ -8047,6 +8060,10 @@
                         body: JSON.stringify({ vault: currentVault, file: filePath })
                     });
                     var data = await resp.json();
+                    if (!resp.ok || data.error) {
+                        preview.innerHTML = '<div class="vault-empty-state"><div class="empty-icon">🔍</div><p>文档未找到</p><span class="empty-hint">' + escapeHtml(filePath) + ' 不存在于当前知识库中</span></div>';
+                        return;
+                    }
                     var payload = data.data || data;
                     currentFileRaw = payload.raw || payload.body || '';
                     renderPreview(preview, payload);
@@ -8294,7 +8311,7 @@
                     };
                 }
                 var nodes = (data.nodes || []).map(function(n) {
-                    return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, color: graphNodeColor(n.color || getNodeColor(n.path || n.id, 'directory', n.tags || [])), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+                    return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(n.color || getNodeColor(n.path || n.id, 'directory', n.tags || [])), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
                 });
                 var edges = (data.edges || []).map(function(e, i) { return { id: 'e' + i, from: e.from, to: e.to }; });
                 container.innerHTML = '';
@@ -8317,10 +8334,10 @@
                         resetGraphHighlight();
                         selectedGraphNode = null;
                         var node = nodesDS.get(nodeId);
-                        var filePath = node ? (node.path || nodeId) : nodeId;
+                        var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
                         if (!filePath.endsWith('.md')) filePath += '.md';
                         switchContentTab('preview');
-                        openVaultFile(filePath, currentVault);
+                        openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
                         return;
                     }
                     selectedGraphNode = nodeId;
@@ -8334,10 +8351,10 @@
                         resetGraphHighlight();
                         selectedGraphNode = null;
                         var node = nodesDS.get(nodeId);
-                        var filePath = node ? (node.path || nodeId) : nodeId;
+                        var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
                         if (!filePath.endsWith('.md')) filePath += '.md';
                         switchContentTab('preview');
-                        openVaultFile(filePath, currentVault);
+                        openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
                     }
                 });
                 network.on('hoverNode', function(params) {
@@ -8462,14 +8479,14 @@
                 var tb = document.getElementById('graphToolbar');
                 if (!tb) return;
                 tb.className = 'graph-toolbar';
+                var vaultOptions = '<option value="all">所有知识库</option>';
+                savedVaultPaths.forEach(function(vp) {
+                    var name = vp.split('/').pop();
+                    vaultOptions += '<option value="' + escapeHtml(vp) + '">' + escapeHtml(name) + '</option>';
+                });
                 tb.innerHTML = '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
-                    '<div class="graph-toggles">' +
-                    '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立节点</label>' +
-                    '</div>' +
-                    '<div class="graph-mode-switch">' +
-                    '<button class="graph-mode-btn active" id="graphGlobalBtn" onclick="setGraphMode(\'global\')">全局</button>' +
-                    '<button class="graph-mode-btn" id="graphLocalBtn" onclick="setGraphMode(\'local\')">本地</button>' +
-                    '</div>';
+                    '<select id="graphVaultFilter" onchange="filterGraphByVault(this.value)" style="background:var(--item);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">' + vaultOptions + '</select>' +
+                    '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>';
             }
             function setGraphMode(mode) {
                 graphMode = mode;
@@ -8495,21 +8512,16 @@
                 if (!graphData) { graphArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);">No graph data</div>'; return; }
                 var displayNodes = graphData.nodes ? graphData.nodes.slice() : [];
                 var displayEdges = graphData.edges ? graphData.edges.slice() : [];
-                if (graphMode === 'local' && currentFile) {
-                    var fileId = currentFile.replace(/\.md$/, '');
-                    var centerIds = {};
-                    centerIds[fileId] = true;
-                    centerIds[currentFile] = true;
-                    var connectedNodeIds = {};
-                    connectedNodeIds[fileId] = true;
-                    connectedNodeIds[currentFile] = true;
-                    displayEdges.forEach(function(e) {
-                        if (centerIds[e.from]) connectedNodeIds[e.to] = true;
-                        if (centerIds[e.to]) connectedNodeIds[e.from] = true;
-                    });
-                    displayNodes = displayNodes.filter(function(n) { return connectedNodeIds[n.id || n.path]; });
-                    displayEdges = displayEdges.filter(function(e) { return connectedNodeIds[e.from] && connectedNodeIds[e.to]; });
+                // Vault filter
+                var vaultFilter = document.getElementById('graphVaultFilter');
+                if (vaultFilter && vaultFilter.value !== 'all') {
+                    var filterVault = vaultFilter.value;
+                    displayNodes = displayNodes.filter(function(n) { return n.vault === filterVault; });
+                    var nodeIdSet = {};
+                    displayNodes.forEach(function(n) { nodeIdSet[n.id] = true; });
+                    displayEdges = displayEdges.filter(function(e) { return nodeIdSet[e.from] && nodeIdSet[e.to]; });
                 }
+                // Orphan filter
                 var showOrphansEl = document.getElementById('graphShowOrphans');
                 if (showOrphansEl && !showOrphansEl.checked) {
                     var connectedIds = {};
@@ -8522,59 +8534,74 @@
             }
             function closeGraphModal() { var m = document.getElementById('graphModal'); if (m) m.classList.remove('show'); }
 
+            function filterGraphByVault(vault) {
+                if (!graphData) return;
+                renderCurrentGraph();
+            }
+
 
             function filterByTag(tagName) {
-                if (!currentVault) { showToast('#' + tagName, 'info'); return; }
+                if (savedVaultPaths.length === 0) { showToast('#' + tagName, 'info'); return; }
                 var searchInput = document.getElementById('vaultSearchInput');
                 if (searchInput) searchInput.value = '#' + tagName;
-                fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault))
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        var payload = data.data || data;
-                        var tags = payload.tags || {};
-                        var files = tags[tagName] || [];
-                        var filePaths = new Set(files.map(function(f) { return f.path || f.name || ''; }));
-                        var items = document.querySelectorAll('#vaultRoots .vault-tree-item[data-path]');
-                        var folders = document.querySelectorAll('#vaultRoots .vault-tree-folder');
-                        var visiblePaths = new Set();
-                        items.forEach(function(el) {
-                            var p = el.dataset.path || '';
-                            var match = filePaths.has(p);
-                            el.style.display = match ? '' : 'none';
-                            if (match) {
-                                var parent = el.closest('.vault-tree-folder');
-                                while (parent) {
-                                    visiblePaths.add(parent);
-                                    parent.classList.add('open');
-                                    var icon = parent.querySelector(':scope > .vault-tree-item .tree-icon');
-                                    if (icon) icon.textContent = '\u25bc';
-                                    parent = parent.parentElement.closest('.vault-tree-folder');
-                                }
-                                var vr = el.closest('.vault-root');
-                                if (vr) vr.classList.remove('collapsed');
+                var searchClearBtn = document.getElementById('searchClearBtn');
+                if (searchClearBtn) searchClearBtn.style.display = '';
+                // Fetch tags from all vaults
+                var promises = savedVaultPaths.map(function(vp) {
+                    return fetch('/api/vault/tags?vault=' + encodeURIComponent(vp))
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            var payload = data.data || data;
+                            var tags = payload.tags || {};
+                            return { vault: vp, files: (tags[tagName] || []).map(function(f) { f.vault = vp; return f; }) };
+                        })
+                        .catch(function() { return { vault: vp, files: [] }; });
+                });
+                Promise.all(promises).then(function(results) {
+                    var allFiles = [];
+                    results.forEach(function(r) { allFiles = allFiles.concat(r.files); });
+                    var filePaths = new Set(allFiles.map(function(f) { return f.path || f.name || ''; }));
+                    var items = document.querySelectorAll('#vaultRoots .vault-tree-item[data-path]');
+                    var folders = document.querySelectorAll('#vaultRoots .vault-tree-folder');
+                    var visiblePaths = new Set();
+                    items.forEach(function(el) {
+                        var p = el.dataset.path || '';
+                        var match = filePaths.has(p);
+                        el.style.display = match ? '' : 'none';
+                        if (match) {
+                            var parent = el.closest('.vault-tree-folder');
+                            while (parent) {
+                                visiblePaths.add(parent);
+                                parent.classList.add('open');
+                                var icon = parent.querySelector(':scope > .vault-tree-item .tree-icon');
+                                if (icon) icon.textContent = '\u25bc';
+                                parent = parent.parentElement.closest('.vault-tree-folder');
                             }
-                        });
-                        folders.forEach(function(f) {
-                            if (!visiblePaths.has(f)) {
-                                var hasVisible = f.querySelector('.vault-tree-item[data-path]:not([style*="display: none"])');
-                                f.style.display = hasVisible ? '' : 'none';
-                            } else { f.style.display = ''; }
-                        });
-                        var preview = document.getElementById('contentPreview');
-                        if (preview && files.length > 0) {
-                            switchContentTab('preview');
-                            var html = '<div style="padding:16px;"><h3 style="color:var(--accent);margin:0 0 12px;">#' + escapeHtml(tagName) + ' <span style="color:var(--dim);font-weight:normal;">(' + files.length + ' files)</span></h3><ul class="tag-file-list">';
-                            files.forEach(function(f) {
-                                html += '<li onclick="openVaultFile(\'' + escapeHtml(f.path || f.name || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc4 ' + escapeHtml(f.name || f.path || '') + '</li>';
-                            });
-                            html += '</ul></div>';
-                            preview.innerHTML = html;
-                        } else if (preview) {
-                            switchContentTab('preview');
-                            preview.innerHTML = '<div style="padding:16px;color:var(--dim);">No files with tag #' + escapeHtml(tagName) + '</div>';
+                            var vr = el.closest('.vault-root');
+                            if (vr) vr.classList.remove('collapsed');
                         }
-                    })
-                    .catch(function() { showToast('Failed to load tags', 'error'); });
+                    });
+                    folders.forEach(function(f) {
+                        if (!visiblePaths.has(f)) {
+                            var hasVisible = f.querySelector('.vault-tree-item[data-path]:not([style*="display: none"])');
+                            f.style.display = hasVisible ? '' : 'none';
+                        } else { f.style.display = ''; }
+                    });
+                    var preview = document.getElementById('contentPreview');
+                    if (preview && allFiles.length > 0) {
+                        switchContentTab('preview');
+                        var html = '<div style="padding:16px;"><h3 style="color:var(--accent);margin:0 0 12px;">#' + escapeHtml(tagName) + ' <span style="color:var(--dim);font-weight:normal;">(' + allFiles.length + ' files)</span></h3><ul class="tag-file-list">';
+                        allFiles.forEach(function(f) {
+                            var fv = f.vault || currentVault;
+                            html += '<li onclick="openVaultFile(\'' + escapeHtml(f.path || f.name || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(fv).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc4 ' + escapeHtml(f.name || f.path || '') + '</li>';
+                        });
+                        html += '</ul></div>';
+                        preview.innerHTML = html;
+                    } else if (preview) {
+                        switchContentTab('preview');
+                        preview.innerHTML = '<div style="padding:16px;color:var(--dim);">No files with tag #' + escapeHtml(tagName) + '</div>';
+                    }
+                });
             }
 
             // --- Search across all vaults ---
@@ -8617,20 +8644,30 @@
 
             // --- Tag Search ---
             var cachedTags = null;
-            var cachedTagsVault = null;
+            var cachedTagsVersion = null;
 
             async function onVaultSearch(query) {
                 var suggestions = document.getElementById('tagSuggestions');
+                var searchClearBtn = document.getElementById('searchClearBtn');
+                if (searchClearBtn) searchClearBtn.style.display = query ? '' : 'none';
                 if (query.startsWith('#')) {
-                    if ((!cachedTags || cachedTagsVault !== currentVault) && currentVault) {
-                        cachedTagsVault = currentVault;
-                        try {
-                            var resp = await fetch('/api/vault/tags?vault=' + encodeURIComponent(currentVault));
-                            var data = await resp.json();
-                            var payload = data.data || data;
-                            var tags = payload.tags || {};
-                            cachedTags = Object.keys(tags).map(function(k) { return { name: k, count: tags[k].length }; });
-                        } catch(e) { cachedTags = []; }
+                    // Fetch tags from ALL vaults
+                    var vaultsKey = savedVaultPaths.join(',');
+                    if ((!cachedTags || cachedTagsVersion !== vaultsKey) && savedVaultPaths.length > 0) {
+                        cachedTagsVersion = vaultsKey;
+                        var allTags = {};
+                        for (var vi = 0; vi < savedVaultPaths.length; vi++) {
+                            try {
+                                var resp = await fetch('/api/vault/tags?vault=' + encodeURIComponent(savedVaultPaths[vi]));
+                                var data = await resp.json();
+                                var payload = data.data || data;
+                                var tags = payload.tags || {};
+                                Object.keys(tags).forEach(function(k) {
+                                    allTags[k] = (allTags[k] || 0) + (Array.isArray(tags[k]) ? tags[k].length : 1);
+                                });
+                            } catch(e) {}
+                        }
+                        cachedTags = Object.keys(allTags).map(function(k) { return { name: k, count: allTags[k] }; }).sort(function(a,b) { return b.count - a.count; });
                     }
                     var filter = query.slice(1).toLowerCase();
                     var filtered = (cachedTags || []).filter(function(t) {
@@ -8650,6 +8687,16 @@
                     suggestions.style.display = 'none';
                     searchVault(query);
                 }
+            }
+
+            function clearVaultSearch() {
+                var input = document.getElementById('vaultSearchInput');
+                if (input) input.value = '';
+                onVaultSearch('');
+                var clearBtn = document.getElementById('searchClearBtn');
+                if (clearBtn) clearBtn.style.display = 'none';
+                var suggestions = document.getElementById('tagSuggestions');
+                if (suggestions) suggestions.style.display = 'none';
             }
 
             // --- Document CRUD ---
@@ -8788,21 +8835,47 @@
             }
 
             // --- Content Area Graph ---
-            function loadContentGraph() {
+            async function loadContentGraph() {
                 var container = document.getElementById('contentGraph');
-                if (!container || !currentVault) return;
-                container.innerHTML = '<div id="graphToolbar"></div><div id="graphCanvas" style="flex:1;width:100%;display:flex;align-items:center;justify-content:center;"><div class="graph-spinner"></div></div>';
+                if (!container || savedVaultPaths.length === 0) return;
+                container.innerHTML = '';
+                var tb = document.createElement('div'); tb.id = 'graphToolbar'; container.appendChild(tb);
                 setupGraphToolbar();
-                fetch('/api/vault/graph?vault=' + encodeURIComponent(currentVault))
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        graphData = data.data || data;
-                        renderCurrentGraph();
-                    })
-                    .catch(function(e) {
-                        var canvas = document.getElementById('graphCanvas');
-                        if (canvas) canvas.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Failed: ' + (e.message || e) + '</div>';
+                var graphArea = document.createElement('div');
+                graphArea.id = 'graphCanvas';
+                graphArea.style.cssText = 'flex:1;width:100%;position:relative;';
+                container.appendChild(graphArea);
+                graphArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;"><div class="graph-spinner"></div></div>';
+                try {
+                    var results = await Promise.all(savedVaultPaths.map(function(vp) {
+                        return fetch('/api/vault/graph?vault=' + encodeURIComponent(vp))
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) { return { vault: vp, data: data.data || data }; })
+                            .catch(function() { return { vault: vp, data: { nodes: [], edges: [] } }; });
+                    }));
+                    var allNodes = [], allEdges = [], nodeIds = {};
+                    results.forEach(function(r) {
+                        var vaultName = r.vault.split('/').pop();
+                        (r.data.nodes || []).forEach(function(n) {
+                            var uniqueId = vaultName + ':' + n.id;
+                            if (!nodeIds[uniqueId]) {
+                                nodeIds[uniqueId] = true;
+                                n.id = uniqueId;
+                                n.label = n.label || n.id;
+                                n.vault = r.vault;
+                                n.vaultName = vaultName;
+                                allNodes.push(n);
+                            }
+                        });
+                        (r.data.edges || []).forEach(function(e) {
+                            allEdges.push({ from: vaultName + ':' + e.from, to: vaultName + ':' + e.to });
+                        });
                     });
+                    graphData = { nodes: allNodes, edges: allEdges };
+                    renderCurrentGraph();
+                } catch(e) {
+                    if (graphArea) graphArea.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Failed: ' + (e.message || e) + '</div>';
+                }
             }
 
 
@@ -8856,11 +8929,13 @@
             global.switchInfoTab = switchInfoTab;
             global.searchVault = searchVault;
             global.onVaultSearch = onVaultSearch;
+            global.clearVaultSearch = clearVaultSearch;
             global.updateGraphGrouping = updateGraphGrouping;
             global.filterGraphNodes = filterGraphNodes;
             global.filterGraphBySearch = filterGraphBySearch;
             global.setGraphMode = setGraphMode;
             global.refreshGraph = refreshGraph;
+            global.filterGraphByVault = filterGraphByVault;
             global.setupGraphToolbar = setupGraphToolbar;
             global.togglePanel = togglePanel;
             global.loadContentGraph = loadContentGraph;
@@ -8906,6 +8981,16 @@
                             if (e.key === '/') return;
                         }
                         e.preventDefault(); searchInput.focus(); searchInput.select();
+                    }
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                var suggestions = document.getElementById('tagSuggestions');
+                var searchInput = document.getElementById('vaultSearchInput');
+                if (suggestions && suggestions.style.display !== 'none') {
+                    if (!suggestions.contains(e.target) && e.target !== searchInput) {
+                        suggestions.style.display = 'none';
                     }
                 }
             });
