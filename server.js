@@ -1875,7 +1875,7 @@ app.get('/api/vault/backlinks', requireAuth, (req, res) => {
   const files = scanVault(vault);
 
   const backlinks = files.filter(f =>
-    f.links.some(link => link === targetBasename)
+    f.basename !== targetBasename && f.links.some(link => link === targetBasename)
   ).map(f => ({
     path: f.relativePath,
     name: f.name,
@@ -1883,7 +1883,25 @@ app.get('/api/vault/backlinks', requireAuth, (req, res) => {
     metadata: f.metadata
   }));
 
-  const result = { file: targetBasename, backlinks };
+  // Outlinks: files that the target links TO
+  const targetFile = files.find(f => f.basename === targetBasename || f.relativePath === file);
+  const outlinks = [];
+  if (targetFile) {
+    targetFile.links.forEach(link => {
+      if (link === targetBasename) return; // skip self
+      const linked = files.find(f => f.basename === link);
+      if (linked) {
+        outlinks.push({
+          path: linked.relativePath,
+          name: linked.name,
+          basename: linked.basename,
+          metadata: linked.metadata
+        });
+      }
+    });
+  }
+
+  const result = { file: targetBasename, backlinks, outlinks };
   vaultCache.set(cacheKey, result);
   res.json(result);
 });
@@ -1938,6 +1956,7 @@ app.post('/api/vault/parse', requireAuth, (req, res) => {
     res.json({
       metadata,
       body,
+      raw: content,
       links,
       tags,
       headings,

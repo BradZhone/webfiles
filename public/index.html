@@ -255,12 +255,19 @@
         }
 
         .frontmatter-block {
-            margin: 12px 24px 0;
+            margin: 16px 24px 20px;
             background: var(--surface, #1e1e2e);
             border: 1px solid var(--border);
             border-radius: 8px;
             overflow: hidden;
         }
+        .frontmatter-toggle {
+            font-size: 10px;
+            color: var(--dim);
+            transition: transform 0.2s;
+        }
+        .frontmatter-display.collapsed { display: none; }
+        .frontmatter-block.collapsed .frontmatter-toggle { transform: rotate(-90deg); }
         .frontmatter-header {
             display: flex;
             align-items: center;
@@ -2418,11 +2425,25 @@
 
         /* Enhanced backlink cards */
         .backlink-item {
-            border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;
-            margin: 6px 10px; transition: all 0.2s ease; background: var(--bg);
+            padding: 4px 8px 4px 16px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text);
+            border-radius: 4px;
+            transition: background 0.1s;
         }
-        .backlink-item:hover { border-color: var(--accent); background: var(--item-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .backlink-item:last-child { border-bottom: 1px solid var(--border); }
+        .backlink-item:hover {
+            background: var(--hover);
+            color: var(--accent, #89b4fa);
+        }
+        .links-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
 
         /* Tag cloud gradient colors */
         .tag-cloud-item { position: relative; overflow: hidden; }
@@ -3004,15 +3025,6 @@
                             </div>
                             <div class="vault-panel-body collapsed" id="panelBacklinks">
                                 <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示反链</div>
-                            </div>
-                        </div>
-                        <div class="vault-panel" id="panelMetaSection">
-                            <div class="vault-panel-header" onclick="togglePanel('meta')">
-                                <span class="panel-arrow" id="panelMetaArrow">▶</span>
-                                <span>📊 元数据</span>
-                            </div>
-                            <div class="vault-panel-body collapsed" id="panelMeta">
-                                <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示元数据</div>
                             </div>
                         </div>
                     </div>
@@ -7960,10 +7972,10 @@
                     });
                     var data = await resp.json();
                     var payload = data.data || data;
-                    currentFileRaw = payload.body || '';
+                    currentFileRaw = payload.raw || payload.body || '';
                     renderPreview(preview, payload);
                     loadBacklinks(filePath);
-                    renderMetadata(document.getElementById('panelMeta'), payload.metadata || {});
+                    // metadata displayed in preview Properties block
                     var title = payload.metadata && payload.metadata.title ? payload.metadata.title : filePath.split('/').pop().replace(/\.md$/, '');
                     document.getElementById('headerTitle').textContent = '\ud83d\udcda ' + title;
                     // Auto-open TOC panel when file loaded
@@ -8000,7 +8012,7 @@
                 var meta = payload.metadata;
                 if (meta && Object.keys(meta).length > 0) {
                     propsHtml = '<div class="frontmatter-block" id="frontmatterBlock">';
-                    propsHtml += '<div class="frontmatter-header"><span>⚙ Properties</span></div>';
+                    propsHtml += '<div class="frontmatter-header" onclick="toggleFrontmatterCollapse()" style="cursor:pointer;"><span>⚙ Properties</span><span class="frontmatter-toggle" id="fmToggle">▼</span></div>';
                     propsHtml += '<div class="frontmatter-display" id="frontmatterDisplay"><table class="frontmatter-table">';
                     Object.keys(meta).forEach(function(key) {
                         var val = meta[key];
@@ -8067,35 +8079,55 @@
             // --- Backlinks ---
             async function loadBacklinks(filePath) {
                 var container = document.getElementById('panelBacklinks');
-                container.innerHTML = '<div class="panel-empty">Loading...</div>';
+                if (!container || !currentVault) return;
+                var basename = filePath.replace(/\.md$/, '').split('/').pop();
                 try {
                     var resp = await fetch('/api/vault/backlinks?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(filePath));
                     var data = await resp.json();
-                    var payload = data.data || data;
-                    renderBacklinks(container, payload.backlinks || []);
-                } catch (e) { container.innerHTML = '<div class="panel-empty">Failed</div>'; }
-            }
-            function renderBacklinks(container, backlinks) {
-                if (!backlinks || backlinks.length === 0) {
-                    container.innerHTML = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (0)</span></div><div class="panel-empty"><span class="empty-icon-sm">\ud83d\udd17</span>\u6682\u65e0\u53cd\u5411\u94fe\u63a5<div class="empty-sub">\u5176\u4ed6\u7b14\u8bb0\u8fd8\u6ca1\u6709\u94fe\u63a5\u5230\u8fd9\u91cc</div></div>';
-                    var cEl = document.getElementById('panelBacklinksCount'); if (cEl) cEl.textContent = '(0)';
-                    return;
-                }
-                var html = '<div class="panel-header"><span>\u21a9</span><span>\u53cd\u5411\u94fe\u63a5 (' + backlinks.length + ')</span></div>';
-                backlinks.forEach(function(bl) {
-                    html += '<div class="backlink-item"><div class="backlink-title" onclick="openVaultFile(\'' + escapeHtml(bl.path || bl.file || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">' + '\ud83d\udcc4 ' + escapeHtml(bl.name || bl.title || bl.file || '') + '</div>';
-                    if (bl.contexts) { bl.contexts.forEach(function(ctx) { html += '<div class="backlink-context"><pre>' + escapeHtml(ctx.snippet || '') + '</pre></div>'; }); }
+                    var backlinks = data.backlinks || [];
+                    var outlinks = data.outlinks || [];
+                    var html = '';
+                    
+                    // Backlinks section
+                    html += '<div class="links-section">';
+                    html += '<div class="links-section-title">↩ 反向链接 (' + backlinks.length + ')</div>';
+                    if (backlinks.length === 0) {
+                        html += '<div style="padding:4px 8px;color:var(--dim);font-size:11px;">无反向链接</div>';
+                    } else {
+                        backlinks.forEach(function(bl) {
+                            html += '<div class="backlink-item" onclick="openVaultFile(\'' + escapeHtml(bl.path || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">';
+                            html += '📄 ' + escapeHtml(bl.basename || bl.name || '') + '</div>';
+                        });
+                    }
                     html += '</div>';
-                });
-                container.innerHTML = html;
-                var cEl = document.getElementById('panelBacklinksCount'); if (cEl) cEl.textContent = '(' + backlinks.length + ')';
+                    
+                    // Outlinks section
+                    html += '<div class="links-section" style="margin-top:8px;">';
+                    html += '<div class="links-section-title">↗ 出链 (' + outlinks.length + ')</div>';
+                    if (outlinks.length === 0) {
+                        html += '<div style="padding:4px 8px;color:var(--dim);font-size:11px;">无出链</div>';
+                    } else {
+                        outlinks.forEach(function(ol) {
+                            html += '<div class="backlink-item" onclick="openVaultFile(\'' + escapeHtml(ol.path || '').replace(/'/g, "\\'") + '\', \'' + escapeHtml(currentVault).replace(/'/g, "\\'") + '\')">';
+                            html += '📄 ' + escapeHtml(ol.basename || ol.name || '') + '</div>';
+                        });
+                    }
+                    html += '</div>';
+                    
+                    container.innerHTML = html;
+                    // Update count
+                    var countEl = document.getElementById('panelBacklinksCount');
+                    if (countEl) countEl.textContent = '(' + (backlinks.length + outlinks.length) + ')';
+                } catch(e) {
+                    container.innerHTML = '<div style="padding:8px;color:var(--dim);">加载失败</div>';
+                }
             }
 
             // --- Info Panel Tab ---
             function switchInfoTab(tab) {
                 var tabs = document.querySelectorAll('.vault-info-panel .panel-tab');
                 tabs.forEach(function(t) { t.classList.remove('active'); });
-                var panels = { toc: document.getElementById('panelToc'), backlinks: document.getElementById('panelBacklinks'), meta: document.getElementById('panelMeta') };
+                var panels = { toc: document.getElementById('panelToc'), backlinks: document.getElementById('panelBacklinks') };
                 Object.keys(panels).forEach(function(key) { if (panels[key]) panels[key].style.display = key === tab ? '' : 'none'; });
                 tabs.forEach(function(t) {
                     var tabName = t.textContent.includes('\u5927\u7eb2') ? 'toc' : t.textContent.includes('\u53cd\u94fe') ? 'backlinks' : 'meta';
@@ -8534,6 +8566,16 @@
             async function saveVaultFile() {
                 if (!currentVault || !currentFile) return;
                 var content = document.getElementById('vaultEditor').value;
+                // Auto-update the 'updated' date in frontmatter
+                var today = new Date().toISOString().split('T')[0];
+                if (content.match(/^---[\s\S]*?---/)) {
+                    if (content.match(/^---[\s\S]*?updated:/m)) {
+                        content = content.replace(/(updated:\s*).*/m, '$1' + today);
+                    } else {
+                        // Add updated field before the closing ---
+                        content = content.replace(/\n---/, '\nupdated: ' + today + '\n---');
+                    }
+                }
                 try {
                     var resp = await fetch('/api/vault/write', {
                         method: 'POST',
@@ -8624,6 +8666,14 @@
                 var isCollapsed = body.classList.contains('collapsed');
                 body.classList.toggle('collapsed');
                 if (arrow) arrow.textContent = isCollapsed ? '▼' : '▶';
+            }
+            function toggleFrontmatterCollapse() {
+                var block = document.getElementById('frontmatterBlock');
+                var display = document.getElementById('frontmatterDisplay');
+                if (block && display) {
+                    block.classList.toggle('collapsed');
+                    display.classList.toggle('collapsed');
+                }
             }
 
             // --- Content Tab Switching ---
@@ -8730,6 +8780,7 @@
             global.deleteVaultFile = deleteVaultFile;
             global.jumpToVaultPath = jumpToVaultPath;
             global.createVaultFileInVault = createVaultFileInVault;
+            global.toggleFrontmatterCollapse = toggleFrontmatterCollapse;
 
             global.VaultModule = {
                 showVaultView: showVaultView,
