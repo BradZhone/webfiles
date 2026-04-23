@@ -1846,9 +1846,9 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
   const edgeSet = new Set();
   files.forEach(f => {
     f.links.forEach(target => {
-      const key = `${f.basename}->${target}`;
-      if (nodeMap.has(target) && !edgeSet.has(key) && f.basename !== target) {
-        edgeSet.add(key);
+      const pair = [f.basename, target].sort().join('--');
+      if (nodeMap.has(target) && !edgeSet.has(pair) && f.basename !== target) {
+        edgeSet.add(pair);
         edges.push({ from: f.basename, to: target });
       }
     });
@@ -1886,9 +1886,12 @@ app.get('/api/vault/backlinks', requireAuth, (req, res) => {
   // Outlinks: files that the target links TO
   const targetFile = files.find(f => f.basename === targetBasename || f.relativePath === file);
   const outlinks = [];
+  const seenOutlinks = new Set();
   if (targetFile) {
     targetFile.links.forEach(link => {
       if (link === targetBasename) return; // skip self
+      if (seenOutlinks.has(link)) return; // skip duplicate
+      seenOutlinks.add(link);
       const linked = files.find(f => f.basename === link);
       if (linked) {
         outlinks.push({
