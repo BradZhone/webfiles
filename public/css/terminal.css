@@ -1,0 +1,485 @@
+/* 终端视图 */
+.terminal-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    min-height: 0;
+    overflow: hidden;
+}
+.terminal-tabs {
+    display: flex;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    min-height: 40px;
+}
+.terminal-tabs::-webkit-scrollbar { display: none; }
+.terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    touch-action: manipulation;
+}
+.terminal-tab:hover { color: var(--text); background: var(--item-hover); }
+.terminal-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+.terminal-tab-close {
+    font-size: 16px;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+    padding: 0 4px;
+}
+.terminal-tab:hover .terminal-tab-close { opacity: 1; }
+.terminal-tab-close:hover { color: var(--danger); }
+.terminal-add-btn {
+    padding: 10px 14px;
+    font-size: 18px;
+    color: var(--dim);
+    cursor: pointer;
+    background: none;
+    border: none;
+    touch-action: manipulation;
+}
+.terminal-add-btn:hover { color: var(--accent); }
+.terminal-container {
+    flex: 1;
+    padding: 4px;
+    overflow: hidden;
+    min-height: 150px;
+    background: var(--bg);
+    position: relative;
+}
+.terminal-instance {
+    height: 100%;
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    position: relative;
+}
+.terminal-instance.active { display: flex; }
+/* xterm.js 样式 */
+.terminal-instance .xterm {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+}
+.terminal-instance .xterm-viewport {
+    -webkit-user-select: text;
+    user-select: text;
+}
+.terminal-instance .xterm-screen {
+    -webkit-user-select: text;
+    user-select: text;
+}
+.xterm-selection div {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+/* Mobile terminal optimization */
+@media (max-width: 768px) {
+    .terminal-container {
+        padding: 2px;
+    }
+    .terminal-tab {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    .terminal-add-btn {
+        padding: 8px 12px;
+        font-size: 16px;
+    }
+}
+/* Mobile keyboard handling - compact design */
+.terminal-keyboard-helper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    padding: 6px 8px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    display: none;
+    z-index: 1000;
+}
+.terminal-keyboard-helper.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.terminal-keyboard-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.terminal-keyboard-input {
+    flex: 1;
+    background: var(--item);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    outline: none;
+}
+.terminal-keyboard-input:focus {
+    border-color: var(--accent);
+}
+.terminal-keyboard-btns {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.terminal-keyboard-btn {
+    background: var(--item);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    touch-action: manipulation;
+    min-width: 40px;
+    text-align: center;
+    transition: all 0.1s ease;
+    user-select: none;
+}
+.terminal-keyboard-btn:active {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    transform: scale(0.95);
+}
+.terminal-keyboard-btn.accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 500;
+}
+.terminal-keyboard-btn.danger {
+    color: var(--danger);
+    background: var(--danger-subtle);
+}
+.terminal-keyboard-btn.large {
+    min-width: 60px;
+}
+.terminal-keyboard-btn.close-btn {
+    background: var(--danger);
+    color: #fff;
+    min-width: 50px;
+}
+/* Sticky modifier keys (Shift, Ctrl) */
+.terminal-keyboard-btn.modifier-key {
+    color: var(--warning);
+    font-weight: 500;
+}
+.terminal-keyboard-btn.modifier-key.active {
+    background: var(--warning);
+    color: var(--bg);
+    border-color: var(--warning);
+    box-shadow: 0 0 8px rgba(210, 153, 34, 0.5);
+}
+/* Arrow keys layout */
+.arrow-keys {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    max-width: 140px;
+}
+.arrow-keys .terminal-keyboard-btn {
+    padding: 10px;
+    font-size: 16px;
+}
+.arrow-keys .up-key { grid-column: 2; }
+.arrow-keys .left-key { grid-column: 1; grid-row: 2; }
+.arrow-keys .down-key { grid-column: 2; grid-row: 2; }
+.arrow-keys .right-key { grid-column: 3; grid-row: 2; }
+.terminal-keyboard-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.terminal-keyboard-row-label {
+    font-size: 10px;
+    color: var(--dim);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.terminal-keyboard-config-btn {
+    font-size: 10px;
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+}
+/* Quick Commands Row */
+.quick-commands {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.quick-commands::-webkit-scrollbar { display: none; }
+.quick-cmd-btn {
+    padding: 4px 10px;
+    background: var(--item);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    touch-action: manipulation;
+    user-select: none;
+    transition: all 0.1s ease;
+}
+.quick-cmd-btn:hover, .quick-cmd-btn:active {
+    background: var(--item-hover);
+    color: var(--text);
+}
+.quick-cmd-btn.more-btn {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+/* Terminal Context Menu (desktop right-click) */
+.term-context-menu {
+    position: fixed;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: none;
+}
+.term-context-menu.show { display: block; }
+.term-context-menu-item {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.1s ease;
+}
+.term-context-menu-item:hover {
+    background: var(--item-hover);
+    color: var(--text);
+}
+.term-context-menu-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+/* Graph Node Tooltip */
+.graph-tooltip {
+    position: absolute;
+    z-index: 20;
+    background: var(--surface, #313244);
+    border: 1px solid var(--border, #45475a);
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 180px;
+    max-width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none;
+}
+.graph-tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+.graph-tooltip-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text, #cdd6f4);
+    margin-bottom: 6px;
+}
+.graph-tooltip-path {
+    font-size: 10px;
+    color: var(--dim, #6c7086);
+    margin-bottom: 6px;
+    font-family: monospace;
+    word-break: break-all;
+}
+.graph-tooltip-meta {
+    font-size: 11px;
+    color: var(--text-secondary, #a6adc8);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.graph-tooltip-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.graph-tooltip-tag {
+    background: rgba(137,180,250,0.15);
+    color: #89b4fa;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+.graph-tooltip-hint {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--dim, #6c7086);
+    font-style: italic;
+    text-align: center;
+    border-top: 1px solid var(--border, #45475a);
+    padding-top: 6px;
+}
+/* Custom shortcut modal */
+.shortcut-config-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+.shortcut-config-item:last-child {
+    border-bottom: none;
+}
+.shortcut-config-name {
+    flex: 1;
+    font-size: 13px;
+}
+.shortcut-config-input {
+    width: 100px;
+    padding: 6px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+}
+.shortcut-config-delete {
+    color: var(--danger);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+/* 终端选择模式样式 */
+.terminal-select-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 1001;
+    flex-direction: column;
+}
+.terminal-select-overlay.active {
+    display: flex;
+}
+.terminal-select-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    flex-wrap: wrap;
+}
+.terminal-select-header span {
+    flex: 1;
+    color: var(--text-secondary);
+}
+.terminal-select-textarea {
+    flex: 1;
+    width: 100%;
+    padding: 10px;
+    background: #0d1117;
+    color: #e6edf3;
+    border: none;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+    white-space: pre;
+    overflow: auto;
+    -webkit-user-select: text;
+    user-select: text;
+}
+#selectModeBtn.active {
+    background: var(--accent);
+    color: white;
+}
+.terminal-instance.select-mode .xterm {
+    pointer-events: none;
+}
+.terminal-instance.select-mode::after {
+    content: '选择模式：在下方文本框中选择文本';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: var(--accent);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 10;
+}
+.terminal-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+}
+.terminal-toolbar button {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.terminal-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); margin-left: auto; padding: 0 12px; flex-shrink: 0; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.connected { background: #a6e3a1; }
+.status-dot.disconnected { background: #f38ba8; animation: pulse 1.5s infinite; }
+.status-dot.reconnecting { background: #f9e2af; animation: pulse 0.8s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.terminal-search-bar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 8px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.terminal-search-bar input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none;
+}
+.terminal-search-bar button {
+    background: none; border: none; color: var(--dim); cursor: pointer; padding: 4px 6px; font-size: 12px;
+}
+.terminal-search-bar button:hover { color: var(--text); }
