@@ -549,38 +549,38 @@
         <div class="notes-view">
             <div class="notes-topbar">
                 <span class="notes-topbar-title">📝 笔记</span>
-                <button class="notes-topbar-btn primary" onclick="showNewNoteModal()">+ 新建</button>
-                <button class="notes-topbar-btn" onclick="closeNotesView()">返回</button>
+                <button type="button" class="notes-topbar-btn primary" onclick="showNewNoteModal()">+ 新建</button>
+                <button type="button" class="notes-topbar-btn" onclick="closeNotesView()">返回</button>
             </div>
             <div class="notes-layout">
                 <!-- Left: Note list sidebar -->
                 <div class="notes-sidebar" id="notesSidebar">
                     <div class="notes-sidebar-header">
                         <span class="notes-sidebar-title">📝 笔记列表</span>
-                        <button class="notes-sidebar-close" onclick="toggleNotesSidebar(true)">✕</button>
+                        <button type="button" class="notes-sidebar-close" onclick="toggleNotesSidebar(true)">✕</button>
                     </div>
                     <div class="notes-path-selector" id="notesPathSelector">
                         <select id="notesPathDropdown" onchange="switchNotesPath(this.value)" title="切换笔记目录">
                             <option value="">选择笔记目录...</option>
                         </select>
-                        <button class="notes-path-add-btn" onclick="showDirBrowser()" title="添加路径">+</button>
-                        <button class="notes-path-manage-btn" onclick="showNotesPathSettings()" title="管理路径">⚙️</button>
-                        <button class="notes-path-remove-btn" onclick="removeCurrentNotesPath()" title="移除当前路径">✕</button>
+                        <button type="button" class="notes-path-add-btn" onclick="showDirBrowser()" title="添加路径">+</button>
+                        <button type="button" class="notes-path-manage-btn" onclick="showNotesPathManager()" title="管理路径">⚙️</button>
+                        <button type="button" class="notes-path-remove-btn" onclick="removeCurrentNotesPath()" title="移除当前路径">✕</button>
                     </div>
-                    <div class="notes-search" style="position:relative;">
+                    <div class="notes-search">
                         <input type="text" id="notesSearchInput" placeholder="搜索笔记..." oninput="onNotesSearch(this.value)" onkeypress="if(event.key==='Enter')doNotesSearch()">
-                        <button class="notes-search-clear" id="notesSearchClear" onclick="clearNotesSearch()" style="display:none;">✕</button>
+                        <button type="button" class="notes-search-clear notes-hidden" id="notesSearchClear" onclick="clearNotesSearch()">✕</button>
                     </div>
                     <div class="notes-categories">
-                        <button class="notes-category-tab active" data-filter="all" onclick="setNotesFilter('all')">全部</button>
-                        <button class="notes-category-tab" data-filter="note" onclick="setNotesFilter('note')">📝 笔记</button>
-                        <button class="notes-category-tab" data-filter="idea" onclick="setNotesFilter('idea')">💡 想法</button>
-                        <button class="notes-category-tab" data-filter="todo" onclick="setNotesFilter('todo')">✅ 待办</button>
+                        <button type="button" class="notes-category-tab active" data-filter="all" onclick="setNotesFilter('all')">全部</button>
+                        <button type="button" class="notes-category-tab" data-filter="note" onclick="setNotesFilter('note')">📝 笔记</button>
+                        <button type="button" class="notes-category-tab" data-filter="idea" onclick="setNotesFilter('idea')">💡 想法</button>
+                        <button type="button" class="notes-category-tab" data-filter="todo" onclick="setNotesFilter('todo')">✅ 待办</button>
                     </div>
-                    <div class="notes-tag-filter" id="notesTagFilter" style="display:none;">
+                    <div class="notes-tag-filter notes-hidden" id="notesTagFilter">
                         <span class="tag-filter-label">标签筛选:</span>
                         <span class="tag-filter-value" id="notesTagFilterValue"></span>
-                        <button class="tag-filter-clear" onclick="clearTagFilter()">✕</button>
+                        <button type="button" class="tag-filter-clear" onclick="clearTagFilter()">✕</button>
                     </div>
                     <div class="notes-list" id="notesList">
                         <div class="notes-list-empty"><span class="empty-icon">📝</span>加载中...</div>
@@ -592,76 +592,75 @@
                         <span>☰</span> 笔记列表
                     </div>
                     <div class="notes-content-tabs">
-                        <button class="notes-content-tab active" data-tab="edit" onclick="switchNotesTab('edit')">✏️ 编辑</button>
-                        <button class="notes-content-tab" data-tab="preview" onclick="switchNotesTab('preview')">📄 预览</button>
-                        <button class="notes-content-tab" data-tab="todos" onclick="switchNotesTab('todos')">✅ 待办</button>
+                        <button type="button" class="notes-content-tab active" data-tab="edit" onclick="switchNotesTab('edit')">✏️ 编辑</button>
+                        <button type="button" class="notes-content-tab" data-tab="preview" onclick="switchNotesTab('preview')">📄 预览</button>
+                        <button type="button" class="notes-content-tab" data-tab="todos" onclick="switchNotesTab('todos')">✅ 待办</button>
                     </div>
-                    <div id="notesContentBody" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+                    <div id="notesContentBody" class="notes-content-body">
                         <!-- Editor -->
-                        <div id="notesEditorHeader" class="notes-editor-header" style="display:none;">
+                        <div id="notesEditorHeader" class="notes-editor-header notes-hidden">
                             <span>编辑模式 — Ctrl+S 保存</span>
                             <span id="notesSaveStatus" class="notes-save-status saved">✓ 已保存</span>
-                            <button class="notes-header-btn notes-save-btn" onclick="saveNotesFile()">💾 保存</button>
-                            <button class="notes-header-btn notes-delete-btn" onclick="deleteNotesFile()">🗑️ 删除</button>
+                            <button type="button" class="notes-header-btn notes-save-btn" onclick="saveNotesFile()">💾 保存</button>
+                            <button type="button" class="notes-header-btn notes-delete-btn" onclick="deleteNotesFile()">🗑️ 删除</button>
                         </div>
-                        <div id="notesEditorContainer" class="notes-editor-container" style="display:none;">
+                        <div id="notesEditorContainer" class="notes-editor-container notes-hidden">
                             <div id="notesEditorWrap" class="notes-editor-wrap"></div>
                         </div>
                         <!-- Preview -->
-                        <div id="notesPreviewBody" class="notes-preview-container" style="display:none;">
+                        <div id="notesPreviewBody" class="notes-preview-container notes-hidden">
                             <div class="notes-empty-state"><div class="empty-icon">📝</div><p>选择笔记开始浏览</p></div>
                         </div>
                         <!-- Todos aggregation -->
-                        <div id="notesTodosContainer" class="notes-todos-container" style="display:none;">
+                        <div id="notesTodosContainer" class="notes-todos-container notes-hidden">
                         </div>
                     </div>
                     <!-- Quick capture bar -->
                     <div class="notes-quick-capture">
                         <input type="text" id="notesQuickInput" placeholder="快速记录灵感... (支持 #标签)" onkeypress="if(event.key==='Enter')doQuickCapture()">
-                        <button class="notes-quick-capture-btn" onclick="doQuickCapture()">📌 记录</button>
+                        <button type="button" class="notes-quick-capture-btn" onclick="doQuickCapture()">📌 记录</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Notes: Path Settings Modal (manage existing paths) -->
-    <div class="modal-overlay" id="notesPathModal" style="display:none;">
-        <div class="modal" style="max-width: 420px;">
+    <div class="modal-overlay notes-hidden" id="notesPathManager">
+        <div class="modal notes-manage-modal">
             <h3>⚙️ 笔记路径管理</h3>
-            <div id="notesPathList" style="max-height:280px;overflow-y:auto;margin:12px 0;"></div>
-            <div class="modal-btns" style="margin-top:16px;">
-                <button class="btn-primary" onclick="hideNotesPathModal()">完成</button>
+            <div id="notesPathManagerList" class="notes-path-manager-list"></div>
+            <div class="modal-btns notes-modal-actions-top">
+                <button type="button" class="btn-primary" onclick="hideNotesPathManager()">完成</button>
             </div>
         </div>
     </div>
 
     <!-- Notes: Directory Browser Modal -->
-    <div class="modal-overlay" id="notesDirBrowser" style="display:none;">
-        <div class="modal" style="max-width: 480px;">
+    <div class="modal-overlay notes-hidden" id="notesDirBrowser">
+        <div class="modal notes-dir-browser-modal">
             <h3>📁 选择笔记目录</h3>
-            <div id="dirBrowserPath" class="dir-browser-path"></div>
-            <div id="dirBrowserList" class="dir-browser-list"></div>
+            <div id="notesDirBrowserPath" class="dir-browser-path"></div>
+            <div id="notesDirBrowserList" class="dir-browser-list"></div>
             <div class="dir-browser-name">
-                <label style="font-size:12px;color:var(--dim);margin-bottom:4px;display:block;">路径名称</label>
+                <label class="notes-field-label">路径名称</label>
                 <input type="text" id="dirBrowserName" placeholder="名称 (如: 工作笔记)">
             </div>
-            <div class="modal-btns" style="margin-top:12px;">
-                <button class="btn-secondary" onclick="hideDirBrowser()">取消</button>
-                <button class="btn-primary" onclick="selectDirFromBrowser()">选择此目录</button>
+            <div class="modal-btns notes-modal-actions-compact">
+                <button type="button" class="btn-secondary" onclick="hideDirBrowser()">取消</button>
+                <button type="button" class="btn-primary" onclick="selectDirFromBrowser()">选择此目录</button>
             </div>
         </div>
     </div>
 
     <!-- Notes: New Note Modal -->
-    <div class="modal-overlay" id="notesNewModal" style="display:none;">
-        <div class="modal" style="max-width: 400px;">
+    <div class="modal-overlay notes-hidden" id="notesNewModal">
+        <div class="modal notes-new-modal">
             <h3>📝 新建笔记</h3>
-            <input type="text" id="notesNewTitle" placeholder="笔记标题" style="width:100%;margin-bottom:12px;">
-            <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">选择模板</div>
+            <input type="text" id="notesNewTitle" class="notes-input-full notes-modal-spacer" placeholder="笔记标题">
+            <div class="notes-field-label notes-modal-spacer-small">选择模板</div>
             <div class="notes-template-grid" id="notesTemplateGrid"></div>
-            <div class="modal-btns" style="margin-top:16px;">
-                <button class="btn-secondary" onclick="hideNewNoteModal()">取消</button>
+            <div class="modal-btns notes-modal-actions-top">
+                <button type="button" class="btn-secondary" onclick="hideNewNoteModal()">取消</button>
             </div>
         </div>
     </div>
@@ -885,6 +884,7 @@
     <!-- CodeMirror & Marked -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.11/beautifier.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/mode/simple.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/typescript/typescript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/htmlmixed/htmlmixed.min.js"></script>

@@ -2289,8 +2289,13 @@ app.post('/api/notes/quick-capture', requireAuth, (req, res) => {
     const config = loadConfigFile();
     const notesPaths = config.notesPaths || [];
     if (notesPaths.length === 0) return res.status(400).json({ error: '请先配置笔记路径' });
-    const targetPath = reqPath ? path.resolve(reqPath) : notesPaths[0].path;
-    const inboxPath = path.join(targetPath, 'inbox.md');
+    const fallbackPath = path.resolve(notesPaths[0].path);
+    const targetPath = reqPath ? path.resolve(reqPath) : fallbackPath;
+    const allowedPaths = notesPaths.map(p => path.resolve(p.path));
+    if (!targetPath.startsWith(HOME_DIR) || !allowedPaths.includes(targetPath)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+    const resolved = path.resolve(path.join(targetPath, 'inbox.md'));
     if (!resolved.startsWith(HOME_DIR)) {
         return res.status(403).json({ error: '无权访问' });
     }

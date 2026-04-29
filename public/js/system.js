@@ -13,43 +13,44 @@ async function loadSystemStats() {
 }
 
 function updateStatsDisplay(data) {
-    // CPU 使用率
     const cpuEl = document.getElementById('cpuUsage');
+    if (!cpuEl) return;
     cpuEl.textContent = data.cpu.usage + '%';
     cpuEl.className = 'stats-item-value ' + getUsageClass(data.cpu.usage);
 
-    // 系统负载
     const loadEl = document.getElementById('loadAvg');
+    if (!loadEl) return;
     const load1 = data.cpu.loadAvg[0].toFixed(2);
     loadEl.textContent = load1;
     loadEl.className = 'stats-item-value ' + getUsageClass((load1 / data.cpu.cores) * 100);
 
-    // 内存使用
     const memEl = document.getElementById('memUsage');
+    if (!memEl) return;
     const memUsedGB = (data.memory.used / 1024 / 1024 / 1024).toFixed(1);
     const memTotalGB = (data.memory.total / 1024 / 1024 / 1024).toFixed(1);
     memEl.textContent = `${memUsedGB}/${memTotalGB}GB`;
     memEl.className = 'stats-item-value ' + getUsageClass(data.memory.usage);
 
-    // 磁盘使用
     const diskEl = document.getElementById('diskUsage');
-    if (data.disk.total > 0) {
+    if (!diskEl) return;
+    if (data.disk && data.disk.total > 0) {
         const diskUsedGB = (data.disk.used / 1024 / 1024 / 1024).toFixed(0);
         const diskTotalGB = (data.disk.total / 1024 / 1024 / 1024).toFixed(0);
         diskEl.textContent = `${diskUsedGB}/${diskTotalGB}GB`;
         diskEl.className = 'stats-item-value ' + getUsageClass(data.disk.usage);
     } else {
         diskEl.textContent = 'N/A';
+        diskEl.className = 'stats-item-value';
     }
 
-    // 网络速度
     const netEl = document.getElementById('netSpeed');
+    if (!netEl) return;
     const rxSpeed = formatSpeed(data.network.rxSpeed);
     const txSpeed = formatSpeed(data.network.txSpeed);
     netEl.textContent = `↓${rxSpeed} ↑${txSpeed}`;
 
-    // 系统运行时间
     const uptimeEl = document.getElementById('uptime');
+    if (!uptimeEl) return;
     uptimeEl.textContent = formatUptime(data.system.uptime);
 }
 

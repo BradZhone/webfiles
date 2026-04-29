@@ -2,6 +2,7 @@
 
 .notes-view { display: flex; flex-direction: column; height: 100%; }
 .notes-layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; overflow: hidden; }
+.notes-hidden { display: none !important; }
 
 /* Top bar */
 .notes-topbar {
@@ -42,7 +43,7 @@
 
 /* Search */
 .notes-search {
-    padding: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    position: relative; padding: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .notes-search input {
     width: 100%; background: var(--item); border: 1px solid var(--border); color: var(--text);
@@ -108,6 +109,9 @@
 .notes-main {
     flex: 1; display: flex; flex-direction: column; background: var(--bg);
     min-width: 0; min-height: 0; position: relative;
+}
+.notes-content-body {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
 }
 
 /* Mobile toggle */
@@ -230,6 +234,21 @@
 .notes-empty-state .empty-icon { font-size: 64px; margin-bottom: 4px; filter: grayscale(0.3); }
 .notes-empty-state p { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
 .notes-empty-state .empty-hint { font-size: 12px; color: var(--dim); margin-top: -4px; }
+
+.notes-manage-modal { max-width: 420px; }
+.notes-path-manager-list {
+    max-height: 280px; overflow-y: auto; margin: 12px 0;
+}
+.notes-dir-browser-modal { max-width: 480px; }
+.notes-new-modal { max-width: 400px; }
+.notes-input-full { width: 100%; }
+.notes-modal-spacer { margin-bottom: 12px; }
+.notes-modal-spacer-small { margin-bottom: 8px; }
+.notes-field-label {
+    display: block; margin-bottom: 4px; font-size: 12px; color: var(--dim);
+}
+.notes-modal-actions-top { margin-top: 16px; }
+.notes-modal-actions-compact { margin-top: 12px; }
 
 /* Path settings modal */
 .notes-path-item {

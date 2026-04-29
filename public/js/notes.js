@@ -13,6 +13,8 @@
     let currentFilter = 'all';
     let currentTagFilter = ''; // empty = no tag filter
     let searchQuery = '';
+    let searchDebounceTimer = null;
+    let serverSearchActive = false;
     let currentTab = 'edit'; // 'edit' | 'preview' | 'todos'
     let sidebarCollapsed = false;
     let dirBrowserCurrentPath = '';
@@ -27,10 +29,15 @@
     global.showNotesView = async function() {
         showView('notesView');
         document.getElementById('headerTitle').textContent = '📝 笔记';
+        serverSearchActive = false;
         await loadNotesPaths();
         renderPathSelector();
+        renderTagFilterBar();
+        updateSearchClearButton(searchQuery);
         if (notesPaths.length > 0) {
-            if (!currentNotesPath) currentNotesPath = notesPaths[0].path;
+            if (!currentNotesPath || !isUsableNotesPath(currentNotesPath)) {
+                currentNotesPath = getDefaultNotesPath();
+            }
             renderPathSelector();
             await loadNotes();
             if (!currentNote) showEmptyState();
@@ -57,23 +64,23 @@
         }
     }
 
-    global.showNotesPathSettings = function() {
-        const modal = document.getElementById('notesPathModal');
+    global.showNotesPathManager = function() {
+        const modal = document.getElementById('notesPathManager');
         if (!modal) return;
-        renderPathList();
-        modal.classList.add('show');
+        renderNotesPathManager();
+        modal.classList.remove('notes-hidden');
         modal.style.display = 'flex';
     };
 
-    global.hideNotesPathModal = function() {
-        const modal = document.getElementById('notesPathModal');
+    global.hideNotesPathManager = function() {
+        const modal = document.getElementById('notesPathManager');
         if (!modal) return;
-        modal.classList.remove('show');
+        modal.classList.add('notes-hidden');
         modal.style.display = 'none';
     };
 
-    function renderPathList() {
-        const list = document.getElementById('notesPathList');
+    function renderNotesPathManager() {
+        const list = document.getElementById('notesPathManagerList');
         if (!list) return;
         if (notesPaths.length === 0) {
             list.innerHTML = '<div class="notes-list-empty"><span class="empty-icon">📂</span>还没有配置笔记目录</div>';
@@ -99,7 +106,7 @@
             const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             notesPaths = data.paths;
-            renderPathList();
+            renderNotesPathManager();
             renderPathSelector();
             if (notesPaths.length > 0 && !notesPaths.find(p => p.path === currentNotesPath)) {
                 currentNotesPath = notesPaths[0].path;
@@ -146,8 +153,8 @@
         if (!currentP) return;
         if (!confirm('\u786e\u5b9a\u8981\u79fb\u9664\u300c' + currentP.name + '\u300d\u5417\uff1f\uff08\u4e0d\u4f1a\u5220\u9664\u6587\u4ef6\uff09')) return;
         try {
-            var resp = await fetch('/api/notes/paths/' + currentP.id, { method: 'DELETE' });
-            var data = await resp.json();
+            const resp = await fetch('/api/notes/paths/' + currentP.id, { method: 'DELETE' });
+            const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             notesPaths = data.paths;
             if (notesPaths.length > 0) {
@@ -167,34 +174,37 @@
 
     // ========== Directory Browser ==========
     global.showDirBrowser = async function() {
-        var modal = document.getElementById('notesDirBrowser');
+        const modal = document.getElementById('notesDirBrowser');
         if (!modal) return;
+        modal.classList.remove('notes-hidden');
         modal.style.display = 'flex';
-        var nameInput = document.getElementById('dirBrowserName');
+        const nameInput = document.getElementById('dirBrowserName');
         if (nameInput) nameInput.value = '';
         await browseTo('');
     };
 
     global.hideDirBrowser = function() {
-        var modal = document.getElementById('notesDirBrowser');
-        if (modal) modal.style.display = 'none';
+        const modal = document.getElementById('notesDirBrowser');
+        if (modal) {
+            modal.classList.add('notes-hidden');
+            modal.style.display = 'none';
+        }
     };
 
     global.browseTo = async function(dirPath) {
-        var pathEl = document.getElementById('dirBrowserPath');
-        var listEl = document.getElementById('dirBrowserList');
+        const pathEl = document.getElementById('notesDirBrowserPath');
+        const listEl = document.getElementById('notesDirBrowserList');
         if (!listEl) return;
         listEl.innerHTML = '<div class="notes-list-empty"><div class="spinner"></div></div>';
         try {
-            var url = '/api/browse' + (dirPath ? '?path=' + encodeURIComponent(dirPath) : '');
-            var resp = await fetch(url);
-            var data = await resp.json();
+            const url = '/api/browse' + (dirPath ? '?path=' + encodeURIComponent(dirPath) : '');
+            const resp = await fetch(url);
+            const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             dirBrowserCurrentPath = data.path;
             if (pathEl) pathEl.textContent = data.path;
-            var html = '';
-            // Parent directory link
-            var parentPath = data.path.replace(/\/[^\/]+\/?$/, '');
+            let html = '';
+            const parentPath = data.path.replace(/\/[^\/]+\/?$/, '');
             if (parentPath && parentPath !== data.path) {
                 html += '<div class="dir-browser-item dir-browser-up" onclick="browseTo(\'' + escapeAttr(parentPath) + '\')"><span class="dir-icon">⬆️</span> ..</div>';
             }
@@ -206,10 +216,9 @@
                 html += '<div class="notes-list-empty" style="padding:16px;">\u6ca1\u6709\u5b50\u76ee\u5f55</div>';
             }
             listEl.innerHTML = html;
-            // Auto-fill name from folder name
-            var nameInput = document.getElementById('dirBrowserName');
+            const nameInput = document.getElementById('dirBrowserName');
             if (nameInput && !nameInput.value) {
-                var folderName = data.path.split('/').filter(Boolean).pop() || '';
+                const folderName = data.path.split('/').filter(Boolean).pop() || '';
                 nameInput.value = folderName;
             }
         } catch (e) {
@@ -219,19 +228,18 @@
 
     global.selectDirFromBrowser = async function() {
         if (!dirBrowserCurrentPath) { showToast('\u8bf7\u5148\u9009\u62e9\u76ee\u5f55', 'error'); return; }
-        var nameInput = document.getElementById('dirBrowserName');
-        var name = nameInput ? nameInput.value.trim() : '';
+        const nameInput = document.getElementById('dirBrowserName');
+        const name = nameInput ? nameInput.value.trim() : '';
         try {
-            var resp = await fetch('/api/notes/paths', {
+            const resp = await fetch('/api/notes/paths', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: dirBrowserCurrentPath, name: name || undefined })
             });
-            var data = await resp.json();
+            const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             notesPaths = data.paths;
-            // Auto-select the newly added path
-            var newPath = notesPaths.find(function(p) { return p.path === dirBrowserCurrentPath; });
+            const newPath = notesPaths.find(function(p) { return p.path === dirBrowserCurrentPath; });
             if (newPath) currentNotesPath = newPath.path;
             renderPathSelector();
             hideDirBrowser();
@@ -254,6 +262,7 @@
             const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             notesList = data.notes || [];
+            serverSearchActive = false;
             renderNotesList();
         } catch (e) {
             showToast('加载笔记失败: ' + e.message, 'error');
@@ -264,8 +273,9 @@
         const list = document.getElementById('notesList');
         if (!list) return;
 
+        const hasSearch = !!searchQuery.trim();
         let filtered = notesList;
-        if (searchQuery) {
+        if (hasSearch && !serverSearchActive) {
             const q = searchQuery.toLowerCase();
             filtered = notesList.filter(n =>
                 n.name.toLowerCase().includes(q) ||
@@ -274,7 +284,7 @@
         }
 
         if (filtered.length === 0) {
-            list.innerHTML = `<div class="notes-list-empty"><span class="empty-icon">${searchQuery ? '🔍' : '📝'}</span>${searchQuery ? '没有找到匹配的笔记' : '还没有笔记'}</div>`;
+            list.innerHTML = `<div class="notes-list-empty"><span class="empty-icon">${hasSearch ? '🔍' : '📝'}</span>${hasSearch ? '没有找到匹配的笔记' : '还没有笔记'}</div>`;
             return;
         }
 
@@ -313,9 +323,8 @@
             currentNoteContent = data.content;
             isModified = false;
             updateSaveStatus('saved');
-            // Show editor header/container now that a note is open
-            var editorHeader = document.getElementById('notesEditorHeader');
-            var editorContainer = document.getElementById('notesEditorContainer');
+            const editorHeader = document.getElementById('notesEditorHeader');
+            const editorContainer = document.getElementById('notesEditorContainer');
             if (editorHeader) editorHeader.style.display = 'flex';
             if (editorContainer) editorContainer.style.display = 'flex';
 
@@ -330,10 +339,7 @@
             // Update preview
             renderPreview(data.content);
 
-            // Switch to edit tab
-            if (currentTab !== 'todos') {
-                switchNotesTab(currentTab);
-            }
+            switchNotesTab(currentTab === 'todos' ? 'edit' : currentTab);
 
             // Update sidebar active state
             renderNotesList();
@@ -411,12 +417,16 @@
         const modal = document.getElementById('notesNewModal');
         if (!modal) return;
         renderTemplateGrid();
+        modal.classList.remove('notes-hidden');
         modal.style.display = 'flex';
     };
 
     global.hideNewNoteModal = function() {
         const modal = document.getElementById('notesNewModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.classList.add('notes-hidden');
+            modal.style.display = 'none';
+        }
     };
 
     function renderTemplateGrid() {
@@ -542,10 +552,12 @@
         var editorHeader = document.getElementById('notesEditorHeader');
         var editorContainer = document.getElementById('notesEditorContainer');
         var previewBody = document.getElementById('notesPreviewBody');
-        if (editorHeader) editorHeader.style.display = 'none';
-        if (editorContainer) editorContainer.style.display = 'none';
+        var todosContainer = document.getElementById('notesTodosContainer');
+        setElementVisibility(editorHeader, false, 'flex');
+        setElementVisibility(editorContainer, false, 'flex');
+        setElementVisibility(todosContainer, false, 'block');
         if (previewBody) {
-            previewBody.style.display = 'block';
+            setElementVisibility(previewBody, true, 'block');
             previewBody.innerHTML = '<div class="notes-empty-state"><div class="empty-icon">📝</div><p>选择笔记开始编辑</p><span class="empty-hint">从左侧列表选择一个笔记，或点击 + 创建新笔记</span></div>';
         }
     }
@@ -609,17 +621,20 @@
     global.switchNotesTab = function(tab) {
         currentTab = tab;
         const tabs = document.querySelectorAll('.notes-content-tab');
-        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        tabs.forEach(function(t) {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
 
         const editEl = document.getElementById('notesEditorContainer');
         const previewEl = document.getElementById('notesPreviewBody');
         const todosEl = document.getElementById('notesTodosContainer');
         const headerEl = document.getElementById('notesEditorHeader');
+        const hasCurrentNote = !!currentNote;
 
-        if (editEl) editEl.style.display = tab === 'edit' ? 'flex' : 'none';
-        if (previewEl) previewEl.style.display = tab === 'preview' ? 'block' : 'none';
-        if (todosEl) todosEl.style.display = tab === 'todos' ? 'block' : 'none';
-        if (headerEl && currentNote) headerEl.style.display = tab === 'edit' ? 'flex' : 'none';
+        setElementVisibility(editEl, hasCurrentNote && tab === 'edit', 'flex');
+        setElementVisibility(previewEl, tab === 'preview' || (!hasCurrentNote && tab !== 'todos'), 'block');
+        setElementVisibility(todosEl, tab === 'todos', 'block');
+        setElementVisibility(headerEl, hasCurrentNote && tab === 'edit', 'flex');
 
         if (tab === 'preview' && notesEditor) {
             renderPreview(notesEditor.getValue());
@@ -636,25 +651,45 @@
     global.setNotesFilter = function(filter) {
         currentFilter = filter;
         const tabs = document.querySelectorAll('.notes-category-tab');
-        tabs.forEach(t => t.classList.toggle('active', t.dataset.filter === filter));
+        tabs.forEach(function(t) {
+            t.classList.toggle('active', t.dataset.filter === filter);
+        });
         loadNotes();
     };
 
     // ========== Search ==========
     global.onNotesSearch = function(value) {
         searchQuery = value;
-        // Show/hide clear button
-        var clearBtn = document.getElementById('notesSearchClear');
-        if (clearBtn) clearBtn.style.display = value ? 'block' : 'none';
-        renderNotesList();
+        updateSearchClearButton(value);
+        if (searchDebounceTimer) {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = null;
+        }
+        searchDebounceTimer = setTimeout(async function() {
+            if (!searchQuery.trim()) {
+                serverSearchActive = false;
+                await loadNotes();
+                return;
+            }
+            if (serverSearchActive) {
+                serverSearchActive = false;
+                await loadNotes();
+                return;
+            }
+            renderNotesList();
+        }, 300);
     };
 
     global.clearNotesSearch = function() {
         var input = document.getElementById('notesSearchInput');
         if (input) input.value = '';
         searchQuery = '';
-        var clearBtn = document.getElementById('notesSearchClear');
-        if (clearBtn) clearBtn.style.display = 'none';
+        serverSearchActive = false;
+        if (searchDebounceTimer) {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = null;
+        }
+        updateSearchClearButton('');
         loadNotes();
     };
 
@@ -662,7 +697,9 @@
         var input = document.getElementById('notesSearchInput');
         if (!input) return;
         var q = input.value.trim();
-        if (!q) { searchQuery = ''; await loadNotes(); return; }
+        searchQuery = q;
+        updateSearchClearButton(q);
+        if (!q) { serverSearchActive = false; await loadNotes(); return; }
         try {
             const resp = await fetch('/api/notes/search?q=' + encodeURIComponent(q) +
                 (currentNotesPath ? '&path=' + encodeURIComponent(currentNotesPath) : ''));
@@ -677,7 +714,7 @@
                 modified: r.modified,
                 snippet: r.snippet
             }; });
-            searchQuery = ''; // server already filtered, no local filter needed
+            serverSearchActive = true;
             renderNotesList();
         } catch (e) {
             showToast('搜索失败: ' + e.message, 'error');
@@ -844,8 +881,14 @@
     // ========== Notes Path Switcher ==========
     global.switchNotesPath = function(notesPath) {
         if (!notesPath) return;
+        if (!isUsableNotesPath(notesPath)) {
+            showToast('该笔记目录不可用，请在路径管理中移除或更换', 'error');
+            renderPathSelector();
+            return;
+        }
         currentNotesPath = notesPath;
         currentNote = null;
+        serverSearchActive = false;
         loadNotes();
         showEmptyState();
         renderPathSelector();
@@ -859,7 +902,7 @@
 
     function escapeAttr(text) {
         if (!text) return '';
-        return text.replace(/'/g, "\\'").replace(/\\/g, '\\\\');
+        return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
 
     function formatRelativeTime(dateStr) {
@@ -876,6 +919,29 @@
         if (diffDays < 7) return diffDays + '天前';
         if (diffDays < 30) return Math.floor(diffDays / 7) + '周前';
         return date.toLocaleDateString('zh-CN');
+    }
+
+    function updateSearchClearButton(value) {
+        var clearBtn = document.getElementById('notesSearchClear');
+        if (!clearBtn) return;
+        clearBtn.classList.toggle('notes-hidden', !value);
+    }
+
+    function isUsableNotesPath(notesPath) {
+        return !!(notesPath && typeof HOME !== 'undefined' && notesPath.startsWith(HOME));
+    }
+
+    function getDefaultNotesPath() {
+        var usable = notesPaths.find(function(p) {
+            return isUsableNotesPath(p.path);
+        });
+        return usable ? usable.path : (notesPaths[0] ? notesPaths[0].path : null);
+    }
+
+    function setElementVisibility(element, visible, displayValue) {
+        if (!element) return;
+        element.classList.toggle('notes-hidden', !visible);
+        element.style.display = visible ? (displayValue || '') : 'none';
     }
 
     // ========== Tag Filter ==========
@@ -896,9 +962,11 @@
         var val = document.getElementById('notesTagFilterValue');
         if (!bar) return;
         if (currentTagFilter) {
+            bar.classList.remove('notes-hidden');
             bar.style.display = 'flex';
             if (val) val.textContent = '#' + currentTagFilter;
         } else {
+            bar.classList.add('notes-hidden');
             bar.style.display = 'none';
             if (val) val.textContent = '';
         }
