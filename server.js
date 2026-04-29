@@ -2007,6 +2007,351 @@ app.delete('/api/vault/file', requireAuth, (req, res) => {
     }
 });
 
+// ========== Notes API ==========
+
+const notesCache = new VaultCache(30, 3 * 60 * 1000);
+
+// Note templates
+const NOTE_TEMPLATES = {
+    blank: { name: '空白笔记', content: '---\ntype: note\ntags: []\ncreated: {{date}}\n---\n\n# {{title}}\n\n' },
+    meeting: { name: '会议记录', content: '---\ntype: note\ntags: [meeting]\ncreated: {{date}}\n---\n\n# 会议记录 - {{title}}\n\n## 参会人员\n\n- \n\n## 议题\n\n### 1. \n\n### 2. \n\n## 待办事项\n\n- [ ] \n\n## 备注\n\n' },
+    reading: { name: '读书笔记', content: '---\ntype: note\ntags: [reading]\ncreated: {{date}}\n---\n\n# 《{{title}}》读书笔记\n\n## 基本信息\n\n- 作者：\n- 出版社：\n- 阅读日期：{{date}}\n\n## 核心观点\n\n1. \n\n## 精彩摘录\n\n> \n\n## 个人感悟\n\n' },
+    weekly: { name: '周计划', content: '---\ntype: todo\ntags: [weekly]\ncreated: {{date}}\n---\n\n# 周计划 - {{title}}\n\n## 本周目标\n\n- [ ] \n\n## 每日计划\n\n### 周一\n- [ ] \n\n### 周二\n- [ ] \n\n### 周三\n- [ ] \n\n### 周四\n- [ ] \n\n### 周五\n- [ ] \n\n## 本周回顾\n\n' },
+    todo: { name: 'TODO 列表', content: '---\ntype: todo\ntags: [todo]\ncreated: {{date}}\n---\n\n# {{title}}\n\n## 待办\n\n- [ ] \n- [ ] \n- [ ] \n\n## 已完成\n\n' }
+};
+
+// GET /api/notes/templates - Get available templates
+app.get('/api/notes/templates', requireAuth, (req, res) => {
+    const templates = {};
+    for (const [key, val] of Object.entries(NOTE_TEMPLATES)) {
+        templates[key] = { name: val.name };
+    }
+    res.json({ templates });
+});
+
+// GET /api/notes/paths - Get configured note paths
+app.get('/api/notes/paths', requireAuth, (req, res) => {
+    const config = loadConfigFile();
+    res.json({ paths: config.notesPaths || [] });
+});
+
+// POST /api/notes/paths - Add a notes path
+app.post('/api/notes/paths', requireAuth, (req, res) => {
+    const { path: notesPath, name } = req.body;
+    if (!notesPath) return res.status(400).json({ error: '缺少路径' });
+    const resolved = path.resolve(notesPath);
+    if (!resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '路径必须在主目录下' });
+    }
+    try {
+        if (!fs.existsSync(resolved)) {
+            fs.mkdirSync(resolved, { recursive: true });
+        }
+        if (!fs.statSync(resolved).isDirectory()) {
+            return res.status(400).json({ error: '不是文件夹' });
+        }
+    } catch (e) {
+        return res.status(400).json({ error: '无法访问目录: ' + e.message });
+    }
+    const config = loadConfigFile();
+    if (!config.notesPaths) config.notesPaths = [];
+    const exists = config.notesPaths.find(p => p.path === resolved);
+    if (!exists) {
+        config.notesPaths.push({ path: resolved, name: name || path.basename(resolved), id: Date.now().toString(36) });
+    }
+    config.sessionSecret = sessionSecret;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    res.json({ paths: config.notesPaths });
+});
+
+// DELETE /api/notes/paths/:id - Remove a notes path
+app.delete('/api/notes/paths/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: '缺少ID' });
+    const config = loadConfigFile();
+    if (!config.notesPaths) config.notesPaths = [];
+    config.notesPaths = config.notesPaths.filter(p => p.id !== id);
+    config.sessionSecret = sessionSecret;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    res.json({ paths: config.notesPaths });
+});
+
+// Helper: scan notes directory recursively
+function scanNotes(notesPath, typeFilter, tagFilter) {
+    const notes = [];
+    function walk(dir) {
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const entry of entries) {
+            if (entry.name.startsWith('.')) continue;
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(fullPath);
+            } else if (entry.name.endsWith('.md')) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf-8');
+                    const { metadata } = parseFrontmatter(content);
+                    const tags = extractTags(content);
+                    const type = (metadata && metadata.type) || 'note';
+                    if (typeFilter && typeFilter !== 'all' && type !== typeFilter) continue;
+                    if (tagFilter && !tags.includes(tagFilter)) continue;
+                    const stats = fs.statSync(fullPath);
+                    notes.push({
+                        name: entry.name,
+                        path: fullPath,
+                        relativePath: path.relative(notesPath, fullPath),
+                        type,
+                        tags,
+                        metadata,
+                        size: stats.size,
+                        modified: stats.mtime,
+                        created: (metadata && metadata.created) || stats.birthtime
+                    });
+                } catch { /* skip unreadable */ }
+            }
+        }
+    }
+    walk(notesPath);
+    notes.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    return notes;
+}
+
+// GET /api/notes/list - List note files with filters
+app.get('/api/notes/list', requireAuth, (req, res) => {
+    const { path: notesPath, type, tag } = req.query;
+    if (!notesPath) return res.status(400).json({ error: '缺少路径' });
+    const resolved = path.resolve(notesPath);
+    if (!resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+    try {
+        const cacheKey = 'notes-list:' + resolved + ':' + (type || '') + ':' + (tag || '');
+        const cached = notesCache.get(cacheKey);
+        if (cached) return res.json(cached);
+        const notes = scanNotes(resolved, type, tag);
+        const result = { path: resolved, notes };
+        notesCache.set(cacheKey, result);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/notes/read - Read a single note
+app.get('/api/notes/read', requireAuth, (req, res) => {
+    const { path: notesPath, file } = req.query;
+    if (!notesPath || !file) return res.status(400).json({ error: '缺少参数' });
+    const filePath = path.join(notesPath, file);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+    try {
+        const content = fs.readFileSync(resolved, 'utf-8');
+        const { metadata, body } = parseFrontmatter(content);
+        const tags = extractTags(content);
+        const stats = fs.statSync(resolved);
+        res.json({
+            path: resolved,
+            relativePath: file,
+            content,
+            metadata,
+            body,
+            tags,
+            size: stats.size,
+            modified: stats.mtime
+        });
+    } catch (e) {
+        res.status(404).json({ error: '文件不存在' });
+    }
+});
+
+// POST /api/notes/write - Create or update a note
+app.post('/api/notes/write', requireAuth, (req, res) => {
+    const { path: notesPath, file, content, template } = req.body;
+    if (!notesPath || !file) return res.status(400).json({ error: '缺少参数' });
+    const resolved = path.resolve(path.join(notesPath, file));
+    if (!resolved.startsWith(path.resolve(notesPath)) || !resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '路径不合法' });
+    }
+    const dir = path.dirname(resolved);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    try {
+        let finalContent = content;
+        if (template && NOTE_TEMPLATES[template] && !content) {
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const title = path.basename(file, '.md').replace(/^\d{4}-\d{2}-\d{2}-/, '');
+            finalContent = NOTE_TEMPLATES[template].content
+                .replace(/\{\{date\}\}/g, dateStr)
+                .replace(/\{\{title\}\}/g, title);
+        }
+        if (fs.existsSync(resolved)) {
+            fs.copyFileSync(resolved, resolved + '.bak.' + Date.now());
+        }
+        fs.writeFileSync(resolved, finalContent || '', 'utf-8');
+        notesCache.clear();
+        res.json({ success: true, path: file });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/notes/delete - Delete a note
+app.delete('/api/notes/delete', requireAuth, (req, res) => {
+    const { path: notesPath, file } = req.body;
+    if (!notesPath || !file) return res.status(400).json({ error: '缺少参数' });
+    const resolved = path.resolve(path.join(notesPath, file));
+    if (!resolved.startsWith(path.resolve(notesPath)) || !resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '路径不合法' });
+    }
+    try {
+        if (!fs.existsSync(resolved)) return res.status(404).json({ error: '文件不存在' });
+        fs.unlinkSync(resolved);
+        notesCache.clear();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /api/notes/toggle-todo - Toggle a checkbox in a note
+app.post('/api/notes/toggle-todo', requireAuth, (req, res) => {
+    const { path: filePath, line: lineNum } = req.body;
+    if (!filePath || lineNum === undefined) return res.status(400).json({ error: '缺少参数' });
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+    try {
+        const content = fs.readFileSync(resolved, 'utf-8');
+        const lines = content.split('\n');
+        if (lineNum < 0 || lineNum >= lines.length) {
+            return res.status(400).json({ error: '行号无效' });
+        }
+        const targetLine = lines[lineNum];
+        if (targetLine.match(/- \[ \]/)) {
+            lines[lineNum] = targetLine.replace('- [ ]', '- [x]');
+        } else if (targetLine.match(/- \[x\]/i)) {
+            lines[lineNum] = targetLine.replace(/- \[x\]/i, '- [ ]');
+        } else {
+            return res.status(400).json({ error: '该行不是待办项' });
+        }
+        fs.writeFileSync(resolved, lines.join('\n'), 'utf-8');
+        notesCache.clear();
+        res.json({ success: true, checked: lines[lineNum].includes('- [x]') });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/notes/search - Full-text search across notes
+app.get('/api/notes/search', requireAuth, (req, res) => {
+    const { q, path: notesPath } = req.query;
+    if (!q) return res.status(400).json({ error: '缺少搜索关键词' });
+    const config = loadConfigFile();
+    const searchPaths = notesPath ? [notesPath] : (config.notesPaths || []).map(p => p.path);
+    const results = [];
+    const query = q.toLowerCase();
+    for (const sp of searchPaths) {
+        const resolved = path.resolve(sp);
+        if (!resolved.startsWith(HOME_DIR)) continue;
+        const notes = scanNotes(resolved);
+        for (const note of notes) {
+            try {
+                const content = fs.readFileSync(note.path, 'utf-8');
+                const lower = content.toLowerCase();
+                const idx = lower.indexOf(query);
+                if (idx !== -1 || note.name.toLowerCase().includes(query)) {
+                    const snippet = idx !== -1 ? content.substring(Math.max(0, idx - 40), idx + query.length + 80) : '';
+                    results.push({
+                        name: note.name,
+                        path: note.path,
+                        relativePath: note.relativePath,
+                        notesPath: sp,
+                        type: note.type,
+                        tags: note.tags,
+                        modified: note.modified,
+                        snippet: snippet.replace(/\n/g, ' ').trim()
+                    });
+                }
+            } catch { /* skip */ }
+        }
+    }
+    results.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    res.json({ query: q, results, total: results.length });
+});
+
+// POST /api/notes/quick-capture - Quick write to inbox.md
+app.post('/api/notes/quick-capture', requireAuth, (req, res) => {
+    const { content, tags } = req.body;
+    if (!content) return res.status(400).json({ error: '缺少内容' });
+    const config = loadConfigFile();
+    const notesPaths = config.notesPaths || [];
+    if (notesPaths.length === 0) return res.status(400).json({ error: '请先配置笔记路径' });
+    const inboxPath = path.join(notesPaths[0].path, 'inbox.md');
+    const resolved = path.resolve(inboxPath);
+    if (!resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '无权访问' });
+    }
+    try {
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+        const tagStr = tags && tags.length > 0 ? ' ' + tags.map(t => '#' + t).join(' ') : '';
+        const line = `- ${timestamp} ${content}${tagStr}\n`;
+        if (!fs.existsSync(resolved)) {
+            fs.writeFileSync(resolved, '---\ntype: note\ntags: [inbox]\ncreated: ' + now.toISOString().split('T')[0] + '\n---\n\n# Inbox\n\n' + line, 'utf-8');
+        } else {
+            fs.appendFileSync(resolved, line, 'utf-8');
+        }
+        notesCache.clear();
+        res.json({ success: true, timestamp });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/notes/todos - Aggregate uncompleted todos across all notes
+app.get('/api/notes/todos', requireAuth, (req, res) => {
+    const config = loadConfigFile();
+    const notesPaths = config.notesPaths || [];
+    const cacheKey = 'notes-todos:' + notesPaths.map(p => p.path).join(',');
+    const cached = notesCache.get(cacheKey);
+    if (cached) return res.json(cached);
+    const allTodos = [];
+    for (const np of notesPaths) {
+        const resolved = path.resolve(np.path);
+        if (!resolved.startsWith(HOME_DIR)) continue;
+        const notes = scanNotes(resolved);
+        for (const note of notes) {
+            try {
+                const content = fs.readFileSync(note.path, 'utf-8');
+                const lines = content.split('\n');
+                lines.forEach((line, idx) => {
+                    const unchecked = line.match(/^\s*- \[ \]\s+(.+)/);
+                    const checked = line.match(/^\s*- \[x\]\s+(.+)/i);
+                    if (unchecked || checked) {
+                        allTodos.push({
+                            text: (unchecked || checked)[1].trim(),
+                            checked: !!checked,
+                            line: idx,
+                            file: note.name,
+                            filePath: note.path,
+                            relativePath: note.relativePath,
+                            notesPath: np.path,
+                            notesName: np.name,
+                            modified: note.modified
+                        });
+                    }
+                });
+            } catch { /* skip */ }
+        }
+    }
+    const result = { todos: allTodos, total: allTodos.length, unchecked: allTodos.filter(t => !t.checked).length };
+    notesCache.set(cacheKey, result);
+    res.json(result);
+});
+
 // JSON error handler for API routes
 app.use("/api", (err, req, res, next) => {
     console.error("API Error:", err.message);

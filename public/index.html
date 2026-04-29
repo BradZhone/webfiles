@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/terminal.css">
     <link rel="stylesheet" href="css/vault.css">
+    <link rel="stylesheet" href="css/notes.css">
 </head>
 <body>
     <!-- 拖拽上传区域 -->
@@ -105,6 +106,7 @@
             <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">多选</button>
             <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
             <button class="toolbar-btn" onclick="showVaultView()" id="vaultBtn">知识库</button>
+            <button class="toolbar-btn" onclick="showNotesView()" id="notesBtn">📝 笔记</button>
             <div class="toolbar-divider"></div>
             <div class="view-mode-group">
                 <button class="view-mode-btn active" id="viewListBtn" onclick="setViewMode('list')" title="列表视图">☰</button>
@@ -542,6 +544,106 @@
 
     </div>
 
+    <!-- ========== Notes View ========== -->
+    <div class="view" id="notesView">
+        <div class="notes-view">
+            <div class="notes-topbar">
+                <span class="notes-topbar-title">📝 Notes</span>
+                <button class="notes-topbar-btn primary" onclick="showNewNoteModal()">+ 新建</button>
+                <button class="notes-topbar-btn" onclick="showNotesPathSettings()" title="路径管理">⚙️</button>
+                <button class="notes-topbar-btn" onclick="closeNotesView()">返回</button>
+            </div>
+            <div class="notes-layout">
+                <!-- Left: Note list sidebar -->
+                <div class="notes-sidebar" id="notesSidebar">
+                    <div class="notes-sidebar-header">
+                        <span class="notes-sidebar-title">📝 笔记列表</span>
+                        <button class="notes-sidebar-close" onclick="toggleNotesSidebar(true)">✕</button>
+                    </div>
+                    <div class="notes-search">
+                        <input type="text" id="notesSearchInput" placeholder="搜索笔记..." oninput="onNotesSearch(this.value)" onkeypress="if(event.key==='Enter')doNotesSearch()">
+                    </div>
+                    <div class="notes-categories">
+                        <button class="notes-category-tab active" data-filter="all" onclick="setNotesFilter('all')">全部</button>
+                        <button class="notes-category-tab" data-filter="note" onclick="setNotesFilter('note')">📝 笔记</button>
+                        <button class="notes-category-tab" data-filter="idea" onclick="setNotesFilter('idea')">💡 想法</button>
+                        <button class="notes-category-tab" data-filter="todo" onclick="setNotesFilter('todo')">✅ 待办</button>
+                    </div>
+                    <div class="notes-list" id="notesList">
+                        <div class="notes-list-empty"><span class="empty-icon">📝</span>加载中...</div>
+                    </div>
+                </div>
+                <!-- Center: Editor / Preview / Todos -->
+                <div class="notes-main" id="notesMain">
+                    <div class="notes-sidebar-toggle" onclick="toggleNotesSidebar()">
+                        <span>☰</span> 笔记列表
+                    </div>
+                    <div class="notes-content-tabs">
+                        <button class="notes-content-tab active" data-tab="edit" onclick="switchNotesTab('edit')">✏️ 编辑</button>
+                        <button class="notes-content-tab" data-tab="preview" onclick="switchNotesTab('preview')">📄 预览</button>
+                        <button class="notes-content-tab" data-tab="todos" onclick="switchNotesTab('todos')">✅ 待办</button>
+                    </div>
+                    <div id="notesContentBody" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+                        <!-- Editor -->
+                        <div id="notesEditorHeader" class="notes-editor-header">
+                            <span>编辑模式 — Ctrl+S 保存</span>
+                            <span id="notesSaveStatus" class="notes-save-status saved">✓ 已保存</span>
+                            <button onclick="saveNotesFile()" style="padding:4px 12px;background:var(--accent);color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:12px;">💾 保存</button>
+                            <button onclick="deleteNotesFile()" style="padding:4px 12px;background:rgba(248,113,113,0.2);color:#f87171;border:1px solid rgba(248,113,113,0.3);border-radius:4px;cursor:pointer;font-size:12px;">🗑️ 删除</button>
+                        </div>
+                        <div id="notesEditorContainer" class="notes-editor-container" style="display:flex;">
+                            <div id="notesEditorWrap" class="notes-editor-wrap"></div>
+                        </div>
+                        <!-- Preview -->
+                        <div id="notesPreviewBody" class="notes-preview-container" style="display:none;">
+                            <div class="notes-empty-state"><div class="empty-icon">📝</div><p>选择笔记开始浏览</p></div>
+                        </div>
+                        <!-- Todos aggregation -->
+                        <div id="notesTodosContainer" class="notes-todos-container" style="display:none;">
+                        </div>
+                    </div>
+                    <!-- Quick capture bar -->
+                    <div class="notes-quick-capture">
+                        <input type="text" id="notesQuickInput" placeholder="快速记录灵感... (支持 #标签)" onkeypress="if(event.key==='Enter')doQuickCapture()">
+                        <button class="notes-quick-capture-btn" onclick="doQuickCapture()">📌 记录</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes: Path Settings Modal -->
+    <div class="modal-overlay" id="notesPathModal" style="display:none;">
+        <div class="modal" style="max-width: 420px;">
+            <h3>⚙️ 笔记路径管理</h3>
+            <div id="notesPathList" style="max-height:200px;overflow-y:auto;margin:12px 0;"></div>
+            <div style="border-top:1px solid var(--border);padding-top:12px;">
+                <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">添加新路径</div>
+                <input type="text" id="notesNewName" placeholder="名称 (如: 工作笔记)" style="width:100%;margin-bottom:8px;">
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="notesNewPath" placeholder="路径 (如: ~/notes)" style="flex:1;">
+                    <button class="btn-primary" onclick="addNotesPath()">添加</button>
+                </div>
+            </div>
+            <div class="modal-btns" style="margin-top:16px;">
+                <button class="btn-primary" onclick="hideNotesPathModal()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes: New Note Modal -->
+    <div class="modal-overlay" id="notesNewModal" style="display:none;">
+        <div class="modal" style="max-width: 400px;">
+            <h3>📝 新建笔记</h3>
+            <input type="text" id="notesNewTitle" placeholder="笔记标题" style="width:100%;margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">选择模板</div>
+            <div class="notes-template-grid" id="notesTemplateGrid"></div>
+            <div class="modal-btns" style="margin-top:16px;">
+                <button class="btn-secondary" onclick="hideNewNoteModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Vault Selector Modal removed - replaced with inline directory browser -->
 
@@ -568,6 +670,7 @@
         <div class="action-menu-item" onclick="showSearchView()">🔍 搜索</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showTerminalView()">💻 终端</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showVaultView()">📚 知识库</div>
+        <div class="action-menu-item" onclick="hideMainMenu(); showNotesView()">📝 笔记</div>
         <div class="action-menu-item" onclick="showOpenFilesPanel()">📑 已打开文件 (<span id="openFilesCount">0</span>)</div>
         <div class="action-menu-item" onclick="location.href='/logout'">🚪 退出登录</div>
         <div class="action-menu-close" onclick="hideMainMenu()">取消</div>
@@ -853,6 +956,7 @@
     <script src="js/terminal.js"></script>
     <script src="js/obsidian-markdown.js"></script>
     <script src="js/vault.js"></script>
+    <script src="js/notes.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
