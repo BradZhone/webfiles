@@ -14,6 +14,7 @@
     let searchQuery = '';
     let currentTab = 'edit'; // 'edit' | 'preview' | 'todos'
     let sidebarCollapsed = false;
+    let dirBrowserCurrentPath = '';
 
     // ========== Constants ==========
     const AUTO_SAVE_DELAY = 2000;
@@ -26,8 +27,10 @@
         showView('notesView');
         document.getElementById('headerTitle').textContent = '📝 笔记';
         await loadNotesPaths();
+        renderPathSelector();
         if (notesPaths.length > 0) {
             if (!currentNotesPath) currentNotesPath = notesPaths[0].path;
+            renderPathSelector();
             await loadNotes();
         } else {
             renderEmptyPaths();
@@ -104,12 +107,13 @@
             notesPaths = data.paths;
             pathInput.value = '';
             if (nameInput) nameInput.value = '';
-            renderPathList();
+            renderPathSelector();
             if (notesPaths.length === 1) {
                 currentNotesPath = notesPaths[0].path;
+                renderPathSelector();
                 await loadNotes();
             }
-            showToast('路径已添加', 'success');
+            showToast('\u8def\u5f84\u5df2\u6dfb\u52a0', 'success');
         } catch (e) {
             showToast('添加失败: ' + e.message, 'error');
         }
@@ -123,6 +127,7 @@
             if (data.error) { showToast(data.error, 'error'); return; }
             notesPaths = data.paths;
             renderPathList();
+            renderPathSelector();
             if (notesPaths.length > 0 && !notesPaths.find(p => p.path === currentNotesPath)) {
                 currentNotesPath = notesPaths[0].path;
             }
@@ -153,6 +158,124 @@
                 </div>`;
         }
     }
+
+    // ========== Sidebar Path Selector ==========
+    function renderPathSelector() {
+        const dropdown = document.getElementById('notesPathDropdown');
+        if (!dropdown) return;
+        let html = '';
+        if (notesPaths.length === 0) {
+            html = '<option value="">\u6dfb\u52a0\u7b14\u8bb0\u76ee\u5f55...</option>';
+        } else {
+            notesPaths.forEach(function(p) {
+                const selected = p.path === currentNotesPath ? ' selected' : '';
+                html += '<option value="' + escapeAttr(p.path) + '"' + selected + '>' + escapeHtml(p.name) + '</option>';
+            });
+        }
+        dropdown.innerHTML = html;
+    }
+
+    global.removeCurrentNotesPath = async function() {
+        if (!currentNotesPath) { showToast('\u8bf7\u5148\u9009\u62e9\u8def\u5f84', 'error'); return; }
+        const currentP = notesPaths.find(function(p) { return p.path === currentNotesPath; });
+        if (!currentP) return;
+        if (!confirm('\u786e\u5b9a\u8981\u79fb\u9664\u300c' + currentP.name + '\u300d\u5417\uff1f\uff08\u4e0d\u4f1a\u5220\u9664\u6587\u4ef6\uff09')) return;
+        try {
+            var resp = await fetch('/api/notes/paths/' + currentP.id, { method: 'DELETE' });
+            var data = await resp.json();
+            if (data.error) { showToast(data.error, 'error'); return; }
+            notesPaths = data.paths;
+            if (notesPaths.length > 0) {
+                currentNotesPath = notesPaths[0].path;
+                renderPathSelector();
+                await loadNotes();
+            } else {
+                currentNotesPath = null;
+                renderPathSelector();
+                renderEmptyPaths();
+            }
+            showToast('\u8def\u5f84\u5df2\u79fb\u9664', 'success');
+        } catch (e) {
+            showToast('\u79fb\u9664\u5931\u8d25: ' + e.message, 'error');
+        }
+    };
+
+    // ========== Directory Browser ==========
+    global.showDirBrowser = async function() {
+        var modal = document.getElementById('notesDirBrowser');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        var nameInput = document.getElementById('dirBrowserName');
+        if (nameInput) nameInput.value = '';
+        await browseTo('');
+    };
+
+    global.hideDirBrowser = function() {
+        var modal = document.getElementById('notesDirBrowser');
+        if (modal) modal.style.display = 'none';
+    };
+
+    global.browseTo = async function(dirPath) {
+        var pathEl = document.getElementById('dirBrowserPath');
+        var listEl = document.getElementById('dirBrowserList');
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="notes-list-empty"><div class="spinner"></div></div>';
+        try {
+            var url = '/api/browse' + (dirPath ? '?path=' + encodeURIComponent(dirPath) : '');
+            var resp = await fetch(url);
+            var data = await resp.json();
+            if (data.error) { showToast(data.error, 'error'); return; }
+            dirBrowserCurrentPath = data.path;
+            if (pathEl) pathEl.textContent = data.path;
+            var html = '';
+            // Parent directory link
+            var parentPath = data.path.replace(/\/[^\/]+\/?$/, '');
+            if (parentPath && parentPath !== data.path) {
+                html += '<div class="dir-browser-item dir-browser-up" onclick="browseTo(\'' + escapeAttr(parentPath) + '\')"><span class="dir-icon">⬆️</span> ..</div>';
+            }
+            if (data.dirs && data.dirs.length > 0) {
+                data.dirs.forEach(function(d) {
+                    html += '<div class="dir-browser-item" onclick="browseTo(\'' + escapeAttr(d.path) + '\')"><span class="dir-icon">📁</span> ' + escapeHtml(d.name) + '</div>';
+                });
+            } else if (!parentPath || parentPath === data.path) {
+                html += '<div class="notes-list-empty" style="padding:16px;">\u6ca1\u6709\u5b50\u76ee\u5f55</div>';
+            }
+            listEl.innerHTML = html;
+            // Auto-fill name from folder name
+            var nameInput = document.getElementById('dirBrowserName');
+            if (nameInput && !nameInput.value) {
+                var folderName = data.path.split('/').filter(Boolean).pop() || '';
+                nameInput.value = folderName;
+            }
+        } catch (e) {
+            listEl.innerHTML = '<div class="notes-list-empty">\u52a0\u8f7d\u5931\u8d25: ' + escapeHtml(e.message) + '</div>';
+        }
+    };
+
+    global.selectDirFromBrowser = async function() {
+        if (!dirBrowserCurrentPath) { showToast('\u8bf7\u5148\u9009\u62e9\u76ee\u5f55', 'error'); return; }
+        var nameInput = document.getElementById('dirBrowserName');
+        var name = nameInput ? nameInput.value.trim() : '';
+        try {
+            var resp = await fetch('/api/notes/paths', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: dirBrowserCurrentPath, name: name || undefined })
+            });
+            var data = await resp.json();
+            if (data.error) { showToast(data.error, 'error'); return; }
+            notesPaths = data.paths;
+            // Auto-select the newly added path
+            var newPath = notesPaths.find(function(p) { return p.path === dirBrowserCurrentPath; });
+            if (newPath) currentNotesPath = newPath.path;
+            renderPathSelector();
+            hideDirBrowser();
+            await loadNotes();
+            showToast('\u8def\u5f84\u5df2\u6dfb\u52a0', 'success');
+        } catch (e) {
+            showToast('\u6dfb\u52a0\u5931\u8d25: ' + e.message, 'error');
+        }
+    };
 
     // ========== Notes Loading & Rendering ==========
     async function loadNotes() {
@@ -705,28 +828,33 @@
 
     // ========== Sidebar Toggle ==========
     global.toggleNotesSidebar = function(forceCollapse) {
-        const sidebar = document.getElementById('notesSidebar');
+        var sidebar = document.getElementById('notesSidebar');
         if (!sidebar) return;
         if (forceCollapse === true) {
             sidebar.classList.add('collapsed');
             sidebarCollapsed = true;
+        } else if (forceCollapse === false) {
+            sidebar.classList.remove('collapsed');
+            sidebarCollapsed = false;
         } else {
             sidebarCollapsed = !sidebarCollapsed;
             sidebar.classList.toggle('collapsed', sidebarCollapsed);
+        }
+        // Update collapse button text
+        var collapseBtn = document.getElementById('notesCollapseBtn');
+        if (collapseBtn) {
+            collapseBtn.textContent = sidebarCollapsed ? '\u00bb' : '\u00ab';
         }
     };
 
     // ========== Notes Path Switcher ==========
     global.switchNotesPath = function(notesPath) {
+        if (!notesPath) return;
         currentNotesPath = notesPath;
         currentNote = null;
         loadNotes();
         renderEmptyEditor();
-        // Update selector active state
-        const items = document.querySelectorAll('.notes-path-switch');
-        items.forEach(el => {
-            el.classList.toggle('active', el.dataset.path === notesPath);
-        });
+        renderPathSelector();
     };
 
     // ========== Utility Functions ==========
