@@ -1,7 +1,7 @@
 /* ========== Notes Feature Styles ========== */
 
 .notes-view { display: flex; flex-direction: column; height: 100%; }
-.notes-layout { display: flex; height: 100%; overflow: hidden; }
+.notes-layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; overflow: hidden; }
 
 /* Top bar */
 .notes-topbar {
@@ -23,7 +23,7 @@
 .notes-sidebar {
     display: flex; flex-direction: column; overflow: hidden;
     border-right: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0;
-    width: 280px; min-width: 0; transition: width 0.25s ease;
+    width: 280px; min-width: 0;
 }
 .notes-sidebar-header {
     display: flex; align-items: center; gap: 8px;
@@ -100,7 +100,9 @@
 .note-item-tag {
     padding: 0 4px; border-radius: 3px; font-size: 10px;
     background: rgba(249,226,175,0.1); color: #f9e2af;
+    cursor: pointer; transition: all 0.15s;
 }
+.note-item-tag:hover { background: rgba(249,226,175,0.25); color: #f9e2af; }
 
 /* Main area */
 .notes-main {
@@ -253,19 +255,6 @@
 .notes-path-item:hover .path-delete { opacity: 1; }
 .notes-path-item .path-delete:hover { background: var(--danger-subtle); color: var(--danger); }
 
-/* Sidebar collapse button (desktop) */
-.notes-collapse-btn {
-    flex-shrink: 0; width: 18px; display: flex; align-items: center; justify-content: center;
-    background: var(--bg-secondary); border: none; border-right: 1px solid var(--border);
-    color: var(--dim); cursor: pointer; font-size: 12px; padding: 0;
-    transition: all 0.15s ease; font-family: inherit;
-}
-.notes-collapse-btn:hover { background: var(--item-hover); color: var(--text); }
-
-/* Desktop sidebar collapsed state */
-.notes-sidebar.collapsed {
-    width: 0 !important; border-right: none; overflow: hidden;
-}
 
 /* Path selector (sidebar top) */
 .notes-path-selector {
@@ -352,7 +341,7 @@
 
 /* Responsive */
 @media (max-width: 1200px) {
-    .notes-sidebar { width: 220px; }
+    .notes-layout { grid-template-columns: 220px 1fr; }
     .notes-preview-container { padding: 16px; }
 }
 @media (max-width: 768px) {
@@ -369,5 +358,51 @@
     .notes-preview-container { padding: 12px; }
     .notes-sidebar-toggle { display: flex; }
     .notes-sidebar-close { display: block !important; }
-    .notes-collapse-btn { display: none; }
+
 }
+
+/* Search clear button */
+.notes-search-clear {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-secondary); cursor: pointer;
+    font-size: 14px; padding: 2px 4px; border-radius: 3px; line-height: 1; z-index: 1;
+}
+.notes-search-clear:hover { color: var(--text); background: var(--item-hover); }
+
+/* Path manage button */
+.notes-path-manage-btn {
+    background: var(--item); border: 1px solid var(--border); color: var(--text-secondary);
+    width: 28px; height: 28px; border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0; transition: all 0.15s;
+}
+.notes-path-manage-btn:hover { background: var(--item-hover); color: var(--text); }
+
+/* Tag filter bar */
+.notes-tag-filter {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border-bottom: 1px solid var(--border);
+    background: rgba(249,226,175,0.06); flex-shrink: 0;
+    font-size: 12px;
+}
+.tag-filter-label { color: var(--dim); white-space: nowrap; }
+.tag-filter-value {
+    background: rgba(249,226,175,0.15); color: #f9e2af;
+    padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 500;
+}
+.tag-filter-clear {
+    background: none; border: none; color: var(--dim); cursor: pointer;
+    font-size: 12px; padding: 2px 4px; border-radius: 3px; margin-left: auto;
+    transition: all 0.15s;
+}
+.tag-filter-clear:hover { color: var(--text); background: var(--item-hover); }
+
+/* Editor header action buttons */
+.notes-header-btn {
+    padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    border: 1px solid transparent; transition: all 0.15s;
+}
+.notes-save-btn { background: var(--accent); color: #1e1e2e; border-color: var(--accent); }
+.notes-save-btn:hover { background: var(--accent-hover); }
+.notes-delete-btn { background: rgba(248,113,113,0.2); color: #f87171; border-color: rgba(248,113,113,0.3); }
+.notes-delete-btn:hover { background: rgba(248,113,113,0.3); }

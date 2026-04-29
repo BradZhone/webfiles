@@ -2284,13 +2284,13 @@ app.get('/api/notes/search', requireAuth, (req, res) => {
 
 // POST /api/notes/quick-capture - Quick write to inbox.md
 app.post('/api/notes/quick-capture', requireAuth, (req, res) => {
-    const { content, tags } = req.body;
+    const { content, tags, path: reqPath } = req.body;
     if (!content) return res.status(400).json({ error: '缺少内容' });
     const config = loadConfigFile();
     const notesPaths = config.notesPaths || [];
     if (notesPaths.length === 0) return res.status(400).json({ error: '请先配置笔记路径' });
-    const inboxPath = path.join(notesPaths[0].path, 'inbox.md');
-    const resolved = path.resolve(inboxPath);
+    const targetPath = reqPath ? path.resolve(reqPath) : notesPaths[0].path;
+    const inboxPath = path.join(targetPath, 'inbox.md');
     if (!resolved.startsWith(HOME_DIR)) {
         return res.status(403).json({ error: '无权访问' });
     }
