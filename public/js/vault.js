@@ -27,8 +27,8 @@
     ];
     const DEFAULT_COLOR = '#58a6ff';
     const VAULT_COLORS = [
-        '#89b4fa', '#f38ba8', '#a6e3a1', '#f9e2af',
-        '#cba6f7', '#94e2d5', '#fab387', '#89dceb'
+        '#74c7ec', '#a6e3a1', '#fab387', '#cba6f7',
+        '#89dceb', '#f9e2af', '#f38ba8', '#94e2d5'
     ];
 
     // --- Utility ---
@@ -554,10 +554,10 @@
         if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
         function graphNodeColor(baseColor) {
             return {
-                background: baseColor || '#89b4fa',
-                border: (baseColor || '#89b4fa') + '80',
-                highlight: { background: '#f5c2e7', border: '#f5c2e7' },
-                hover: { background: baseColor || '#89b4fa', border: '#cdd6f4' }
+                background: baseColor || '#585b70',
+                border: baseColor || '#585b70',
+                highlight: { background: '#cdd6f4', border: '#cdd6f4' },
+                hover: { background: baseColor || '#585b70', border: '#cdd6f4' }
             };
         }
         var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
@@ -631,22 +631,10 @@
             minVelocity: 1.5,
             maxVelocity: 30
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#585b70'), shape: 'dot', size: 18, borderWidth: 1.5, borderWidthSelected: 3, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
-        network.on('dragStart', function(params) {
-            if (params.nodes.length > 0) {
-                nodesDS.update({ id: params.nodes[0], fixed: false });
-            }
-        });
-        network.on('dragEnd', function(params) {
-            if (params.nodes.length > 0) {
-                var nodeId = params.nodes[0];
-                var pos = network.getPositions([nodeId]);
-                nodesDS.update({ id: nodeId, x: pos[nodeId].x, y: pos[nodeId].y, fixed: { x: true, y: true } });
-            }
-        });
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
                 var nodeId = params.nodes[0];
@@ -702,30 +690,6 @@
                 switchContentTab('preview');
                 openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
             }
-        });
-        network.on('hoverNode', function(params) {
-            if (selectedGraphNode) return;
-            var nodeId = params.node;
-            var connectedNodes = network.getConnectedNodes(nodeId);
-            var connectedEdges = network.getConnectedEdges(nodeId);
-            var connectedEdgeSet = {};
-            connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
-            nodesDS.forEach(function(n) {
-                var isConnected = n.id === nodeId || connectedNodes.indexOf(n.id) !== -1;
-                nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.2, font: { color: isConnected ? '#cdd6f4' : 'transparent', size: 11 } });
-            });
-            edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5, font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } });
-            });
-        });
-        network.on('blurNode', function() {
-            if (selectedGraphNode) return;
-            nodesDS.forEach(function(n) {
-                nodesDS.update({ id: n.id, opacity: 1, font: { color: 'transparent', size: 11 } });
-            });
-            edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5, font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } });
-            });
         });
         setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
     }
@@ -785,17 +749,16 @@
             var isHighlighted = isClicked || isConnected;
             graphNetwork._nodesDS.update({
                 id: n.id,
-                opacity: isHighlighted ? 1 : 0.2,
-                font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isClicked ? 14 : (isConnected ? 12 : 11) },
-                borderWidth: isClicked ? 4 : 2
+                opacity: isHighlighted ? 1 : 0.15,
+                font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isClicked ? 13 : 11 }
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
             var isHighlighted = connectedEdgeSet[e.id];
             graphNetwork._edgesDS.update({
                 id: e.id,
-                color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
-                width: isHighlighted ? 3 : 0.5,
+                color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: 'rgba(88,91,112,0.1)' },
+                width: isHighlighted ? 2.5 : 0.3,
                 label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
                 font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
@@ -807,8 +770,7 @@
             graphNetwork._nodesDS.update({
                 id: n.id,
                 opacity: 1,
-                font: { color: 'transparent', size: 11 },
-                borderWidth: 2
+                font: { color: 'transparent', size: 11 }
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
@@ -817,7 +779,7 @@
                 color: { color: '#585b70', highlight: '#89b4fa' },
                 width: 1.5,
                 label: '',
-                font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent', background: 'transparent' }
+                font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
         });
     }
