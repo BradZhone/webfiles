@@ -27,8 +27,8 @@
     ];
     const DEFAULT_COLOR = '#58a6ff';
     const VAULT_COLORS = [
-        '#7f849c', '#9399b2', '#a6adc8', '#bac2de',
-        '#8087a2', '#959cad', '#a9b1c6', '#b8bfd4'
+        '#89b4fa', '#a6e3a1', '#f9e2af', '#cba6f7',
+        '#89dceb', '#f38ba8', '#fab387', '#94e2d5'
     ];
 
     // --- Utility ---
@@ -553,9 +553,10 @@
     function initGraph(container, data) {
         if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
         function graphNodeColor(baseColor) {
+            var c = baseColor || '#a6adc8';
             return {
-                background: '#a6adc8',
-                border: '#a6adc8',
+                background: c,
+                border: c,
                 highlight: { background: '#f9e2af', border: '#f9e2af' },
                 hover: { background: '#cdd6f4', border: '#cdd6f4' }
             };
@@ -604,6 +605,8 @@
         container.innerHTML = '';
         var nodesDS = new vis.DataSet(nodes);
         var edgesDS = new vis.DataSet(edges);
+        var originalNodeColors = {};
+        nodes.forEach(function(n) { originalNodeColors[n.id] = n.color; });
         var physicsOptions = hasGroups ? {
             solver: 'barnesHut',
             barnesHut: {
@@ -634,7 +637,7 @@
         var options = { nodes: { color: graphNodeColor('#a6adc8'), shape: 'dot', size: 8, borderWidth: 0, borderWidthSelected: 2, font: { color: '#bac2de', size: 10 } }, edges: { color: { color: 'rgba(88, 91, 112, 0.4)', highlight: '#89b4fa', hover: '#89b4fa' }, width: 0.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
-        network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
+        network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges; network._originalNodeColors = originalNodeColors;
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
                 var nodeId = params.nodes[0];
@@ -767,10 +770,11 @@
     }
     function resetGraphHighlight() {
         if (!graphNetwork) return;
+        var origColors = graphNetwork._originalNodeColors || {};
         graphNetwork._nodesDS.forEach(function(n) {
             graphNetwork._nodesDS.update({
                 id: n.id,
-                color: { background: '#a6adc8', border: '#a6adc8', highlight: { background: '#f9e2af', border: '#f9e2af' }, hover: { background: '#cdd6f4', border: '#cdd6f4' } },
+                color: origColors[n.id] || graphNodeColor('#a6adc8'),
                 opacity: 1,
                 font: { color: '#bac2de', size: 10 }
             });
@@ -808,14 +812,25 @@
         var tb = document.getElementById('graphToolbar');
         if (!tb) return;
         tb.className = 'graph-toolbar';
-        var vaultOptions = '<option value="all">所有知识库</option>';
-        savedVaultPaths.forEach(function(vp) {
-            var name = vp.split('/').pop();
-            vaultOptions += '<option value="' + escapeHtml(vp) + '">' + escapeHtml(name) + '</option>';
-        });
-        tb.innerHTML = '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
-            '<select id="graphVaultFilter" onchange="filterGraphByVault(this.value)" style="background:var(--item);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">' + vaultOptions + '</select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>';
+        // Build folder options from graphData
+        var folderOptions = '<option value="all">全部</option>';
+        if (graphData && graphData.nodes) {
+            var groups = {};
+            graphData.nodes.forEach(function(n) {
+                var key = n.groupKey || n.vaultName || 'default';
+                if (!groups[key]) groups[key] = true;
+            });
+            Object.keys(groups).sort().forEach(function(g) {
+                var display = g.replace(/\/\.$/,  '');
+                folderOptions += '<option value="' + escapeHtml(g) + '">' + escapeHtml(display) + '</option>';
+            });
+        }
+        tb.innerHTML = '<div class="graph-toolbar-row">' +
+            '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
+            '<select id="graphFolderFilter" onchange="filterGraphByFolder(this.value)" class="graph-select">' + folderOptions + '</select>' +
+            '<select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 隐藏孤立</label>' +
+            '</div>';
     }
     function setGraphMode(mode) {
         graphMode = mode;
@@ -899,6 +914,29 @@
     function filterGraphByVault(vault) {
         if (!graphData) return;
         renderCurrentGraph();
+    }
+
+    function filterGraphByFolder(folder) {
+        if (!graphData) return;
+        var filteredNodes, filteredEdges;
+        if (folder === 'all') {
+            filteredNodes = graphData.nodes;
+            filteredEdges = graphData.edges;
+        } else {
+            filteredNodes = graphData.nodes.filter(function(n) {
+                return (n.groupKey || n.vaultName || 'default') === folder;
+            });
+            var nodeIds = {};
+            filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
+            filteredEdges = graphData.edges.filter(function(e) {
+                return nodeIds[e.from] && nodeIds[e.to];
+            });
+        }
+        var container = document.getElementById('graphCanvas');
+        if (container) {
+            initGraph(container, { nodes: filteredNodes, edges: filteredEdges });
+            renderGraphLegend(container, { nodes: filteredNodes, edges: filteredEdges });
+        }
     }
 
 
@@ -1309,6 +1347,7 @@
     global.setGraphMode = setGraphMode;
     global.refreshGraph = refreshGraph;
     global.filterGraphByVault = filterGraphByVault;
+    global.filterGraphByFolder = filterGraphByFolder;
     global.setupGraphToolbar = setupGraphToolbar;
     global.togglePanel = togglePanel;
     global.loadContentGraph = loadContentGraph;
