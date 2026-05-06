@@ -549,7 +549,9 @@
         var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
         var nodes = (data.nodes || []).map(function(n) {
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
-            return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), group: n.vaultName || undefined, size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            var name = (n.label || n.path || '').replace(/\.md$/, '');
+            if (name.indexOf(':') !== -1) name = name.split(':').pop();
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), group: n.vaultName || undefined, size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -560,7 +562,6 @@
                 from: e.from,
                 to: e.to,
                 type: e.type || 'wikilink',
-                label: e.label || undefined,
                 title: e.context || e.label || undefined,
                 length: hasGroups ? (isIntraVault ? 100 : 300) : undefined,
                 color: getEdgeColor(e.type || 'wikilink'),
@@ -580,10 +581,20 @@
             forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 },
             stabilization: { iterations: 200 }
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
+        network.once('stabilizationIterationsDone', function() {
+            network.setOptions({ physics: { enabled: false } });
+        });
+        network.on('zoom', function() {
+            var scale = network.getScale();
+            var showLabels = scale > 0.5;
+            nodesDS.forEach(function(n) {
+                nodesDS.update({ id: n.id, font: { color: showLabels ? '#cdd6f4' : 'transparent', size: 11 } });
+            });
+        });
         network.on('click', function(params) {
             if (params.nodes.length === 0) {
                 hideGraphTooltip();
@@ -629,7 +640,7 @@
             connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
             nodesDS.forEach(function(n) {
                 var isConnected = n.id === nodeId || connectedNodes.indexOf(n.id) !== -1;
-                nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : '#313244', size: isConnected ? 16 : 10 } });
+                nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : '#313244', size: 11 } });
             });
             edgesDS.forEach(function(e) {
                 edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5 });
@@ -638,7 +649,7 @@
         network.on('blurNode', function() {
             if (selectedGraphNode) return;
             nodesDS.forEach(function(n) {
-                nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 14 } });
+                nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 11 } });
             });
             edgesDS.forEach(function(e) {
                 edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5 });
