@@ -27,8 +27,8 @@
     ];
     const DEFAULT_COLOR = '#58a6ff';
     const VAULT_COLORS = [
-        '#74c7ec', '#a6e3a1', '#fab387', '#cba6f7',
-        '#89dceb', '#f9e2af', '#f38ba8', '#94e2d5'
+        '#7f849c', '#9399b2', '#a6adc8', '#bac2de',
+        '#8087a2', '#959cad', '#a9b1c6', '#b8bfd4'
     ];
 
     // --- Utility ---
@@ -554,10 +554,10 @@
         if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
         function graphNodeColor(baseColor) {
             return {
-                background: baseColor || '#585b70',
-                border: baseColor || '#585b70',
-                highlight: { background: '#cdd6f4', border: '#cdd6f4' },
-                hover: { background: baseColor || '#585b70', border: '#cdd6f4' }
+                background: '#a6adc8',
+                border: '#a6adc8',
+                highlight: { background: '#f9e2af', border: '#f9e2af' },
+                hover: { background: '#cdd6f4', border: '#cdd6f4' }
             };
         }
         var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
@@ -584,7 +584,7 @@
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, groupKey: n.groupKey || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : ''), x: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {x:0}).x + (Math.random() - 0.5) * 80 : undefined, y: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {y:0}).y + (Math.random() - 0.5) * 80 : undefined };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, groupKey: n.groupKey || null, color: graphNodeColor(baseColor), size: Math.max(5, Math.min(12, 5 + (connectionCount[n.id || n.path] || 0) * 0.5)), tags: n.tags || [], font: { color: '#bac2de', size: 10 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : ''), x: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {x:0}).x + (Math.random() - 0.5) * 80 : undefined, y: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {y:0}).y + (Math.random() - 0.5) * 80 : undefined };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -598,7 +598,7 @@
                 title: e.context || e.label || undefined,
                 color: getEdgeColor(e.type || 'wikilink'),
                 dashes: e.type === 'tag' ? [5, 5] : false,
-                width: 1.5
+                width: 0.5
             };
         });
         container.innerHTML = '';
@@ -608,8 +608,8 @@
             solver: 'barnesHut',
             barnesHut: {
                 gravitationalConstant: -1200,
-                centralGravity: 0.5,
-                springLength: 120,
+                centralGravity: 0.3,
+                springLength: 160,
                 springConstant: 0.06,
                 damping: 0.4,
                 avoidOverlap: 0.1
@@ -621,8 +621,8 @@
             solver: 'barnesHut',
             barnesHut: {
                 gravitationalConstant: -800,
-                centralGravity: 0.5,
-                springLength: 95,
+                centralGravity: 0.3,
+                springLength: 130,
                 springConstant: 0.06,
                 damping: 0.4,
                 avoidOverlap: 0.1
@@ -631,7 +631,7 @@
             minVelocity: 1.5,
             maxVelocity: 30
         };
-        var options = { nodes: { color: graphNodeColor('#585b70'), shape: 'dot', size: 18, borderWidth: 1.5, borderWidthSelected: 3, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#a6adc8'), shape: 'dot', size: 8, borderWidth: 0, borderWidthSelected: 2, font: { color: '#bac2de', size: 10 } }, edges: { color: { color: 'rgba(88, 91, 112, 0.4)', highlight: '#89b4fa', hover: '#89b4fa' }, width: 0.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
@@ -749,18 +749,19 @@
             var isHighlighted = isClicked || isConnected;
             graphNetwork._nodesDS.update({
                 id: n.id,
-                opacity: isHighlighted ? 1 : 0.15,
-                font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isClicked ? 13 : 11 }
+                color: isClicked ? { background: '#f9e2af', border: '#f9e2af' } : (isConnected ? { background: '#cdd6f4', border: '#cdd6f4' } : { background: '#45475a', border: '#45475a' }),
+                opacity: isHighlighted ? 1 : 0.3,
+                font: { color: isHighlighted ? '#cdd6f4' : '#585b70', size: isClicked ? 12 : 10 }
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
             var isHighlighted = connectedEdgeSet[e.id];
             graphNetwork._edgesDS.update({
                 id: e.id,
-                color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: 'rgba(88,91,112,0.1)' },
-                width: isHighlighted ? 2.5 : 0.3,
+                color: isHighlighted ? { color: '#89b4fa' } : { color: 'rgba(88,91,112,0.1)' },
+                width: isHighlighted ? 1.5 : 0.2,
                 label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
-                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
+                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 4, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
         });
     }
@@ -769,15 +770,16 @@
         graphNetwork._nodesDS.forEach(function(n) {
             graphNetwork._nodesDS.update({
                 id: n.id,
+                color: { background: '#a6adc8', border: '#a6adc8', highlight: { background: '#f9e2af', border: '#f9e2af' }, hover: { background: '#cdd6f4', border: '#cdd6f4' } },
                 opacity: 1,
-                font: { color: 'transparent', size: 11 }
+                font: { color: '#bac2de', size: 10 }
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
             graphNetwork._edgesDS.update({
                 id: e.id,
-                color: { color: '#585b70', highlight: '#89b4fa' },
-                width: 1.5,
+                color: { color: 'rgba(88,91,112,0.4)', highlight: '#89b4fa' },
+                width: 0.5,
                 label: '',
                 font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
