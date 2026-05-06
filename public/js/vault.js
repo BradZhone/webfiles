@@ -714,8 +714,7 @@
         var tooltip = document.createElement('div');
         tooltip.id = 'graphTooltip';
         tooltip.className = 'graph-tooltip';
-        tooltip.innerHTML =
-        '<button onclick="hideGraphTooltip()" style="position:absolute;top:4px;right:8px;background:none;border:none;color:#6c7086;cursor:pointer;font-size:14px;">✕</button>' +
+    tooltip.innerHTML = '<button class="graph-tooltip-close" onclick="hideGraphTooltip()">✕</button>' +
         '<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
         '<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
         '<div class="graph-tooltip-meta">' +
