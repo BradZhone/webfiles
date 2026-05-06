@@ -666,7 +666,8 @@
 .graph-legend {
     position: absolute;
     top: 8px;
-    right: 8px;
+    left: 8px;
+    right: auto;
     background: rgba(30, 30, 46, 0.9);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -676,6 +677,21 @@
     z-index: 10;
     backdrop-filter: blur(4px);
     max-width: 180px;
+}
+.graph-tooltip-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    line-height: 1;
+}
+.graph-tooltip-close:hover {
+    color: var(--text);
 }
 .graph-legend-title {
     font-weight: 600;

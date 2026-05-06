@@ -568,7 +568,7 @@
                 to: e.to,
                 type: e.type || 'wikilink',
                 title: e.context || e.label || undefined,
-                length: hasGroups ? (isIntraVault ? 100 : 300) : undefined,
+                length: hasGroups ? (isIntraVault ? 80 : 150) : undefined,
                 color: getEdgeColor(e.type || 'wikilink'),
                 dashes: e.type === 'tag' ? [5, 5] : false,
                 width: 1.5
@@ -580,10 +580,10 @@
         var physicsOptions = hasGroups ? {
             solver: 'forceAtlas2Based',
             forceAtlas2Based: {
-                gravitationalConstant: -100,
-                centralGravity: 0.005,
-                springLength: 180,
-                springConstant: 0.06,
+                gravitationalConstant: -80,
+                centralGravity: 0.01,
+                springLength: 120,
+                springConstant: 0.08,
                 damping: 0.5
             },
             stabilization: { iterations: 300 },
@@ -611,9 +611,6 @@
                 var nodeId = params.nodes[0];
                 var pos = network.getPositions([nodeId]);
                 nodesDS.update({ id: nodeId, x: pos[nodeId].x, y: pos[nodeId].y, fixed: { x: true, y: true } });
-                setTimeout(function() {
-                    nodesDS.update({ id: nodeId, fixed: { x: false, y: false } });
-                }, 1500);
             }
         });
         network.on('click', function(params) {
@@ -717,10 +714,10 @@
         var tooltip = document.createElement('div');
         tooltip.id = 'graphTooltip';
         tooltip.className = 'graph-tooltip';
-        tooltip.innerHTML =
-'<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
-'<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
-'<div class="graph-tooltip-meta">' +
+        '<button class="graph-tooltip-close" onclick="hideGraphTooltip()">✕</button>' +
+        '<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
+        '<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
+        '<div class="graph-tooltip-meta">' +
             (tags.length > 0 ? '<div class="graph-tooltip-tags">' + tags.map(function(t) { return '<span class="graph-tooltip-tag">#' + t + '</span>'; }).join(' ') + '</div>' : '') +
             '<div class="graph-tooltip-connections">' + typeInfo + '  (共 ' + connections.length + ' 个连接)</div>' +
             (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +
@@ -729,8 +726,10 @@
         var container = document.getElementById('graphCanvas');
         if (!container) return;
         container.style.position = 'relative';
-        tooltip.style.left = Math.min(position.x + 10, container.offsetWidth - 220) + 'px';
-        tooltip.style.top = Math.min(position.y + 10, container.offsetHeight - 120) + 'px';
+        tooltip.style.position = 'absolute';
+        tooltip.style.right = '8px';
+        tooltip.style.top = '8px';
+        tooltip.style.left = 'auto';
         container.appendChild(tooltip);
         graphTooltipEl = tooltip;
         requestAnimationFrame(function() { tooltip.classList.add('show'); });
