@@ -552,11 +552,25 @@
             connectionCount[e.from] = (connectionCount[e.from] || 0) + 1;
             connectionCount[e.to] = (connectionCount[e.to] || 0) + 1;
         });
+        // Seed initial positions by vault for multi-vault separation
+        var vaultCenters = {};
+        var vaultIndex = 0;
+        if (hasGroups) {
+            (data.nodes || []).forEach(function(n) {
+                var vName = n.vaultName || 'default';
+                if (!vaultCenters[vName]) {
+                    var angle = (vaultIndex / 6) * Math.PI * 2;
+                    vaultCenters[vName] = { x: Math.cos(angle) * 200, y: Math.sin(angle) * 200 };
+                    vaultIndex++;
+                }
+            });
+        }
+
         var nodes = (data.nodes || []).map(function(n) {
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : ''), x: hasGroups ? (vaultCenters[n.vaultName || 'default'] || {x:0}).x + (Math.random() - 0.5) * 100 : undefined, y: hasGroups ? (vaultCenters[n.vaultName || 'default'] || {y:0}).y + (Math.random() - 0.5) * 100 : undefined };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -603,7 +617,7 @@
             minVelocity: 1.5,
             maxVelocity: 30
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: false, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
