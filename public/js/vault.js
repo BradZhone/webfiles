@@ -591,30 +591,50 @@
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
         network.once('stabilizationIterationsDone', function() {
-            network.stopSimulation();
+            network.setOptions({ physics: { enabled: false } });
         });
         network.on('click', function(params) {
-            if (params.nodes.length === 0) {
+            if (params.nodes.length > 0) {
+                var nodeId = params.nodes[0];
+                if (selectedGraphNode === nodeId) {
+                    hideGraphTooltip();
+                    resetGraphHighlight();
+                    selectedGraphNode = null;
+                    var node = nodesDS.get(nodeId);
+                    var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
+                    if (!filePath.endsWith('.md')) filePath += '.md';
+                    switchContentTab('preview');
+                    openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
+                    return;
+                }
+                selectedGraphNode = nodeId;
+                highlightGraphConnections(nodeId);
+                showGraphTooltip(nodeId, params.pointer.DOM);
+            } else if (params.edges.length > 0) {
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
-                return;
-            }
-            var nodeId = params.nodes[0];
-            if (selectedGraphNode === nodeId) {
+                var edgeId = params.edges[0];
+                var edge = edgesDS.get(edgeId);
+                if (edge && edge.type === 'tag' && edge.title) {
+                    edgesDS.update({
+                        id: edgeId,
+                        label: edge.title,
+                        font: { color: '#f9e2af', size: 11, strokeWidth: 3, strokeColor: '#1e1e2e' }
+                    });
+                    setTimeout(function() {
+                        edgesDS.update({
+                            id: edgeId,
+                            label: '',
+                            font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
+                        });
+                    }, 3000);
+                }
+            } else {
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
-                var node = nodesDS.get(nodeId);
-                var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
-                if (!filePath.endsWith('.md')) filePath += '.md';
-                switchContentTab('preview');
-                openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
-                return;
             }
-            selectedGraphNode = nodeId;
-            highlightGraphConnections(nodeId);
-            showGraphTooltip(nodeId, params.pointer.DOM);
         });
         network.on('doubleClick', function(params) {
             if (params.nodes.length > 0) {

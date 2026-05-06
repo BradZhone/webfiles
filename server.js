@@ -1676,6 +1676,12 @@ if (fmList) {
       m = tagRegex.exec(line);
     }
   });
+  // Filter out 2-char all-uppercase tags (likely line ID artifacts)
+  tags.forEach(function(tag) {
+    if (/^[A-Z]{2}$/.test(tag)) {
+      tags.delete(tag);
+    }
+  });
   return [...tags];
 }
 
