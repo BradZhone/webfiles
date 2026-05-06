@@ -786,3 +786,14 @@
     }
 }
 
+/* File count badge */
+.vault-file-count {
+    display: inline-block;
+    background: rgba(137, 180, 250, 0.15);
+    color: #89b4fa;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 6px;
+    font-weight: normal;
+}

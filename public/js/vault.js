@@ -141,6 +141,11 @@
             if (nodes.length === 0) { treeEl.innerHTML = '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">No Markdown files</div>'; return; }
             var tree = buildTreeFromNodes(nodes);
             renderTreeInto(treeEl, tree, vaultPath);
+            // Update vault header with file count
+            var headerEl = document.querySelector('#' + vid + ' .vault-root-name');
+            if (headerEl) {
+                headerEl.innerHTML = '📂 ' + escapeHtml(vaultPath.split('/').pop() || vaultPath) + ' <span class="vault-file-count">' + nodes.length + '</span>';
+            }
             if (vaultPath === currentVault) graphCache = payload;
         } catch (e) {
             treeEl = document.getElementById('tree_' + vid);
@@ -175,9 +180,18 @@
         container.innerHTML = html || '<div class="panel-empty" style="padding:8px 12px;font-size:12px;">No files</div>';
     }
 
+    function countFilesInFolder(folder) {
+        var count = (folder.files || []).length;
+        Object.values(folder.children).forEach(function(child) {
+            count += countFilesInFolder(child);
+        });
+        return count;
+    }
+
     function renderTreeFolder(folder, name, vaultPath) {
+        var fileCount = countFilesInFolder(folder);
         var html = '<div class="vault-tree-folder">';
-        html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)"><span class="tree-icon">\u25b6</span><span class="tree-label">\ud83d\udcc1 ' + escapeHtml(name) + '</span></div>';
+        html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)"><span class="tree-icon">▶</span><span class="tree-label">📁 ' + escapeHtml(name) + ' <span class="vault-file-count">' + fileCount + '</span></span></div>';
         html += '<div class="vault-tree-children">';
         Object.keys(folder.children).sort().forEach(function(d) { html += renderTreeFolder(folder.children[d], d, vaultPath); });
         (folder.files || []).sort(function(a, b) { return a.name.localeCompare(b.name); }).forEach(function(f) {
@@ -552,16 +566,16 @@
             connectionCount[e.from] = (connectionCount[e.from] || 0) + 1;
             connectionCount[e.to] = (connectionCount[e.to] || 0) + 1;
         });
-        // Seed initial positions by vault for multi-vault separation
-        var vaultCenters = {};
-        var vaultIndex = 0;
+        // Seed initial positions by group (vault+subdirectory)
+        var groupCenters = {};
+        var groupIdx = 0;
         if (hasGroups) {
             (data.nodes || []).forEach(function(n) {
-                var vName = n.vaultName || 'default';
-                if (!vaultCenters[vName]) {
-                    var angle = (vaultIndex / 6) * Math.PI * 2;
-                    vaultCenters[vName] = { x: Math.cos(angle) * 200, y: Math.sin(angle) * 200 };
-                    vaultIndex++;
+                var gKey = n.groupKey || n.vaultName || 'default';
+                if (!groupCenters[gKey]) {
+                    var angle = (groupIdx / 8) * Math.PI * 2;
+                    groupCenters[gKey] = { x: Math.cos(angle) * 250, y: Math.sin(angle) * 250 };
+                    groupIdx++;
                 }
             });
         }
@@ -570,7 +584,7 @@
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : ''), x: hasGroups ? (vaultCenters[n.vaultName || 'default'] || {x:0}).x + (Math.random() - 0.5) * 100 : undefined, y: hasGroups ? (vaultCenters[n.vaultName || 'default'] || {y:0}).y + (Math.random() - 0.5) * 100 : undefined };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, groupKey: n.groupKey || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : ''), x: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {x:0}).x + (Math.random() - 0.5) * 80 : undefined, y: hasGroups ? (groupCenters[n.groupKey || n.vaultName || 'default'] || {y:0}).y + (Math.random() - 0.5) * 80 : undefined };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -889,11 +903,14 @@
         if (existing) existing.remove();
         var legend = document.createElement('div');
         legend.className = 'graph-legend';
-        // Vault colors
+        // Group colors (vault+subdirectory)
         var vaults = {};
         (data.nodes || []).forEach(function(n) {
-            if (n.vaultName && n.color && !vaults[n.vaultName]) {
-                vaults[n.vaultName] = typeof n.color === 'string' ? n.color : (n.color.background || '#89b4fa');
+            var gKey = n.groupKey || n.vaultName;
+            if (gKey && n.color && !vaults[gKey]) {
+                var colorVal = typeof n.color === 'string' ? n.color : (n.color.background || '#89b4fa');
+                var displayName = gKey.replace(/\/\.$/, '');
+                vaults[displayName] = colorVal;
             }
         });
         var html = '<div class="graph-legend-title">图例</div>';
@@ -1236,8 +1253,9 @@
             }));
             var allNodes = [], allEdges = [], nodeIds = {};
             results.forEach(function(r, vaultIndex) {
-                var vaultColor = VAULT_COLORS[vaultIndex % VAULT_COLORS.length];
                 var vaultName = r.vault.split('/').pop();
+                var groupColors = {};
+                var groupIndex = 0;
                 (r.data.nodes || []).forEach(function(n) {
                     var uniqueId = vaultName + ':' + n.id;
                     if (!nodeIds[uniqueId]) {
@@ -1246,7 +1264,14 @@
                         n.label = n.label || n.id;
                         n.vault = r.vault;
                         n.vaultName = vaultName;
-                        n.color = vaultColor;
+                        // Color by vault+group (subdirectory)
+                        var groupKey = vaultName + '/' + (n.group || '.');
+                        if (!groupColors[groupKey]) {
+                            groupColors[groupKey] = VAULT_COLORS[(vaultIndex * 3 + groupIndex) % VAULT_COLORS.length];
+                            groupIndex++;
+                        }
+                        n.color = groupColors[groupKey];
+                        n.groupKey = groupKey;
                         n.vaultIndex = vaultIndex;
                         allNodes.push(n);
                     }
