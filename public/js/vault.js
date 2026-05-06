@@ -588,6 +588,14 @@
         network.once('stabilizationIterationsDone', function() {
             network.setOptions({ physics: { enabled: false } });
         });
+        network.on('dragStart', function() {
+            network.setOptions({ physics: { enabled: true } });
+        });
+        network.on('dragEnd', function() {
+            setTimeout(function() {
+                network.setOptions({ physics: { enabled: false } });
+            }, 1500);
+        });
         network.on('zoom', function() {
             var scale = network.getScale();
             var showLabels = scale > 0.5;
@@ -643,7 +651,7 @@
                 nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : '#313244', size: 11 } });
             });
             edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5 });
+                edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5, font: { color: 'transparent' } });
             });
         });
         network.on('blurNode', function() {
@@ -652,7 +660,7 @@
                 nodesDS.update({ id: n.id, opacity: 1, font: { color: '#cdd6f4', size: 11 } });
             });
             edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5 });
+                edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5, font: { color: 'transparent' } });
             });
         });
         setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
@@ -718,7 +726,9 @@
             graphNetwork._edgesDS.update({
                 id: e.id,
                 color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
-                width: isHighlighted ? 3 : 0.5
+                width: isHighlighted ? 3 : 0.5,
+                label: isHighlighted ? (e.title || '') : undefined,
+                font: isHighlighted ? { color: '#cdd6f4', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
             });
         });
     }
@@ -735,7 +745,9 @@
             graphNetwork._edgesDS.update({
                 id: e.id,
                 color: { color: '#585b70', highlight: '#89b4fa' },
-                width: 1.5
+                width: 1.5,
+                label: undefined,
+                font: { color: 'transparent' }
             });
         });
     }
@@ -769,11 +781,7 @@
         });
         tb.innerHTML = '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
             '<select id="graphVaultFilter" onchange="filterGraphByVault(this.value)" style="background:var(--item);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">' + vaultOptions + '</select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>' +
-            '<div class="graph-edge-filters">' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowWikilinks" checked onchange="refreshGraph()"> 链接</label>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowTags" checked onchange="refreshGraph()"> 标签</label>' +
-            '</div>';
+            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>';
     }
     function setGraphMode(mode) {
         graphMode = mode;
@@ -815,15 +823,6 @@
             displayEdges.forEach(function(e) { connectedIds[e.from] = true; connectedIds[e.to] = true; });
             displayNodes = displayNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
         }
-        // Edge type filter
-        var showWikilinks = document.getElementById('graphShowWikilinks');
-        var showTags = document.getElementById('graphShowTags');
-        if (showWikilinks && !showWikilinks.checked) {
-            displayEdges = displayEdges.filter(function(e) { return e.type !== 'wikilink'; });
-        }
-        if (showTags && !showTags.checked) {
-            displayEdges = displayEdges.filter(function(e) { return e.type !== 'tag'; });
-        }
         graphArea.style.cssText = '';
         initGraph(graphArea, { nodes: displayNodes, edges: displayEdges });
         renderGraphLegend(graphArea, { nodes: displayNodes, edges: displayEdges });
@@ -852,9 +851,9 @@
         }
         // Edge types section
         html += '<div class="graph-legend-section"><span class="legend-section-label">连接类型</span>';
-        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;"></span>Wiki 链接</div>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;"></span>引用链接</div>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;border-width:3px;"></span>双向引用</div>';
         html += '<div class="legend-item"><span class="legend-line" style="border-color:#f9e2af;border-style:dashed;"></span>共享标签</div>';
-        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-width:3px;border-style:solid;"></span>双向链接</div>';
         html += '</div>';
         legend.innerHTML = html;
         container.appendChild(legend);
