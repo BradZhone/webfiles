@@ -812,24 +812,24 @@
         var tb = document.getElementById('graphToolbar');
         if (!tb) return;
         tb.className = 'graph-toolbar';
-        // Build folder options from graphData
-        var folderOptions = '<option value="all">全部</option>';
+        var folderChecks = '';
         if (graphData && graphData.nodes) {
             var groups = {};
             graphData.nodes.forEach(function(n) {
                 var key = n.groupKey || n.vaultName || 'default';
                 if (!groups[key]) groups[key] = true;
             });
-            Object.keys(groups).sort().forEach(function(g) {
+            var sortedKeys = Object.keys(groups).sort();
+            sortedKeys.forEach(function(g) {
                 var display = g.replace(/\/\.$/,  '');
-                folderOptions += '<option value="' + escapeHtml(g) + '">' + escapeHtml(display) + '</option>';
+                var dotColor = VAULT_COLORS[sortedKeys.indexOf(g) % VAULT_COLORS.length];
+                folderChecks += '<label class="graph-folder-check"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="filterGraphByFolders()"><span class="graph-folder-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
             });
         }
         tb.innerHTML = '<div class="graph-toolbar-row">' +
-            '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
-            '<select id="graphFolderFilter" onchange="filterGraphByFolder(this.value)" class="graph-select">' + folderOptions + '</select>' +
+            '<div class="graph-folder-filters">' + folderChecks + '</div>' +
             '<select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 隐藏孤立</label>' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="toggleOrphans()"> 隐藏孤立</label>' +
             '</div>';
     }
     function setGraphMode(mode) {
@@ -916,22 +916,22 @@
         renderCurrentGraph();
     }
 
-    function filterGraphByFolder(folder) {
+    function filterGraphByFolders() {
         if (!graphData) return;
-        var filteredNodes, filteredEdges;
-        if (folder === 'all') {
-            filteredNodes = graphData.nodes;
-            filteredEdges = graphData.edges;
-        } else {
-            filteredNodes = graphData.nodes.filter(function(n) {
-                return (n.groupKey || n.vaultName || 'default') === folder;
-            });
-            var nodeIds = {};
-            filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
-            filteredEdges = graphData.edges.filter(function(e) {
-                return nodeIds[e.from] && nodeIds[e.to];
-            });
-        }
+        var checkboxes = document.querySelectorAll('.graph-folder-check input[type="checkbox"]');
+        var selected = {};
+        checkboxes.forEach(function(cb) {
+            if (cb.checked) selected[cb.value] = true;
+        });
+        var filteredNodes = graphData.nodes.filter(function(n) {
+            var key = n.groupKey || n.vaultName || 'default';
+            return selected[key];
+        });
+        var nodeIds = {};
+        filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
+        var filteredEdges = graphData.edges.filter(function(e) {
+            return nodeIds[e.from] && nodeIds[e.to];
+        });
         var container = document.getElementById('graphCanvas');
         if (container) {
             initGraph(container, { nodes: filteredNodes, edges: filteredEdges });
@@ -1347,7 +1347,7 @@
     global.setGraphMode = setGraphMode;
     global.refreshGraph = refreshGraph;
     global.filterGraphByVault = filterGraphByVault;
-    global.filterGraphByFolder = filterGraphByFolder;
+    global.filterGraphByFolders = filterGraphByFolders;
     global.setupGraphToolbar = setupGraphToolbar;
     global.togglePanel = togglePanel;
     global.loadContentGraph = loadContentGraph;
