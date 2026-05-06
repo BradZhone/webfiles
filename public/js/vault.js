@@ -26,6 +26,10 @@
         '#a371f7', '#79c0ff', '#f0883e', '#56d364'
     ];
     const DEFAULT_COLOR = '#58a6ff';
+    const VAULT_COLORS = [
+        '#89b4fa', '#f38ba8', '#a6e3a1', '#f9e2af',
+        '#cba6f7', '#94e2d5', '#fab387', '#89dceb'
+    ];
 
     // --- Utility ---
     function slugify(text) {
@@ -524,6 +528,14 @@
             })
             .catch(function(e) { container.innerHTML = '<div class="panel-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">Failed: ' + escapeHtml(e.message) + '</div>'; });
     }
+    function getEdgeColor(type) {
+        switch(type) {
+            case 'wikilink': return { color: '#89b4fa', highlight: '#b4d0fb', hover: '#b4d0fb' };
+            case 'tag': return { color: '#f9e2af', highlight: '#fcefd5', hover: '#fcefd5' };
+            case 'backlink': return { color: '#a6e3a1', highlight: '#c8eec6', hover: '#c8eec6' };
+            default: return { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' };
+        }
+    }
     function initGraph(container, data) {
         if (typeof vis === 'undefined' || !vis.Network) { container.innerHTML = '<div class="graph-loading"><span style="font-size:48px;">\u26a0\ufe0f</span><span>vis-network not loaded</span></div>'; return; }
         function graphNodeColor(baseColor) {
@@ -534,14 +546,41 @@
                 hover: { background: '#a6e3a1', border: '#a6e3a1' }
             };
         }
+        var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
         var nodes = (data.nodes || []).map(function(n) {
-            return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(n.color || getNodeColor(n.path || n.id, 'directory', n.tags || [])), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
+            return { id: n.id || n.path, label: n.label || n.path, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), group: n.vaultName || undefined, size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 14 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
         });
-        var edges = (data.edges || []).map(function(e, i) { return { id: 'e' + i, from: e.from, to: e.to }; });
+        var edges = (data.edges || []).map(function(e, i) {
+            var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
+            var toNode = data.nodes.find(function(n) { return (n.id || n.path) === e.to; });
+            var isIntraVault = fromNode && toNode && fromNode.vaultName && fromNode.vaultName === toNode.vaultName;
+            return {
+                id: 'e' + i,
+                from: e.from,
+                to: e.to,
+                type: e.type || 'wikilink',
+                label: e.label || undefined,
+                title: e.context || e.label || undefined,
+                length: hasGroups ? (isIntraVault ? 100 : 300) : undefined,
+                color: getEdgeColor(e.type || 'wikilink'),
+                dashes: e.type === 'tag' ? [5, 5] : false,
+                width: e.weight === 2 ? 2.5 : 1.5
+            };
+        });
         container.innerHTML = '';
         var nodesDS = new vis.DataSet(nodes);
         var edgesDS = new vis.DataSet(edges);
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 }, stabilization: { iterations: 200 } }, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var physicsOptions = hasGroups ? {
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: { gravitationalConstant: -120, centralGravity: 0.005, springLength: 200, springConstant: 0.05, damping: 0.4 },
+            stabilization: { iterations: 300 }
+        } : {
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 },
+            stabilization: { iterations: 200 }
+        };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: '#cdd6f4', size: 14 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
@@ -613,6 +652,15 @@
         var node = graphNetwork._nodesDS.get(nodeId);
         if (!node) return;
         var connections = graphNetwork.getConnectedNodes(nodeId);
+        var connectedEdges = graphNetwork.getConnectedEdges(nodeId);
+        var edgeTypes = { wikilink: 0, tag: 0 };
+        connectedEdges.forEach(function(eid) {
+            var edge = graphNetwork._edgesDS.get(eid);
+            if (edge && edge.type) edgeTypes[edge.type] = (edgeTypes[edge.type] || 0) + 1;
+        });
+        var typeInfo = Object.entries(edgeTypes).filter(function(e) { return e[1] > 0; }).map(function(e) {
+            return (e[0] === 'wikilink' ? '🔗' : '🏷️') + ' ' + e[1];
+        }).join('  ');
         var tags = node.tags || [];
         var tooltip = document.createElement('div');
         tooltip.id = 'graphTooltip';
@@ -622,7 +670,7 @@
 '<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
 '<div class="graph-tooltip-meta">' +
             (tags.length > 0 ? '<div class="graph-tooltip-tags">' + tags.map(function(t) { return '<span class="graph-tooltip-tag">#' + t + '</span>'; }).join(' ') + '</div>' : '') +
-            '<div class="graph-tooltip-connections">🔗 ' + connections.length + ' 个连接</div>' +
+            '<div class="graph-tooltip-connections">' + typeInfo + '  (共 ' + connections.length + ' 个连接)</div>' +
             (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +
             '</div>' +
             '<div class="graph-tooltip-hint">再次点击打开文档</div>';
@@ -710,7 +758,11 @@
         });
         tb.innerHTML = '<input type="text" id="graphSearch" placeholder="搜索节点..." oninput="filterGraphBySearch(this.value)" class="graph-search-input">' +
             '<select id="graphVaultFilter" onchange="filterGraphByVault(this.value)" style="background:var(--item);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">' + vaultOptions + '</select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>';
+            '<label class="graph-toggle"><input type="checkbox" id="graphShowOrphans" checked onchange="refreshGraph()"> 孤立</label>' +
+            '<div class="graph-edge-filters">' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphShowWikilinks" checked onchange="refreshGraph()"> 链接</label>' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphShowTags" checked onchange="refreshGraph()"> 标签</label>' +
+            '</div>';
     }
     function setGraphMode(mode) {
         graphMode = mode;
@@ -752,9 +804,49 @@
             displayEdges.forEach(function(e) { connectedIds[e.from] = true; connectedIds[e.to] = true; });
             displayNodes = displayNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
         }
+        // Edge type filter
+        var showWikilinks = document.getElementById('graphShowWikilinks');
+        var showTags = document.getElementById('graphShowTags');
+        if (showWikilinks && !showWikilinks.checked) {
+            displayEdges = displayEdges.filter(function(e) { return e.type !== 'wikilink'; });
+        }
+        if (showTags && !showTags.checked) {
+            displayEdges = displayEdges.filter(function(e) { return e.type !== 'tag'; });
+        }
         graphArea.style.cssText = '';
         initGraph(graphArea, { nodes: displayNodes, edges: displayEdges });
+        renderGraphLegend(graphArea, { nodes: displayNodes, edges: displayEdges });
         setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 300);
+    }
+    function renderGraphLegend(container, data) {
+        var existing = container.querySelector('.graph-legend');
+        if (existing) existing.remove();
+        var legend = document.createElement('div');
+        legend.className = 'graph-legend';
+        // Vault colors
+        var vaults = {};
+        (data.nodes || []).forEach(function(n) {
+            if (n.vaultName && n.color && !vaults[n.vaultName]) {
+                vaults[n.vaultName] = typeof n.color === 'string' ? n.color : (n.color.background || '#89b4fa');
+            }
+        });
+        var html = '<div class="graph-legend-title">图例</div>';
+        // Vault section
+        if (Object.keys(vaults).length > 1) {
+            html += '<div class="graph-legend-section"><span class="legend-section-label">知识库</span>';
+            Object.entries(vaults).forEach(function(entry) {
+                html += '<div class="legend-item"><span class="legend-dot" style="background:' + entry[1] + '"></span>' + entry[0] + '</div>';
+            });
+            html += '</div>';
+        }
+        // Edge types section
+        html += '<div class="graph-legend-section"><span class="legend-section-label">连接类型</span>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;"></span>Wiki 链接</div>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#f9e2af;border-style:dashed;"></span>共享标签</div>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-width:3px;border-style:solid;"></span>双向链接</div>';
+        html += '</div>';
+        legend.innerHTML = html;
+        container.appendChild(legend);
     }
     function closeGraphModal() { var m = document.getElementById('graphModal'); if (m) m.classList.remove('show'); }
 
@@ -1078,7 +1170,8 @@
                     .catch(function() { return { vault: vp, data: { nodes: [], edges: [] } }; });
             }));
             var allNodes = [], allEdges = [], nodeIds = {};
-            results.forEach(function(r) {
+            results.forEach(function(r, vaultIndex) {
+                var vaultColor = VAULT_COLORS[vaultIndex % VAULT_COLORS.length];
                 var vaultName = r.vault.split('/').pop();
                 (r.data.nodes || []).forEach(function(n) {
                     var uniqueId = vaultName + ':' + n.id;
@@ -1088,11 +1181,13 @@
                         n.label = n.label || n.id;
                         n.vault = r.vault;
                         n.vaultName = vaultName;
+                        n.color = vaultColor;
+                        n.vaultIndex = vaultIndex;
                         allNodes.push(n);
                     }
                 });
                 (r.data.edges || []).forEach(function(e) {
-                    allEdges.push({ from: vaultName + ':' + e.from, to: vaultName + ':' + e.to });
+                    allEdges.push({ from: vaultName + ':' + e.from, to: vaultName + ':' + e.to, type: e.type || 'wikilink', label: e.label || undefined, context: e.context || '', weight: e.weight || 1 });
                 });
             });
             graphData = { nodes: allNodes, edges: allEdges };

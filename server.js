@@ -1628,6 +1628,20 @@ function extractWikiLinks(content) {
   return links;
 }
 
+function extractWikiLinksWithContext(content) {
+  const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+  const links = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const target = match[1].trim();
+    const start = Math.max(0, match.index - 30);
+    const end = Math.min(content.length, match.index + match[0].length + 30);
+    const context = content.substring(start, end).replace(/\n/g, ' ').trim();
+    links.push({ target, context });
+  }
+  return links;
+}
+
 function extractTags(content) {
   const tags = new Set();
   // frontmatter tags
@@ -1725,6 +1739,7 @@ function scanVault(vaultPath) {
           const content = fs.readFileSync(fullPath, 'utf-8');
           const { metadata, body } = parseFrontmatter(content);
           const links = extractWikiLinks(content);
+          const linksWithContext = extractWikiLinksWithContext(content);
           const tags = extractTags(content);
           files.push({
             path: fullPath,
@@ -1733,6 +1748,7 @@ function scanVault(vaultPath) {
             basename: entry.name.replace(/\.md$/, ''),
             metadata,
             links,
+            linksWithContext,
             tags
           });
         } catch (e) {
@@ -1841,20 +1857,72 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
     });
   });
 
-  // 构建边
+  // 构建边 (wikilink edges with context)
   const edges = [];
   const edgeSet = new Set();
   files.forEach(f => {
-    f.links.forEach(target => {
-      const pair = [f.basename, target].sort().join('--');
-      if (nodeMap.has(target) && !edgeSet.has(pair) && f.basename !== target) {
-        edgeSet.add(pair);
-        edges.push({ from: f.basename, to: target });
+    (f.linksWithContext || []).forEach(link => {
+      const target = link.target;
+      const dirKey = f.basename + '-->' + target;
+      if (nodeMap.has(target) && !edgeSet.has(dirKey) && f.basename !== target) {
+        edgeSet.add(dirKey);
+        edges.push({ from: f.basename, to: target, type: 'wikilink', context: link.context || '', weight: 1 });
       }
     });
   });
 
-  const result = { nodes: Array.from(nodeMap.values()), edges };
+  // Detect bidirectional links and increase weight
+  edges.forEach(e => {
+    if (e.type === 'wikilink') {
+      const reverse = edges.find(r => r.from === e.to && r.to === e.from && r.type === 'wikilink');
+      if (reverse) {
+        e.weight = 2;
+        e.bidirectional = true;
+      }
+    }
+  });
+  // Deduplicate bidirectional (keep only one with weight=2)
+  const seenBidi = new Set();
+  const dedupedEdges = edges.filter(e => {
+    if (e.bidirectional) {
+      const key = [e.from, e.to].sort().join('--bidi--');
+      if (seenBidi.has(key)) return false;
+      seenBidi.add(key);
+    }
+    return true;
+  });
+
+  // Tag co-occurrence detection
+  const tagToFiles = {};
+  const tagEdgeSet = new Set();
+  files.forEach(f => {
+    f.tags.forEach(tag => {
+      if (!tagToFiles[tag]) tagToFiles[tag] = [];
+      tagToFiles[tag].push(f.basename);
+    });
+  });
+
+  Object.entries(tagToFiles).forEach(([tag, fileList]) => {
+    if (fileList.length <= 1 || fileList.length > 10) return;
+    for (let i = 0; i < fileList.length; i++) {
+      for (let j = i + 1; j < fileList.length; j++) {
+        const pair = [fileList[i], fileList[j]].sort().join('--tag--');
+        if (!tagEdgeSet.has(pair) && nodeMap.has(fileList[i]) && nodeMap.has(fileList[j])) {
+          tagEdgeSet.add(pair);
+          dedupedEdges.push({
+            from: fileList[i],
+            to: fileList[j],
+            type: 'tag',
+            label: '#' + tag,
+            context: '',
+            weight: 1
+          });
+        }
+      }
+    }
+  });
+
+  const result = { nodes: Array.from(nodeMap.values()), edges: dedupedEdges };
   vaultCache.set(cacheKey, result);
   res.json(result);
 });
