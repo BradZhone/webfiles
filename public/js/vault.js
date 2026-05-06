@@ -531,6 +531,7 @@
     function getEdgeColor(type) {
         switch(type) {
             case 'wikilink': return { color: '#89b4fa', highlight: '#b4d0fb', hover: '#b4d0fb' };
+            case 'bidirectional': return { color: '#cba6f7', highlight: '#dbb9ff', hover: '#dbb9ff' };
             case 'tag': return { color: '#f9e2af', highlight: '#fcefd5', hover: '#fcefd5' };
             case 'backlink': return { color: '#a6e3a1', highlight: '#c8eec6', hover: '#c8eec6' };
             default: return { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' };
@@ -551,7 +552,7 @@
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), group: n.vaultName || undefined, size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: n.size || 16, tags: n.tags || [], font: { color: '#cdd6f4', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -564,7 +565,7 @@
                 type: e.type || 'wikilink',
                 title: e.context || e.label || undefined,
                 length: hasGroups ? (isIntraVault ? 100 : 300) : undefined,
-                color: getEdgeColor(e.type || 'wikilink'),
+                color: e.weight === 2 ? getEdgeColor('bidirectional') : getEdgeColor(e.type || 'wikilink'),
                 dashes: e.type === 'tag' ? [5, 5] : false,
                 width: e.weight === 2 ? 2.5 : 1.5
             };
@@ -728,7 +729,7 @@
                 color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
                 width: isHighlighted ? 3 : 0.5,
                 label: isHighlighted ? (e.title || '') : undefined,
-                font: isHighlighted ? { color: '#cdd6f4', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
+                font: isHighlighted ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
             });
         });
     }
@@ -852,7 +853,7 @@
         // Edge types section
         html += '<div class="graph-legend-section"><span class="legend-section-label">连接类型</span>';
         html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;"></span>引用链接</div>';
-        html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;border-width:3px;"></span>双向引用</div>';
+        html += '<div class="legend-item"><span class="legend-line" style="border-color:#cba6f7;border-style:solid;border-width:3px;"></span>双向引用</div>';
         html += '<div class="legend-item"><span class="legend-line" style="border-color:#f9e2af;border-style:dashed;"></span>共享标签</div>';
         html += '</div>';
         legend.innerHTML = html;
