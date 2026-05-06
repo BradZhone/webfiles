@@ -568,7 +568,6 @@
                 to: e.to,
                 type: e.type || 'wikilink',
                 title: e.context || e.label || undefined,
-                length: hasGroups ? (isIntraVault ? 80 : 150) : undefined,
                 color: getEdgeColor(e.type || 'wikilink'),
                 dashes: e.type === 'tag' ? [5, 5] : false,
                 width: 1.5
@@ -578,31 +577,35 @@
         var nodesDS = new vis.DataSet(nodes);
         var edgesDS = new vis.DataSet(edges);
         var physicsOptions = hasGroups ? {
-            solver: 'forceAtlas2Based',
-            forceAtlas2Based: {
-                gravitationalConstant: -80,
-                centralGravity: 0.01,
+            solver: 'barnesHut',
+            barnesHut: {
+                gravitationalConstant: -2500,
+                centralGravity: 0.25,
                 springLength: 120,
-                springConstant: 0.08,
-                damping: 0.85
+                springConstant: 0.04,
+                damping: 0.15,
+                avoidOverlap: 0.1
             },
-            stabilization: { iterations: 300 },
-            minVelocity: 1.0,
-            maxVelocity: 30
+            stabilization: { iterations: 150, updateInterval: 25 },
+            minVelocity: 0.5,
+            maxVelocity: 50,
+            timestep: 0.5
         } : {
-            solver: 'forceAtlas2Based',
-            forceAtlas2Based: {
-                gravitationalConstant: -60,
-                centralGravity: 0.01,
-                springLength: 120,
-                springConstant: 0.08,
-                damping: 0.85
+            solver: 'barnesHut',
+            barnesHut: {
+                gravitationalConstant: -2000,
+                centralGravity: 0.3,
+                springLength: 95,
+                springConstant: 0.05,
+                damping: 0.15,
+                avoidOverlap: 0.1
             },
-            stabilization: { iterations: 200 },
-            minVelocity: 1.0,
-            maxVelocity: 30
+            stabilization: { iterations: 150, updateInterval: 25 },
+            minVelocity: 0.5,
+            maxVelocity: 50,
+            timestep: 0.5
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 }, shadow: { enabled: false } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'dynamic', roundness: 0.5 }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
@@ -671,7 +674,7 @@
             connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
             nodesDS.forEach(function(n) {
                 var isConnected = n.id === nodeId || connectedNodes.indexOf(n.id) !== -1;
-                nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : 'transparent', size: 11 } });
+                nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.2, font: { color: isConnected ? '#cdd6f4' : 'transparent', size: 11 } });
             });
             edgesDS.forEach(function(e) {
                 edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5, font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } });
@@ -744,9 +747,8 @@
             var isHighlighted = isClicked || isConnected;
             graphNetwork._nodesDS.update({
                 id: n.id,
-                opacity: isHighlighted ? 1 : 0.15,
+                opacity: isHighlighted ? 1 : 0.2,
                 font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isClicked ? 14 : (isConnected ? 12 : 11) },
-                shadow: isClicked ? { enabled: true, color: '#f5c2e7', size: 15, x: 0, y: 0 } : { enabled: false },
                 borderWidth: isClicked ? 4 : 2
             });
         });
@@ -768,7 +770,6 @@
                 id: n.id,
                 opacity: 1,
                 font: { color: 'transparent', size: 11 },
-                shadow: { enabled: false },
                 borderWidth: 2
             });
         });
