@@ -19,6 +19,15 @@
     let sidebarCollapsed = false;
     let dirBrowserCurrentPath = '';
 
+    function onEditorChange() {
+        isModified = true;
+        updateSaveStatus('modified');
+        scheduleAutoSave();
+        if (currentTab === 'preview') {
+            renderPreview(notesEditor.getValue());
+        }
+    }
+
     // ========== Constants ==========
     const AUTO_SAVE_DELAY = 2000;
     const TYPE_ICONS = { note: '📝', idea: '💡', todo: '✅', journal: '📔' };
@@ -48,6 +57,13 @@
 
     global.closeNotesView = function() {
         clearAutoSave();
+        if (isModified && currentNote && notesEditor) {
+            saveCurrentNote();
+        }
+        if (notesEditor) {
+            notesEditor.toTextArea();
+            notesEditor = null;
+        }
         showView('listView');
         document.getElementById('headerTitle').textContent = '文件管理器';
     };
@@ -174,13 +190,14 @@
 
     // ========== Directory Browser ==========
     global.showDirBrowser = async function() {
+        dirBrowserCurrentPath = '';
         const modal = document.getElementById('notesDirBrowser');
         if (!modal) return;
         modal.classList.remove('notes-hidden');
         modal.style.display = 'flex';
         const nameInput = document.getElementById('dirBrowserName');
         if (nameInput) nameInput.value = '';
-        await notesBrowseTo('');
+        notesBrowseTo('');
     };
 
     global.hideDirBrowser = function() {
@@ -330,8 +347,11 @@
 
             // Update editor
             if (notesEditor) {
+                notesEditor.off('change', onEditorChange);
+                isModified = false;
                 notesEditor.setValue(data.content);
                 notesEditor.clearHistory();
+                notesEditor.on('change', onEditorChange);
             } else {
                 initEditor(data.content);
             }
@@ -510,14 +530,7 @@
             }
         });
         notesEditor.setValue(content || '');
-        notesEditor.on('change', function() {
-            isModified = true;
-            updateSaveStatus('modified');
-            scheduleAutoSave();
-            if (currentTab === 'preview') {
-                renderPreview(notesEditor.getValue());
-            }
-        });
+        notesEditor.on('change', onEditorChange);
     }
 
     function scheduleAutoSave() {
@@ -837,6 +850,10 @@
 
     // ========== Quick Capture ==========
     global.doQuickCapture = async function() {
+        if (!currentNotesPath) {
+            showToast('请先配置笔记路径', 'error');
+            return;
+        }
         const input = document.getElementById('notesQuickInput');
         if (!input) return;
         const content = input.value.trim();
@@ -888,6 +905,12 @@
         }
         currentNotesPath = notesPath;
         currentNote = null;
+        currentTagFilter = '';
+        currentFilter = 'all';
+        document.querySelectorAll('.notes-category-tab').forEach(function(t) {
+            t.classList.toggle('active', t.dataset.filter === 'all');
+        });
+        renderTagFilterBar();
         serverSearchActive = false;
         loadNotes();
         showEmptyState();
