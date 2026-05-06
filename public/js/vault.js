@@ -582,7 +582,7 @@
             forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 },
             stabilization: { iterations: 200 }
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
@@ -719,8 +719,8 @@
                 id: e.id,
                 color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
                 width: isHighlighted ? 3 : 0.5,
-                label: isHighlighted ? (e.title || '') : undefined,
-                font: isHighlighted ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
+                label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
+                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
             });
         });
     }
@@ -738,8 +738,8 @@
                 id: e.id,
                 color: { color: '#585b70', highlight: '#89b4fa' },
                 width: 1.5,
-                label: undefined,
-                font: { color: 'transparent' }
+                label: '',
+                font: { color: 'transparent', size: 10 }
             });
         });
     }
