@@ -531,7 +531,6 @@
     function getEdgeColor(type) {
         switch(type) {
             case 'wikilink': return { color: '#89b4fa', highlight: '#b4d0fb', hover: '#b4d0fb' };
-            case 'bidirectional': return { color: '#cba6f7', highlight: '#dbb9ff', hover: '#dbb9ff' };
             case 'tag': return { color: '#f9e2af', highlight: '#fcefd5', hover: '#fcefd5' };
             case 'backlink': return { color: '#a6e3a1', highlight: '#c8eec6', hover: '#c8eec6' };
             default: return { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' };
@@ -548,11 +547,16 @@
             };
         }
         var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
+        var connectionCount = {};
+        (data.edges || []).forEach(function(e) {
+            connectionCount[e.from] = (connectionCount[e.from] || 0) + 1;
+            connectionCount[e.to] = (connectionCount[e.to] || 0) + 1;
+        });
         var nodes = (data.nodes || []).map(function(n) {
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: n.size || 16, tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(12, Math.min(40, 12 + (connectionCount[n.id || n.path] || 0) * 2)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -565,9 +569,9 @@
                 type: e.type || 'wikilink',
                 title: e.context || e.label || undefined,
                 length: hasGroups ? (isIntraVault ? 100 : 300) : undefined,
-                color: e.weight === 2 ? getEdgeColor('bidirectional') : getEdgeColor(e.type || 'wikilink'),
+                color: getEdgeColor(e.type || 'wikilink'),
                 dashes: e.type === 'tag' ? [5, 5] : false,
-                width: e.weight === 2 ? 2.5 : 1.5
+                width: 1.5
             };
         });
         container.innerHTML = '';
@@ -587,13 +591,7 @@
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
         network.once('stabilizationIterationsDone', function() {
-            network.setOptions({ physics: { enabled: false } });
-        });
-        network.on('dragStart', function() {
-            network.setOptions({ physics: { enabled: true } });
-        });
-        network.on('dragEnd', function() {
-            network.setOptions({ physics: { enabled: false } });
+            network.stopSimulation();
         });
         network.on('click', function(params) {
             if (params.nodes.length === 0) {
@@ -643,7 +641,7 @@
                 nodesDS.update({ id: n.id, opacity: isConnected ? 1 : 0.1, font: { color: isConnected ? '#cdd6f4' : 'transparent', size: 11 } });
             });
             edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5, font: { color: 'transparent' } });
+                edgesDS.update({ id: e.id, color: { color: connectedEdgeSet[e.id] ? '#89b4fa' : 'rgba(88,91,112,0.1)' }, width: connectedEdgeSet[e.id] ? 2.5 : 0.5, font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } });
             });
         });
         network.on('blurNode', function() {
@@ -652,7 +650,7 @@
                 nodesDS.update({ id: n.id, opacity: 1, font: { color: 'transparent', size: 11 } });
             });
             edgesDS.forEach(function(e) {
-                edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5, font: { color: 'transparent' } });
+                edgesDS.update({ id: e.id, color: { color: '#585b70' }, width: 1.5, font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } });
             });
         });
         setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);
@@ -720,7 +718,7 @@
                 color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
                 width: isHighlighted ? 3 : 0.5,
                 label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
-                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent' }
+                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
         });
     }
@@ -739,7 +737,7 @@
                 color: { color: '#585b70', highlight: '#89b4fa' },
                 width: 1.5,
                 label: '',
-                font: { color: 'transparent', size: 10 }
+                font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent', background: 'transparent' }
             });
         });
     }
@@ -844,7 +842,6 @@
         // Edge types section
         html += '<div class="graph-legend-section"><span class="legend-section-label">连接类型</span>';
         html += '<div class="legend-item"><span class="legend-line" style="border-color:#89b4fa;border-style:solid;"></span>引用链接</div>';
-        html += '<div class="legend-item"><span class="legend-line" style="border-color:#cba6f7;border-style:solid;border-width:3px;"></span>双向引用</div>';
         html += '<div class="legend-item"><span class="legend-line" style="border-color:#f9e2af;border-style:dashed;"></span>共享标签</div>';
         html += '</div>';
         legend.innerHTML = html;
