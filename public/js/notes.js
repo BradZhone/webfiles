@@ -180,7 +180,7 @@
         modal.style.display = 'flex';
         const nameInput = document.getElementById('dirBrowserName');
         if (nameInput) nameInput.value = '';
-        await browseTo('');
+        await notesBrowseTo('');
     };
 
     global.hideDirBrowser = function() {
@@ -191,7 +191,7 @@
         }
     };
 
-    global.browseTo = async function(dirPath) {
+    global.notesBrowseTo = async function(dirPath) {
         const pathEl = document.getElementById('notesDirBrowserPath');
         const listEl = document.getElementById('notesDirBrowserList');
         if (!listEl) return;
@@ -206,11 +206,11 @@
             let html = '';
             const parentPath = data.path.replace(/\/[^\/]+\/?$/, '');
             if (parentPath && parentPath !== data.path) {
-                html += '<div class="dir-browser-item dir-browser-up" onclick="browseTo(\'' + escapeAttr(parentPath) + '\')"><span class="dir-icon">⬆️</span> ..</div>';
+                html += '<div class="dir-browser-item dir-browser-up" onclick="notesBrowseTo(\'' + escapeAttr(parentPath) + '\')"><span class="dir-icon">⬆️</span> ..</div>';
             }
             if (data.dirs && data.dirs.length > 0) {
                 data.dirs.forEach(function(d) {
-                    html += '<div class="dir-browser-item" onclick="browseTo(\'' + escapeAttr(d.path) + '\')"><span class="dir-icon">📁</span> ' + escapeHtml(d.name) + '</div>';
+                    html += '<div class="dir-browser-item" onclick="notesBrowseTo(\'' + escapeAttr(d.path) + '\')"><span class="dir-icon">📁</span> ' + escapeHtml(d.name) + '</div>';
                 });
             } else if (!parentPath || parentPath === data.path) {
                 html += '<div class="notes-list-empty" style="padding:16px;">\u6ca1\u6709\u5b50\u76ee\u5f55</div>';
