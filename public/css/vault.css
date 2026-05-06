@@ -813,10 +813,9 @@
 }
 .graph-toolbar-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
 }
 
 .graph-folder-filters {
@@ -845,4 +844,42 @@
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
+}
+.graph-filter-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.graph-filter-label {
+    font-size: 10px;
+    color: var(--dim, #6c7086);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+.graph-tag-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: center;
+}
+.graph-tag-check {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: #89b4fa;
+    cursor: pointer;
+    user-select: none;
+}
+.graph-tag-check input[type="checkbox"] {
+    width: 11px;
+    height: 11px;
+    margin: 0;
+    cursor: pointer;
+}
+.graph-tag-count {
+    font-size: 9px;
+    color: var(--dim, #6c7086);
 }

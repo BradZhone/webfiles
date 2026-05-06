@@ -792,7 +792,17 @@
     function updateGraphGrouping(value) {
         if (!graphNetwork || !graphNetwork._allNodes) return;
         var nodesDS = graphNetwork._nodesDS;
-        graphNetwork._allNodes.forEach(function(n) { nodesDS.update({ id: n.id, color: { background: getNodeColor(n.path, value, n.tags || []), border: '#74c7ec', highlight: { background: '#f38ba8', border: '#f38ba8' }, hover: { background: '#a6e3a1', border: '#a6e3a1' } } }); });
+        graphNetwork._allNodes.forEach(function(n) {
+            var newColor = getNodeColor(n.path || n.id, value, n.tags || []);
+            nodesDS.update({ id: n.id, color: graphNodeColor(newColor) });
+        });
+        // Update originalNodeColors so reset works correctly
+        if (graphNetwork._originalNodeColors) {
+            graphNetwork._allNodes.forEach(function(n) {
+                var newColor = getNodeColor(n.path || n.id, value, n.tags || []);
+                graphNetwork._originalNodeColors[n.id] = graphNodeColor(newColor);
+            });
+        }
     }
     function filterGraphBySearch(query) {
         if (!graphNetwork || !graphNetwork._allNodes) return;
@@ -812,8 +822,12 @@
         var tb = document.getElementById('graphToolbar');
         if (!tb) return;
         tb.className = 'graph-toolbar';
+        
+        // Folder checkboxes
         var folderChecks = '';
+        var tagChecks = '';
         if (graphData && graphData.nodes) {
+            // Folders
             var groups = {};
             graphData.nodes.forEach(function(n) {
                 var key = n.groupKey || n.vaultName || 'default';
@@ -823,13 +837,28 @@
             sortedKeys.forEach(function(g) {
                 var display = g.replace(/\/\.$/,  '');
                 var dotColor = VAULT_COLORS[sortedKeys.indexOf(g) % VAULT_COLORS.length];
-                folderChecks += '<label class="graph-folder-check"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="filterGraphByFolders()"><span class="graph-folder-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
+                folderChecks += '<label class="graph-folder-check"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="applyGraphFilters()"><span class="graph-folder-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
+            });
+            
+            // Tags — collect all unique tags
+            var allTags = {};
+            graphData.nodes.forEach(function(n) {
+                (n.tags || []).forEach(function(t) {
+                    allTags[t] = (allTags[t] || 0) + 1;
+                });
+            });
+            // Sort by frequency (most common first), limit to top 15
+            var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; }).slice(0, 15);
+            sortedTags.forEach(function(tag) {
+                tagChecks += '<label class="graph-tag-check"><input type="checkbox" checked value="' + escapeHtml(tag) + '" onchange="applyGraphFilters()">#' + escapeHtml(tag) + ' <span class="graph-tag-count">' + allTags[tag] + '</span></label>';
             });
         }
+        
         tb.innerHTML = '<div class="graph-toolbar-row">' +
-            '<div class="graph-folder-filters">' + folderChecks + '</div>' +
-            '<select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="toggleOrphans()"> 隐藏孤立</label>' +
+            '<div class="graph-filter-section"><span class="graph-filter-label">文件夹</span><div class="graph-folder-filters">' + folderChecks + '</div></div>' +
+            (tagChecks ? '<div class="graph-filter-section"><span class="graph-filter-label">标签</span><div class="graph-tag-filters">' + tagChecks + '</div></div>' : '') +
+            '<div class="graph-filter-section"><select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="applyGraphFilters()"> 隐藏孤立</label></div>' +
             '</div>';
     }
     function setGraphMode(mode) {
@@ -916,22 +945,64 @@
         renderCurrentGraph();
     }
 
-    function filterGraphByFolders() {
+    function applyGraphFilters() {
         if (!graphData) return;
-        var checkboxes = document.querySelectorAll('.graph-folder-check input[type="checkbox"]');
-        var selected = {};
-        checkboxes.forEach(function(cb) {
-            if (cb.checked) selected[cb.value] = true;
-        });
+        
+        // Get checked folders
+        var folderBoxes = document.querySelectorAll('.graph-folder-check input[type="checkbox"]');
+        var selectedFolders = {};
+        folderBoxes.forEach(function(cb) { if (cb.checked) selectedFolders[cb.value] = true; });
+        
+        // Get checked tags (if no tag boxes exist, allow all)
+        var tagBoxes = document.querySelectorAll('.graph-tag-check input[type="checkbox"]');
+        var selectedTags = {};
+        var hasTagFilter = tagBoxes.length > 0;
+        tagBoxes.forEach(function(cb) { if (cb.checked) selectedTags[cb.value] = true; });
+        
+        // Hide orphans?
+        var hideOrphans = document.getElementById('graphHideOrphans');
+        var shouldHideOrphans = hideOrphans && hideOrphans.checked;
+        
+        // Filter nodes: must match folder AND have at least one selected tag
         var filteredNodes = graphData.nodes.filter(function(n) {
-            var key = n.groupKey || n.vaultName || 'default';
-            return selected[key];
+            var folderKey = n.groupKey || n.vaultName || 'default';
+            if (!selectedFolders[folderKey]) return false;
+            
+            // Tag filter: if tag checkboxes exist, node must have at least one checked tag
+            if (hasTagFilter) {
+                var nodeTags = n.tags || [];
+                // If ALL tag boxes are checked, don't filter by tag
+                var allTagsChecked = true;
+                tagBoxes.forEach(function(cb) { if (!cb.checked) allTagsChecked = false; });
+                if (!allTagsChecked) {
+                    var hasMatchingTag = nodeTags.some(function(t) { return selectedTags[t]; });
+                    if (!hasMatchingTag) return false;
+                }
+            }
+            return true;
         });
+        
+        // Build node ID set
         var nodeIds = {};
         filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
+        
+        // Filter edges
         var filteredEdges = graphData.edges.filter(function(e) {
             return nodeIds[e.from] && nodeIds[e.to];
         });
+        
+        // Hide orphans (nodes with no edges in filtered set)
+        if (shouldHideOrphans) {
+            var connectedIds = {};
+            filteredEdges.forEach(function(e) { connectedIds[e.from] = true; connectedIds[e.to] = true; });
+            filteredNodes = filteredNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
+            // Re-filter edges
+            nodeIds = {};
+            filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
+            filteredEdges = filteredEdges.filter(function(e) { return nodeIds[e.from] && nodeIds[e.to]; });
+        }
+        
+        // Redraw graph
         var container = document.getElementById('graphCanvas');
         if (container) {
             initGraph(container, { nodes: filteredNodes, edges: filteredEdges });
@@ -1347,7 +1418,7 @@
     global.setGraphMode = setGraphMode;
     global.refreshGraph = refreshGraph;
     global.filterGraphByVault = filterGraphByVault;
-    global.filterGraphByFolders = filterGraphByFolders;
+    global.applyGraphFilters = applyGraphFilters;
     global.setupGraphToolbar = setupGraphToolbar;
     global.togglePanel = togglePanel;
     global.loadContentGraph = loadContentGraph;
