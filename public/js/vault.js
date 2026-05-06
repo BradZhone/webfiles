@@ -584,10 +584,10 @@
                 centralGravity: 0.01,
                 springLength: 120,
                 springConstant: 0.08,
-                damping: 0.5
+                damping: 0.85
             },
             stabilization: { iterations: 300 },
-            minVelocity: 0.75,
+            minVelocity: 1.0,
             maxVelocity: 30
         } : {
             solver: 'forceAtlas2Based',
@@ -596,23 +596,16 @@
                 centralGravity: 0.01,
                 springLength: 120,
                 springConstant: 0.08,
-                damping: 0.5
+                damping: 0.85
             },
             stabilization: { iterations: 200 },
-            minVelocity: 0.75,
+            minVelocity: 1.0,
             maxVelocity: 30
         };
         var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 }, shadow: { enabled: false } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
-        network.on('dragEnd', function(params) {
-            if (params.nodes.length > 0) {
-                var nodeId = params.nodes[0];
-                var pos = network.getPositions([nodeId]);
-                nodesDS.update({ id: nodeId, x: pos[nodeId].x, y: pos[nodeId].y, fixed: { x: true, y: true } });
-            }
-        });
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
                 var nodeId = params.nodes[0];
@@ -764,7 +757,7 @@
                 color: isHighlighted ? { color: '#89b4fa', highlight: '#89b4fa' } : { color: '#313244' },
                 width: isHighlighted ? 3 : 0.5,
                 label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
-                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 3, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
+                font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
             });
         });
     }
