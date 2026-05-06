@@ -579,36 +579,46 @@
         var physicsOptions = hasGroups ? {
             solver: 'barnesHut',
             barnesHut: {
-                gravitationalConstant: -2500,
-                centralGravity: 0.25,
+                gravitationalConstant: -1200,
+                centralGravity: 0.5,
                 springLength: 120,
-                springConstant: 0.04,
-                damping: 0.15,
+                springConstant: 0.06,
+                damping: 0.4,
                 avoidOverlap: 0.1
             },
-            stabilization: { iterations: 150, updateInterval: 25 },
-            minVelocity: 0.5,
-            maxVelocity: 50,
-            timestep: 0.5
+            stabilization: { iterations: 200, updateInterval: 50 },
+            minVelocity: 1.5,
+            maxVelocity: 30
         } : {
             solver: 'barnesHut',
             barnesHut: {
-                gravitationalConstant: -2000,
-                centralGravity: 0.3,
+                gravitationalConstant: -800,
+                centralGravity: 0.5,
                 springLength: 95,
-                springConstant: 0.05,
-                damping: 0.15,
+                springConstant: 0.06,
+                damping: 0.4,
                 avoidOverlap: 0.1
             },
-            stabilization: { iterations: 150, updateInterval: 25 },
-            minVelocity: 0.5,
-            maxVelocity: 50,
-            timestep: 0.5
+            stabilization: { iterations: 200, updateInterval: 50 },
+            minVelocity: 1.5,
+            maxVelocity: 30
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'dynamic', roundness: 0.5 }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
+        network.on('dragStart', function(params) {
+            if (params.nodes.length > 0) {
+                nodesDS.update({ id: params.nodes[0], fixed: false });
+            }
+        });
+        network.on('dragEnd', function(params) {
+            if (params.nodes.length > 0) {
+                var nodeId = params.nodes[0];
+                var pos = network.getPositions([nodeId]);
+                nodesDS.update({ id: nodeId, x: pos[nodeId].x, y: pos[nodeId].y, fixed: { x: true, y: true } });
+            }
+        });
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
                 var nodeId = params.nodes[0];
