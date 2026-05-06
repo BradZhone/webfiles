@@ -825,7 +825,7 @@
         
         // Folder checkboxes
         var folderChecks = '';
-        var tagChecks = '';
+        var tagPills = '';
         if (graphData && graphData.nodes) {
             // Folders
             var groups = {};
@@ -840,23 +840,21 @@
                 folderChecks += '<label class="graph-folder-check"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="applyGraphFilters()"><span class="graph-folder-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
             });
             
-            // Tags — collect all unique tags
             var allTags = {};
             graphData.nodes.forEach(function(n) {
                 (n.tags || []).forEach(function(t) {
                     allTags[t] = (allTags[t] || 0) + 1;
                 });
             });
-            // Sort by frequency (most common first), limit to top 15
-            var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; }).slice(0, 15);
+            var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; }).slice(0, 20);
             sortedTags.forEach(function(tag) {
-                tagChecks += '<label class="graph-tag-check"><input type="checkbox" checked value="' + escapeHtml(tag) + '" onchange="applyGraphFilters()">#' + escapeHtml(tag) + ' <span class="graph-tag-count">' + allTags[tag] + '</span></label>';
+                tagPills += '<span class="graph-tag-pill" data-tag="' + escapeHtml(tag) + '" onclick="toggleGraphTag(this)">#' + escapeHtml(tag) + '</span>';
             });
         }
         
         tb.innerHTML = '<div class="graph-toolbar-row">' +
             '<div class="graph-filter-section"><span class="graph-filter-label">文件夹</span><div class="graph-folder-filters">' + folderChecks + '</div></div>' +
-            (tagChecks ? '<div class="graph-filter-section"><span class="graph-filter-label">标签</span><div class="graph-tag-filters">' + tagChecks + '</div></div>' : '') +
+            (tagPills ? '<div class="graph-filter-section"><span class="graph-filter-label">标签</span><div class="graph-tag-pills">' + tagPills + '</div></div>' : '') +
             '<div class="graph-filter-section"><select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
             '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="applyGraphFilters()"> 隐藏孤立</label></div>' +
             '</div>';
@@ -945,6 +943,11 @@
         renderCurrentGraph();
     }
 
+    function toggleGraphTag(el) {
+        el.classList.toggle('active');
+        applyGraphFilters();
+    }
+
     function applyGraphFilters() {
         if (!graphData) return;
         
@@ -953,31 +956,24 @@
         var selectedFolders = {};
         folderBoxes.forEach(function(cb) { if (cb.checked) selectedFolders[cb.value] = true; });
         
-        // Get checked tags (if no tag boxes exist, allow all)
-        var tagBoxes = document.querySelectorAll('.graph-tag-check input[type="checkbox"]');
-        var selectedTags = {};
-        var hasTagFilter = tagBoxes.length > 0;
-        tagBoxes.forEach(function(cb) { if (cb.checked) selectedTags[cb.value] = true; });
+        var activeTags = [];
+        document.querySelectorAll('.graph-tag-pill.active').forEach(function(el) {
+            activeTags.push(el.getAttribute('data-tag'));
+        });
+        var hasTagFilter = activeTags.length > 0;
         
         // Hide orphans?
         var hideOrphans = document.getElementById('graphHideOrphans');
         var shouldHideOrphans = hideOrphans && hideOrphans.checked;
         
-        // Filter nodes: must match folder AND have at least one selected tag
         var filteredNodes = graphData.nodes.filter(function(n) {
             var folderKey = n.groupKey || n.vaultName || 'default';
             if (!selectedFolders[folderKey]) return false;
             
-            // Tag filter: if tag checkboxes exist, node must have at least one checked tag
             if (hasTagFilter) {
                 var nodeTags = n.tags || [];
-                // If ALL tag boxes are checked, don't filter by tag
-                var allTagsChecked = true;
-                tagBoxes.forEach(function(cb) { if (!cb.checked) allTagsChecked = false; });
-                if (!allTagsChecked) {
-                    var hasMatchingTag = nodeTags.some(function(t) { return selectedTags[t]; });
-                    if (!hasMatchingTag) return false;
-                }
+                var hasMatch = activeTags.some(function(t) { return nodeTags.indexOf(t) !== -1; });
+                if (!hasMatch) return false;
             }
             return true;
         });
@@ -1418,6 +1414,7 @@
     global.setGraphMode = setGraphMode;
     global.refreshGraph = refreshGraph;
     global.filterGraphByVault = filterGraphByVault;
+    global.toggleGraphTag = toggleGraphTag;
     global.applyGraphFilters = applyGraphFilters;
     global.setupGraphToolbar = setupGraphToolbar;
     global.togglePanel = togglePanel;
