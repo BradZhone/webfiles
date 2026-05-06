@@ -541,9 +541,9 @@
         function graphNodeColor(baseColor) {
             return {
                 background: baseColor || '#89b4fa',
-                border: '#74c7ec',
-                highlight: { background: '#f38ba8', border: '#f38ba8' },
-                hover: { background: '#a6e3a1', border: '#a6e3a1' }
+                border: (baseColor || '#89b4fa') + '80',
+                highlight: { background: '#f5c2e7', border: '#f5c2e7' },
+                hover: { background: baseColor || '#89b4fa', border: '#cdd6f4' }
             };
         }
         var hasGroups = data.nodes && data.nodes.some(function(n) { return n.vaultName; });
@@ -556,7 +556,7 @@
             var baseColor = n.color || getNodeColor(n.path || n.id, 'directory', n.tags || []);
             var name = (n.label || n.path || '').replace(/\.md$/, '');
             if (name.indexOf(':') !== -1) name = name.split(':').pop();
-            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(12, Math.min(40, 12 + (connectionCount[n.id || n.path] || 0) * 2)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
+            return { id: n.id || n.path, label: name.length > 15 ? name.substring(0, 14) + '…' : name, path: n.path || n.id, vault: n.vault || null, vaultName: n.vaultName || null, color: graphNodeColor(baseColor), size: Math.max(14, Math.min(26, 14 + (connectionCount[n.id || n.path] || 0) * 1)), tags: n.tags || [], font: { color: 'transparent', size: 11 }, title: (n.label || n.path) + (n.tags && n.tags.length ? '\nTags: ' + n.tags.join(', ') : '') };
         });
         var edges = (data.edges || []).map(function(e, i) {
             var fromNode = data.nodes.find(function(n) { return (n.id || n.path) === e.from; });
@@ -579,19 +579,42 @@
         var edgesDS = new vis.DataSet(edges);
         var physicsOptions = hasGroups ? {
             solver: 'forceAtlas2Based',
-            forceAtlas2Based: { gravitationalConstant: -120, centralGravity: 0.005, springLength: 200, springConstant: 0.05, damping: 0.4 },
-            stabilization: { iterations: 300 }
+            forceAtlas2Based: {
+                gravitationalConstant: -100,
+                centralGravity: 0.005,
+                springLength: 180,
+                springConstant: 0.06,
+                damping: 0.5
+            },
+            stabilization: { iterations: 300 },
+            minVelocity: 0.75,
+            maxVelocity: 30
         } : {
             solver: 'forceAtlas2Based',
-            forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 },
-            stabilization: { iterations: 200 }
+            forceAtlas2Based: {
+                gravitationalConstant: -60,
+                centralGravity: 0.01,
+                springLength: 120,
+                springConstant: 0.08,
+                damping: 0.5
+            },
+            stabilization: { iterations: 200 },
+            minVelocity: 0.75,
+            maxVelocity: 30
         };
-        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 3, font: { color: 'transparent', size: 11 } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
+        var options = { nodes: { color: graphNodeColor('#89b4fa'), shape: 'dot', size: 20, borderWidth: 2, borderWidthSelected: 4, font: { color: 'transparent', size: 11 }, shadow: { enabled: false } }, edges: { color: { color: '#585b70', highlight: '#89b4fa', hover: '#89b4fa' }, width: 1.5, arrows: { to: { enabled: false } }, smooth: { type: 'continuous' }, font: { color: 'transparent', size: 10, strokeWidth: 0 } }, physics: physicsOptions, interaction: { hover: true, tooltipDelay: 300000, navigationButtons: false, keyboard: true, dragNodes: true } };
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges;
-        network.once('stabilizationIterationsDone', function() {
-            network.setOptions({ physics: { enabled: false } });
+        network.on('dragEnd', function(params) {
+            if (params.nodes.length > 0) {
+                var nodeId = params.nodes[0];
+                var pos = network.getPositions([nodeId]);
+                nodesDS.update({ id: nodeId, x: pos[nodeId].x, y: pos[nodeId].y, fixed: { x: true, y: true } });
+                setTimeout(function() {
+                    nodesDS.update({ id: nodeId, fixed: { x: false, y: false } });
+                }, 1500);
+            }
         });
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
@@ -724,11 +747,15 @@
         var connectedEdgeSet = {};
         connectedEdges.forEach(function(eid) { connectedEdgeSet[eid] = true; });
         graphNetwork._nodesDS.forEach(function(n) {
-            var isHighlighted = n.id === nodeId || connected.indexOf(n.id) !== -1;
+            var isClicked = n.id === nodeId;
+            var isConnected = connected.indexOf(n.id) !== -1;
+            var isHighlighted = isClicked || isConnected;
             graphNetwork._nodesDS.update({
                 id: n.id,
                 opacity: isHighlighted ? 1 : 0.15,
-                font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isHighlighted ? 13 : 11 }
+                font: { color: isHighlighted ? '#cdd6f4' : 'transparent', size: isClicked ? 14 : (isConnected ? 12 : 11) },
+                shadow: isClicked ? { enabled: true, color: '#f5c2e7', size: 15, x: 0, y: 0 } : { enabled: false },
+                borderWidth: isClicked ? 4 : 2
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
@@ -748,7 +775,9 @@
             graphNetwork._nodesDS.update({
                 id: n.id,
                 opacity: 1,
-                font: { color: 'transparent', size: 11 }
+                font: { color: 'transparent', size: 11 },
+                shadow: { enabled: false },
+                borderWidth: 2
             });
         });
         graphNetwork._edgesDS.forEach(function(e) {
