@@ -647,43 +647,21 @@
         var lastTooltipShown = 0;
 
         network.on('selectNode', function(params) {
-            if (Date.now() - lastTooltipShown < 300) return;
+            if (Date.now() - lastTooltipShown < 200) return;
             if (params.nodes.length > 0) {
                 lastTooltipShown = Date.now();
                 var nodeId = params.nodes[0];
-                if (selectedGraphNode === nodeId) {
-                    hideGraphTooltip();
-                    resetGraphHighlight();
-                    selectedGraphNode = null;
-                    var node = nodesDS.get(nodeId);
-                    var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
-                    if (!filePath.endsWith('.md')) filePath += '.md';
-                    switchContentTab('preview');
-                    openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
-                    return;
-                }
                 selectedGraphNode = nodeId;
                 highlightGraphConnections(nodeId);
-                showGraphTooltip(nodeId, params.pointer ? params.pointer.DOM : {x:0,y:0});
+                showGraphTooltip(nodeId, params.pointer ? params.pointer.DOM : {x:0, y:0});
             }
         });
 
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
-                if (Date.now() - lastTooltipShown < 300) return;
+                if (Date.now() - lastTooltipShown < 200) return;
                 lastTooltipShown = Date.now();
                 var nodeId = params.nodes[0];
-                if (selectedGraphNode === nodeId) {
-                    hideGraphTooltip();
-                    resetGraphHighlight();
-                    selectedGraphNode = null;
-                    var node = nodesDS.get(nodeId);
-                    var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
-                    if (!filePath.endsWith('.md')) filePath += '.md';
-                    switchContentTab('preview');
-                    openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
-                    return;
-                }
                 selectedGraphNode = nodeId;
                 highlightGraphConnections(nodeId);
                 showGraphTooltip(nodeId, params.pointer.DOM);
@@ -732,8 +710,7 @@
             '<div class="graph-tooltip-connections">' + typeInfo + '  (共 ' + connections.length + ' 个连接)</div>' +
             (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +
             '</div>' +
-            '<div class="graph-tooltip-hint">再次点击打开文档</div>' +
-            '<div style="text-align:center;font-size:9px;color:#6c7086;margin-top:6px;">点击关闭</div>';
+            '<button class="graph-tooltip-open" onclick="event.stopPropagation();openGraphNodeFile(\'' + escapeHtml(nodeId).replace(/'/g, "\\'") + '\')">📄 打开文档</button>';
         var container = document.getElementById('graphCanvas');
         if (!container) return;
         container.style.position = 'relative';
@@ -743,8 +720,7 @@
         tooltip.style.left = 'auto';
         container.appendChild(tooltip);
         tooltip.addEventListener('click', function(e) {
-            // Don't close if clicking an actual action button (if any future buttons added)
-            if (e.target.tagName === 'A') return;
+            if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
             hideGraphTooltip();
         });
         graphTooltipEl = tooltip;
@@ -1541,6 +1517,17 @@
     global.jumpToVaultPath = jumpToVaultPath;
     global.createVaultFileInVault = createVaultFileInVault;
     global.toggleFrontmatterCollapse = toggleFrontmatterCollapse;
+    global.hideGraphTooltip = hideGraphTooltip;
+    global.openGraphNodeFile = function(nodeId) {
+        hideGraphTooltip();
+        resetGraphHighlight();
+        selectedGraphNode = null;
+        var node = graphNetwork && graphNetwork._nodesDS ? graphNetwork._nodesDS.get(nodeId) : null;
+        var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
+        if (!filePath.endsWith('.md')) filePath += '.md';
+        switchContentTab('preview');
+        openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
+    };
 
     global.VaultModule = {
         showVaultView: showVaultView,
@@ -1589,5 +1576,18 @@
             }
         }
     });
+
+    // Auto-close sidebar on mobile when tapping main content
+    var vaultLayout = document.querySelector('.vault-layout');
+    if (vaultLayout) {
+        vaultLayout.addEventListener('click', function(e) {
+            if (window.innerWidth > 768) return;
+            var sidebar = document.getElementById('vaultSidebar');
+            if (!sidebar || sidebar.classList.contains('collapsed')) return;
+            if (!sidebar.contains(e.target)) {
+                sidebar.classList.add('collapsed');
+            }
+        });
+    }
 
 })(window);

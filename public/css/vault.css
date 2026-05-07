@@ -710,6 +710,22 @@
 .graph-tooltip-close:hover {
     color: var(--text);
 }
+.graph-tooltip-open {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 6px 0;
+    background: rgba(137,180,250,0.1);
+    border: 1px solid rgba(137,180,250,0.3);
+    border-radius: 5px;
+    color: #89b4fa;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+}
+.graph-tooltip-open:hover {
+    background: rgba(137,180,250,0.2);
+}
 .graph-legend-title {
     font-weight: 600;
     color: var(--text);
