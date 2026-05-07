@@ -192,7 +192,7 @@
 
     function renderTreeFolder(folder, name, vaultPath) {
         var fileCount = countFilesInFolder(folder);
-        var html = '<div class="vault-tree-folder">';
+        var html = '<div class="vault-tree-folder collapsed">';
         html += '<div class="vault-tree-item" onclick="toggleTreeFolder(this.parentElement)"><span class="tree-icon">▶</span><span class="tree-label">📁 ' + escapeHtml(name) + ' <span class="vault-file-count">' + fileCount + '</span></span></div>';
         html += '<div class="vault-tree-children">';
         Object.keys(folder.children).sort().forEach(function(d) { html += renderTreeFolder(folder.children[d], d, vaultPath); });
@@ -206,6 +206,7 @@
 
     global.toggleTreeFolder = function(el) {
         el.classList.toggle('open');
+        el.classList.toggle('collapsed', !el.classList.contains('open'));
         var icon = el.querySelector('.tree-icon');
         if (icon) icon.textContent = el.classList.contains('open') ? '\u25bc' : '\u25b6';
     };
@@ -932,7 +933,7 @@
                 vaults[gKey] = (graphData && graphData.groupColorMap && graphData.groupColorMap[gKey]) || '#a6adc8';
             }
         });
-        var html = '<div class="graph-legend-title">图例</div>';
+        var html = '<button class="graph-legend-close" onclick="toggleGraphLegend()">✕</button><div class="graph-legend-title">图例</div>';
         // Vault section
         if (Object.keys(vaults).length > 1) {
             html += '<div class="graph-legend-section"><span class="legend-section-label">知识库</span>';

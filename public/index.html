@@ -106,7 +106,7 @@
             <button class="toolbar-btn" onclick="toggleSelectMode()" id="selectBtn">多选</button>
             <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
             <button class="toolbar-btn" onclick="showVaultView()" id="vaultBtn">知识库</button>
-            <button class="toolbar-btn" onclick="showNotesView()" id="notesBtn">📝 笔记</button>
+            <button class="toolbar-btn" onclick="showNotesView()" id="notesBtn">笔记</button>
             <div class="toolbar-divider"></div>
             <div class="view-mode-group">
                 <button class="view-mode-btn active" id="viewListBtn" onclick="setViewMode('list')" title="列表视图">☰</button>
@@ -605,8 +605,8 @@
                         <span>☰</span> 笔记列表
                     </div>
                     <div class="notes-content-tabs">
-                        <button type="button" class="notes-content-tab active" data-tab="edit" onclick="switchNotesTab('edit')">✏️ 编辑</button>
-                        <button type="button" class="notes-content-tab" data-tab="preview" onclick="switchNotesTab('preview')">📄 预览</button>
+                        <button type="button" class="notes-content-tab active" data-tab="preview" onclick="switchNotesTab('preview')">📄 预览</button>
+                        <button type="button" class="notes-content-tab" data-tab="edit" onclick="switchNotesTab('edit')">✏️ 编辑</button>
                         <button type="button" class="notes-content-tab" data-tab="todos" onclick="switchNotesTab('todos')">✅ 待办</button>
                     </div>
                     <div id="notesContentBody" class="notes-content-body">
@@ -704,7 +704,7 @@
         <div class="action-menu-item" onclick="showSearchView()">🔍 搜索</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showTerminalView()">💻 终端</div>
         <div class="action-menu-item" onclick="hideMainMenu(); showVaultView()">📚 知识库</div>
-        <div class="action-menu-item" onclick="hideMainMenu(); showNotesView()">📝 笔记</div>
+        <div class="action-menu-item" onclick="hideMainMenu(); showNotesView()">笔记</div>
         <div class="action-menu-item" onclick="showOpenFilesPanel()">📑 已打开文件 (<span id="openFilesCount">0</span>)</div>
         <div class="action-menu-item" onclick="location.href='/logout'">🚪 退出登录</div>
         <div class="action-menu-close" onclick="hideMainMenu()">取消</div>

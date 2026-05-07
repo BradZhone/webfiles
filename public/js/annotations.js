@@ -147,24 +147,33 @@
         var preview = document.getElementById('contentPreview');
         if (!preview) return;
 
-        // Remove old listener if any
+        // Remove old listeners if any
         if (preview._annMouseUp) {
             preview.removeEventListener('mouseup', preview._annMouseUp);
         }
+        if (preview._annTouchEnd) {
+            preview.removeEventListener('touchend', preview._annTouchEnd);
+        }
+
+        function handleSelectionEnd(e) {
+            var sel = window.getSelection();
+            if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+                hideSelectionToolbar();
+                return;
+            }
+            showSelectionToolbar(sel, e);
+        }
 
         preview._annMouseUp = function(e) {
-            // Delay slightly to let selection settle
-            setTimeout(function() {
-                var sel = window.getSelection();
-                if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-                    hideSelectionToolbar();
-                    return;
-                }
-                showSelectionToolbar(sel, e);
-            }, 10);
+            setTimeout(function() { handleSelectionEnd(e); }, 10);
+        };
+
+        preview._annTouchEnd = function(e) {
+            setTimeout(function() { handleSelectionEnd(e); }, 100);
         };
 
         preview.addEventListener('mouseup', preview._annMouseUp);
+        preview.addEventListener('touchend', preview._annTouchEnd);
 
         // Hide on click outside
         document.addEventListener('mousedown', function(e) {

@@ -15,7 +15,7 @@
     let searchQuery = '';
     let searchDebounceTimer = null;
     let serverSearchActive = false;
-    let currentTab = 'edit'; // 'edit' | 'preview' | 'todos'
+    let currentTab = 'preview'; // 'edit' | 'preview' | 'todos'
     let sidebarCollapsed = false;
     let dirBrowserCurrentPath = '';
 
