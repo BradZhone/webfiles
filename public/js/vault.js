@@ -11,6 +11,7 @@
     let graphCache = null;
     var graphMode = 'global';
     var graphData = null;
+    var graphTagLimit = 50;  // default tag edge limit (0 = unlimited)
     var selectedGraphNode = null;
     var graphTooltipEl = null;
     let savedVaultPaths = [];
@@ -857,6 +858,7 @@
             '<div class="graph-dropdown-wrap"><button class="graph-dropdown-btn" onclick="toggleGraphDropdown(\'folderDropdown\')">📁 文件夹 ▾</button><div class="graph-dropdown-menu" id="folderDropdown">' + folderItems + '</div></div>' +
             '<div class="graph-dropdown-wrap"><button class="graph-dropdown-btn" onclick="toggleGraphDropdown(\'tagDropdown\')">🏷️ 标签 ▾</button><div class="graph-dropdown-menu" id="tagDropdown">' + tagItems + '</div></div>' +
             '<select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
+            '<div class="graph-limit-wrap"><label class="graph-limit-label">标签边限制</label><select id="graphTagLimit" onchange="updateTagLimit(this.value)" class="graph-select"><option value="0"' + (graphTagLimit === 0 ? ' selected' : '') + '>不限制</option><option value="5"' + (graphTagLimit === 5 ? ' selected' : '') + '>5</option><option value="10"' + (graphTagLimit === 10 ? ' selected' : '') + '>10</option><option value="20"' + (graphTagLimit === 20 ? ' selected' : '') + '>20</option><option value="50"' + (graphTagLimit === 50 ? ' selected' : '') + '>50</option></select></div>' +
             '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="applyGraphFilters()"> 隐藏孤立</label>' +
             '<button class="graph-legend-toggle" onclick="toggleGraphLegend()">📊</button>' +
             '</div>';
@@ -1326,7 +1328,7 @@
         graphArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;"><div class="graph-spinner"></div></div>';
         try {
             var results = await Promise.all(savedVaultPaths.map(function(vp) {
-                return fetch('/api/vault/graph?vault=' + encodeURIComponent(vp))
+                return fetch('/api/vault/graph?vault=' + encodeURIComponent(vp) + '&tagLimit=' + graphTagLimit)
                     .then(function(r) { return r.json(); })
                     .then(function(data) { return { vault: vp, data: data.data || data }; })
                     .catch(function() { return { vault: vp, data: { nodes: [], edges: [] } }; });
@@ -1435,6 +1437,10 @@
     global.filterGraphByVault = filterGraphByVault;
     global.applyGraphFilters = applyGraphFilters;
     global.setupGraphToolbar = setupGraphToolbar;
+    global.updateTagLimit = function(val) {
+        graphTagLimit = parseInt(val) || 0;
+        loadContentGraph();
+    };
     global.togglePanel = togglePanel;
     global.loadContentGraph = loadContentGraph;
     global.switchContentTab = switchContentTab;

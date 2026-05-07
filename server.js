@@ -1840,12 +1840,13 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
   // GET /api/vault/graph - 构建笔记关系图
   app.get('/api/vault/graph', requireAuth, (req, res) => {
   const vaultPath = req.query.vault;
+  const tagEdgeLimit = parseInt(req.query.tagLimit) || 0;  // 0 = unlimited
   if (!vaultPath || !validateVaultPath(vaultPath, HOME_DIR)) {
     return res.status(400).json({ error: 'Invalid vault path' });
   }
 
   // Check cache first
-  const cacheKey = 'graph:' + vaultPath;
+  const cacheKey = 'graph:' + vaultPath + ':tl' + tagEdgeLimit;
   const cached = vaultCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -1909,7 +1910,8 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
   });
 
   Object.entries(tagToFiles).forEach(([tag, fileList]) => {
-    if (fileList.length <= 1 || fileList.length > 50) return;
+    if (fileList.length <= 1) return;
+    if (tagEdgeLimit > 0 && fileList.length > tagEdgeLimit) return;
     for (let i = 0; i < fileList.length; i++) {
       for (let j = i + 1; j < fileList.length; j++) {
         const pair = [fileList[i], fileList[j]].sort().join('--tag--');
