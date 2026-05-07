@@ -918,3 +918,95 @@
 .graph-legend.hidden {
     display: none;
 }
+
+/* ===== Annotation Highlights ===== */
+.annotation-highlight {
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 1px 0;
+    transition: background 0.2s;
+}
+.annotation-yellow { background: rgba(249, 226, 175, 0.3); }
+.annotation-yellow:hover { background: rgba(249, 226, 175, 0.5); }
+.annotation-blue { background: rgba(137, 180, 250, 0.3); }
+.annotation-blue:hover { background: rgba(137, 180, 250, 0.5); }
+.annotation-green { background: rgba(166, 227, 161, 0.3); }
+.annotation-green:hover { background: rgba(166, 227, 161, 0.5); }
+.annotation-pink { background: rgba(243, 139, 168, 0.3); }
+.annotation-pink:hover { background: rgba(243, 139, 168, 0.5); }
+.annotation-flash { animation: annFlash 0.5s ease 3; }
+@keyframes annFlash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* Annotation Toolbar (Medium-style) */
+.annotation-toolbar {
+    display: flex;
+    gap: 2px;
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+.ann-btn {
+    background: none;
+    border: none;
+    color: #cdd6f4;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.ann-btn:hover { background: rgba(137,180,250,0.15); }
+
+/* Annotation Popup */
+.annotation-popup {
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    padding: 10px 12px;
+    max-width: 280px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 1000;
+    font-size: 12px;
+    color: #cdd6f4;
+}
+.annotation-popup-content p { margin: 0 0 8px; }
+.annotation-no-comment { color: #6c7086; font-style: italic; }
+.annotation-popup-actions { display: flex; gap: 6px; }
+.annotation-popup-actions button {
+    background: rgba(137,180,250,0.1);
+    border: 1px solid #45475a;
+    color: #89b4fa;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.annotation-popup-actions button:hover { background: rgba(137,180,250,0.2); }
+
+/* Sidebar Annotation Panel */
+.annotation-panel-item {
+    padding: 6px 10px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.15s;
+}
+.annotation-panel-item:hover { background: rgba(137,180,250,0.05); }
+.annotation-panel-item.annotation-yellow { border-left-color: #f9e2af; }
+.annotation-panel-item.annotation-blue { border-left-color: #89b4fa; }
+.annotation-panel-item.annotation-green { border-left-color: #a6e3a1; }
+.annotation-panel-item.annotation-pink { border-left-color: #f38ba8; }
+.annotation-panel-text { color: #cdd6f4; margin-bottom: 2px; }
+.annotation-panel-comment { color: #6c7086; font-size: 10px; font-style: italic; }
+
+/* Word Count */
+.vault-word-count {
+    font-size: 10px;
+    color: var(--dim, #6c7086);
+    margin-left: auto;
+    padding-right: 12px;
+    line-height: 32px;
+}

@@ -312,6 +312,9 @@
             currentFileRaw = payload.raw || payload.body || '';
             renderPreview(preview, payload);
             loadBacklinks(filePath);
+            if (typeof initAnnotations === 'function') {
+                initAnnotations(currentVault, filePath);
+            }
             // metadata displayed in preview Properties block
             var title = payload.metadata && payload.metadata.title ? payload.metadata.title : filePath.split('/').pop().replace(/\.md$/, '');
             document.getElementById('headerTitle').textContent = '\ud83d\udcda ' + title;

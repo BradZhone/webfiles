@@ -508,6 +508,18 @@
                                 <div class="panel-empty" style="padding:12px;font-size:12px;">打开文件后显示反链</div>
                             </div>
                         </div>
+                        <div class="vault-panel" id="panelAnnotationsSection">
+                            <div class="vault-panel-header" onclick="togglePanel('annotations')">
+                                <span class="panel-arrow" id="panelAnnotationsArrow">▶</span>
+                                <span>📝 批注</span>
+                                <span class="panel-count" id="annotationCount">0</span>
+                            </div>
+                            <div class="vault-panel-body collapsed" id="panelAnnotations">
+                                <div id="annotationPanelBody">
+                                    <div class="panel-empty" style="padding:12px;font-size:12px;">选择文件查看批注</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     </div>
                 </div>
@@ -521,6 +533,7 @@
                         <button class="content-tab" onclick="switchContentTab('edit')" id="tabEdit">✏️ 编辑</button>
                         <button class="content-tab" onclick="switchContentTab('graph')" id="tabGraph">🌐 图谱</button>
                     </div>
+                    <span id="vaultWordCount" class="vault-word-count"></span>
                     <div class="vault-content-body" id="contentPreview">
                         <div class="vault-empty-state" id="vaultPreviewEmpty">
                             <div class="empty-icon">📑</div>
@@ -978,6 +991,7 @@
     <script src="js/terminal.js"></script>
     <script src="js/obsidian-markdown.js"></script>
     <script src="js/vault.js"></script>
+    <script src="js/annotations.js"></script>
     <script src="js/notes.js"></script>
     <script src="js/app.js"></script>
 </body>

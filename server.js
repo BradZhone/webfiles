@@ -1737,6 +1737,7 @@ function scanVault(vaultPath) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue;
+      if (entry.name === '_notes') continue;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(fullPath);
@@ -2160,6 +2161,7 @@ function scanNotes(notesPath, typeFilter, tagFilter) {
         try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
         for (const entry of entries) {
             if (entry.name.startsWith('.')) continue;
+            if (entry.name === '_notes') continue;
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
                 walk(fullPath);
@@ -2431,6 +2433,106 @@ app.get('/api/notes/todos', requireAuth, (req, res) => {
     const result = { todos: allTodos, total: allTodos.length, unchecked: allTodos.filter(t => !t.checked).length };
     notesCache.set(cacheKey, result);
     res.json(result);
+});
+
+// ===== Annotation API Routes =====
+
+// GET /api/vault/annotations - Get annotations for a file
+app.get('/api/vault/annotations', requireAuth, (req, res) => {
+    const { vault, file } = req.query;
+    if (!vault || !file) return res.json({ annotations: [] });
+    const notesDir = path.join(vault, '_notes');
+    const annoFile = path.join(notesDir, file.replace(/\.md$/, '.json'));
+    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    try {
+        if (fs.existsSync(annoFile)) {
+            const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
+            return res.json(data);
+        }
+        return res.json({ source: file, annotations: [] });
+    } catch (e) {
+        return res.json({ source: file, annotations: [] });
+    }
+});
+
+// POST /api/vault/annotations - Add an annotation
+app.post('/api/vault/annotations', requireAuth, (req, res) => {
+    const { vault, file, annotation } = req.body;
+    if (!vault || !file || !annotation) return res.status(400).json({ error: 'Missing fields' });
+    const notesDir = path.join(vault, '_notes');
+    const subDir = path.dirname(file);
+    const annoFile = path.join(notesDir, file.replace(/\.md$/, '.json'));
+    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    try {
+        fs.mkdirSync(path.join(notesDir, subDir), { recursive: true });
+        let data = { source: file, annotations: [] };
+        if (fs.existsSync(annoFile)) {
+            data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
+        }
+        annotation.id = annotation.id || 'ann-' + Date.now();
+        annotation.created = annotation.created || new Date().toISOString();
+        data.annotations.push(annotation);
+        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        return res.json({ success: true, annotation });
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// PUT /api/vault/annotations/:id - Edit an annotation
+app.put('/api/vault/annotations/:id', requireAuth, (req, res) => {
+    const { vault, file, updates } = req.body;
+    const annoId = req.params.id;
+    if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.json'));
+    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    try {
+        if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
+        const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
+        const idx = data.annotations.findIndex(a => a.id === annoId);
+        if (idx === -1) return res.status(404).json({ error: 'Annotation not found' });
+        Object.assign(data.annotations[idx], updates);
+        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        return res.json({ success: true, annotation: data.annotations[idx] });
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/vault/annotations/:id - Delete an annotation
+app.delete('/api/vault/annotations/:id', requireAuth, (req, res) => {
+    const { vault, file } = req.body;
+    const annoId = req.params.id;
+    if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.json'));
+    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    try {
+        if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
+        const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
+        data.annotations = data.annotations.filter(a => a.id !== annoId);
+        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        return res.json({ success: true });
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/vault/wordcount - Get word/character count for a file
+app.get('/api/vault/wordcount', requireAuth, (req, res) => {
+    const { vault, file } = req.query;
+    if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
+    const filePath = path.join(vault, file);
+    if (!filePath.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const body = content.replace(/^---[\s\S]*?---\n*/, '');
+        const chars = body.replace(/\s/g, '').length;
+        const words = body.match(/[a-zA-Z]+|[\u4e00-\u9fa5]/g);
+        const wordCount = words ? words.length : 0;
+        return res.json({ chars, words: wordCount });
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
 });
 
 // JSON error handler for API routes
