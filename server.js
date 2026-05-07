@@ -12,7 +12,10 @@ const { WebSocketServer } = require('ws');
 const os = require('os');
 const pty = require('node-pty');
 const unzipper = require('unzipper');
+const bcrypt = require('bcryptjs');
 const tar = require('tar');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,8 +40,14 @@ const configFile = loadConfigFile();
 // 优先级：环境变量 > 配置文件 > 默认值
 const PORT = process.env.WEBFILES_PORT || configFile.port || 8765;
 const HOME_DIR = process.env.WEBFILES_HOME || configFile.homeDir || process.env.HOME || '/home/brad';
-const sessionSecret = process.env.WEBFILES_SECRET || configFile.sessionSecret || crypto.randomBytes(32).toString('hex');
+const sessionSecret = process.env.WEBFILES_SECRET || crypto.randomBytes(32).toString('hex');
 const vaultPaths = configFile.vaultPaths || [];
+
+// Clean up: remove sessionSecret from config.json if present
+if (configFile.sessionSecret) {
+    delete configFile.sessionSecret;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(configFile, null, 2));
+}
 
 // 读取或创建配置
 function loadConfig() {
@@ -49,8 +58,11 @@ function loadConfig() {
     }
 }
 
-function saveConfig(config) {
-    config.sessionSecret = sessionSecret;
+function saveConfig(updates) {
+    const config = loadConfig() || {};
+    Object.assign(config, updates);
+    // Don't save sessionSecret to config file
+    delete config.sessionSecret;
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
@@ -101,7 +113,7 @@ cleanExpiredShares();
 
 // 初始化密码
 function initPassword(password) {
-    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const hash = bcrypt.hashSync(password, 10);
     saveConfig({ passwordHash: hash });
     return hash;
 }
@@ -109,9 +121,31 @@ function initPassword(password) {
 // 验证密码
 function verifyPassword(password) {
     const config = loadConfig();
-    if (!config) return false;
-    const hash = crypto.createHash('sha256').update(password).digest('hex');
-    return hash === config.passwordHash;
+    if (!config || !config.passwordHash) return false;
+    const hash = config.passwordHash;
+
+    // Detect old SHA256 hash (64 hex chars) vs bcrypt ($2a$/$2b$ prefix)
+    if (hash.length === 64 && /^[a-f0-9]+$/.test(hash)) {
+        // Legacy SHA256 — verify and migrate
+        const sha256 = crypto.createHash('sha256').update(password).digest('hex');
+        if (sha256 === hash) {
+            // Auto-migrate to bcrypt
+            const newHash = bcrypt.hashSync(password, 10);
+            saveConfig({ passwordHash: newHash });
+            return true;
+        }
+        return false;
+    }
+
+    // bcrypt verification
+    return bcrypt.compareSync(password, hash);
+}
+
+// Path traversal validation utility
+function isPathSafe(targetPath, allowedBase) {
+    const resolved = path.resolve(targetPath);
+    const resolvedBase = path.resolve(allowedBase);
+    return resolved.startsWith(resolvedBase + path.sep) || resolved === resolvedBase;
 }
 
 // 获取文件类型
@@ -151,24 +185,39 @@ const upload = multer({
     limits: { fileSize: 100 * 1024 * 1024 } // 100MB
 });
 
+// Security headers
+app.use(helmet({
+    contentSecurityPolicy: false,  // Disable CSP (would break inline scripts/styles)
+    crossOriginEmbedderPolicy: false  // Allow loading external resources
+}));
+
 // 中间件
 app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(session({
     secret: sessionSecret,
-    resave: true,
+    resave: false,
     saveUninitialized: false,
     rolling: true,
     cookie: {
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
+        sameSite: 'Strict',
         maxAge: 30 * 24 * 60 * 60 * 1000
     }
 }));
 
+// CSRF token generation
+app.use((req, res, next) => {
+    if (req.session && !req.session.csrfToken) {
+        req.session.csrfToken = crypto.randomBytes(16).toString('hex');
+    }
+    next();
+});
+
 // NOAUTH mode for testing
-const NOAUTH = process.env.WEBFILES_NOAUTH === '1';
+const NOAUTH = process.env.WEBFILES_NOAUTH === '1' && process.env.NODE_ENV !== 'production';
 
 // 认证中间件
 function requireAuth(req, res, next) {
@@ -182,6 +231,9 @@ function requireAuth(req, res, next) {
     res.redirect('/login');
 }
 
+app.get('/api/csrf-token', requireAuth, (req, res) => {
+    res.json({ token: req.session.csrfToken });
+});
 // 登录页面
 app.get('/login', (req, res) => {
     if (req.session && req.session.authenticated) {
@@ -270,8 +322,20 @@ app.get('/login', (req, res) => {
     `);
 });
 
+// Login rate limiting
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 5,  // 5 attempts per window
+    message: { error: '登录尝试次数过多，请15分钟后重试' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+        res.redirect('/login?error=' + encodeURIComponent('登录尝试次数过多，请15分钟后重试'));
+    }
+});
+
 // 登录处理
-app.post('/login', (req, res) => {
+app.post('/login', loginLimiter, (req, res) => {
     const { password } = req.body;
     if (!password) return res.redirect('/login?error=' + encodeURIComponent('请输入密码'));
 
@@ -1000,10 +1064,23 @@ app.post('/api/unzip', requireAuth, async (req, res) => {
         if (ext === 'zip') {
             // 解压 ZIP
             fs.mkdirSync(outputDir, { recursive: true });
-            fs.createReadStream(resolvedPath)
-                .pipe(unzipper.Extract({ path: outputDir }))
-                .on('close', () => res.json({ success: true, outputDir }))
-                .on('error', (err) => res.status(500).json({ error: err.message }));
+            const zip = fs.createReadStream(resolvedPath).pipe(unzipper.Parse());
+            zip.on('entry', function(entry) {
+                const entryPath = path.resolve(outputDir, entry.path);
+                if (!entryPath.startsWith(path.resolve(outputDir) + path.sep) && entryPath !== path.resolve(outputDir)) {
+                    entry.autodrain();
+                    return;
+                }
+                if (entry.type === 'Directory') {
+                    fs.mkdirSync(entryPath, { recursive: true });
+                    entry.autodrain();
+                } else {
+                    fs.mkdirSync(path.dirname(entryPath), { recursive: true });
+                    entry.pipe(fs.createWriteStream(entryPath));
+                }
+            });
+            zip.on('close', () => res.json({ success: true, outputDir }));
+            zip.on('error', (err) => res.status(500).json({ error: err.message }));
         } else if (ext === 'tar' || ext === 'gz' || ext === 'tgz') {
             // 解压 TAR/TAR.GZ
             fs.mkdirSync(outputDir, { recursive: true });
@@ -2054,7 +2131,7 @@ app.post('/api/vault/write', requireAuth, (req, res) => {
     if (!validateVaultPath(vault, HOME_DIR)) return res.status(400).json({ error: 'Invalid vault path' });
     const filePath = path.join(vault, file);
     const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(vault))) return res.status(400).json({ error: 'Path traversal' });
+    if (!isPathSafe(resolved, vault)) return res.status(400).json({ error: 'Path traversal' });
     const dir = path.dirname(resolved);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     try {
@@ -2073,7 +2150,7 @@ app.delete('/api/vault/file', requireAuth, (req, res) => {
     if (!validateVaultPath(vault, HOME_DIR)) return res.status(400).json({ error: 'Invalid vault path' });
     const filePath = path.join(vault, file);
     const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(vault))) return res.status(400).json({ error: 'Path traversal' });
+    if (!isPathSafe(resolved, vault)) return res.status(400).json({ error: 'Path traversal' });
     try {
         if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'File not found' });
         fs.unlinkSync(resolved);
@@ -2515,8 +2592,8 @@ function writeAnnotationMd(filePath, source, annotations) {
 app.get('/api/vault/annotations', requireAuth, (req, res) => {
     const { vault, file } = req.query;
     if (!vault || !file) return res.json({ annotations: [] });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
-    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    const annoFile = path.resolve(path.join(vault, '_notes', file.replace(/\.md$/, '.md')));
+    if (!isPathSafe(annoFile, vault)) return res.status(403).json({ error: 'Access denied' });
     if (fs.existsSync(annoFile)) {
         const data = parseAnnotationMd(annoFile);
         return res.json({ source: file, annotations: data.annotations });
@@ -2528,8 +2605,8 @@ app.get('/api/vault/annotations', requireAuth, (req, res) => {
 app.post('/api/vault/annotations', requireAuth, (req, res) => {
     const { vault, file, annotation } = req.body;
     if (!vault || !file || !annotation) return res.status(400).json({ error: 'Missing fields' });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
-    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    const annoFile = path.resolve(path.join(vault, '_notes', file.replace(/\.md$/, '.md')));
+    if (!isPathSafe(annoFile, vault)) return res.status(403).json({ error: 'Access denied' });
     
     let data = { source: file, annotations: [] };
     if (fs.existsSync(annoFile)) {
@@ -2549,8 +2626,8 @@ app.put('/api/vault/annotations/:id', requireAuth, (req, res) => {
     const { vault, file, updates } = req.body;
     const annoId = req.params.id;
     if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
-    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    const annoFile = path.resolve(path.join(vault, '_notes', file.replace(/\.md$/, '.md')));
+    if (!isPathSafe(annoFile, vault)) return res.status(403).json({ error: 'Access denied' });
     if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
     
     const data = parseAnnotationMd(annoFile);
@@ -2567,8 +2644,8 @@ app.delete('/api/vault/annotations/:id', requireAuth, (req, res) => {
     const { vault, file } = req.body;
     const annoId = req.params.id;
     if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
-    if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
+    const annoFile = path.resolve(path.join(vault, '_notes', file.replace(/\.md$/, '.md')));
+    if (!isPathSafe(annoFile, vault)) return res.status(403).json({ error: 'Access denied' });
     if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
     
     const data = parseAnnotationMd(annoFile);
