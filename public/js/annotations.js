@@ -189,19 +189,37 @@
         var text = selection.toString().trim();
         if (!text || text.length < 2) return;
 
-        var range = selection.getRangeAt(0);
-        var rect = range.getBoundingClientRect();
-
         var toolbar = document.createElement('div');
         toolbar.id = 'annotationToolbar';
         toolbar.className = 'annotation-toolbar';
-        toolbar.innerHTML =
-            '<button class="ann-btn ann-highlight-btn" data-color="yellow" onclick="annotateSelection(\'highlight\', \'yellow\')">🖊 高亮</button>' +
-            '<button class="ann-btn ann-comment-btn" onclick="annotateSelection(\'comment\', \'blue\')">💬 评论</button>';
 
-        toolbar.style.position = 'fixed';
-        toolbar.style.left = Math.max(10, Math.min(rect.left + rect.width / 2 - 70, window.innerWidth - 160)) + 'px';
-        toolbar.style.top = Math.max(10, rect.top - 44) + 'px';
+        var isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+        toolbar.innerHTML =
+            '<button class="ann-btn ann-highlight-btn" onclick="annotateSelection(\'highlight\', \'yellow\')">🖊 高亮</button>' +
+            '<button class="ann-btn ann-comment-btn" onclick="annotateSelection(\'comment\', \'blue\')">💬 评论</button>' +
+            (isMobile ? '<button class="ann-btn ann-cancel-btn" onclick="hideSelectionToolbar()">取消</button>' : '');
+
+        if (isMobile) {
+            // Fixed bottom bar on mobile
+            toolbar.style.position = 'fixed';
+            toolbar.style.bottom = '0';
+            toolbar.style.left = '0';
+            toolbar.style.right = '0';
+            toolbar.style.top = 'auto';
+            toolbar.style.borderRadius = '12px 12px 0 0';
+            toolbar.style.justifyContent = 'center';
+            toolbar.style.padding = '12px 16px';
+            toolbar.style.boxShadow = '0 -4px 20px rgba(0,0,0,0.5)';
+        } else {
+            // Desktop: float above selection
+            var range = selection.getRangeAt(0);
+            var rect = range.getBoundingClientRect();
+            toolbar.style.position = 'fixed';
+            toolbar.style.left = Math.max(10, Math.min(rect.left + rect.width / 2 - 70, window.innerWidth - 160)) + 'px';
+            toolbar.style.top = Math.max(10, rect.top - 44) + 'px';
+        }
+
         document.body.appendChild(toolbar);
     }
 

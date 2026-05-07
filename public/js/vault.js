@@ -88,8 +88,8 @@
         vaults.forEach(function(vaultPath) {
             var name = vaultPath.split('/').pop() || vaultPath;
             var vid = vaultIdFromPath(vaultPath);
-            html += '<div class="vault-root" id="' + vid + '" data-vault="' + escapeHtml(vaultPath) + '">';
-            html += '<div class="vault-root-header" onclick="toggleVaultRoot(\'' + vid + '\')"><span class="vault-root-icon">\u25bc</span><span class="vault-root-name">\ud83d\udcc2 ' + escapeHtml(name) + '</span>';
+            html += '<div class="vault-root collapsed" id="' + vid + '" data-vault="' + escapeHtml(vaultPath) + '">';
+            html += '<div class="vault-root-header" onclick="toggleVaultRoot(\'' + vid + '\')"><span class="vault-root-icon">▶</span><span class="vault-root-name">📂 ' + escapeHtml(name) + '</span>';
             html += '<button class="vault-root-new" onclick="event.stopPropagation();createVaultFileInVault(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="新建文档">+</button>';
             html += '<button class="vault-root-jump" onclick="event.stopPropagation();jumpToVaultPath(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="在文件管理器中打开">↗</button>';
             html += '<button class="vault-root-remove" onclick="event.stopPropagation();removeVault(\'' + escapeHtml(vaultPath).replace(/'/g, "\\'") + '\')" title="Remove">\u00d7</button></div>';
@@ -721,7 +721,7 @@
         var tooltip = document.createElement('div');
         tooltip.id = 'graphTooltip';
         tooltip.className = 'graph-tooltip';
-        tooltip.innerHTML = '<button onclick="hideGraphTooltip()" style="position:absolute;top:4px;right:8px;background:none;border:none;color:#6c7086;cursor:pointer;font-size:14px;">✕</button>' +
+        tooltip.innerHTML = '<button onclick="hideGraphTooltip()" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#6c7086;cursor:pointer;font-size:18px;padding:8px;line-height:1;z-index:10;">✕</button>' +
         '<div class="graph-tooltip-title">📄 ' + (node.label || node.id) + '</div>' +
         '<div class="graph-tooltip-path">' + (node.path || node.id) + '</div>' +
         '<div class="graph-tooltip-meta">' +
@@ -729,7 +729,8 @@
             '<div class="graph-tooltip-connections">' + typeInfo + '  (共 ' + connections.length + ' 个连接)</div>' +
             (node.group && node.group !== '.' ? '<div class="graph-tooltip-group">📁 ' + node.group + '</div>' : '') +
             '</div>' +
-            '<div class="graph-tooltip-hint">再次点击打开文档</div>';
+            '<div class="graph-tooltip-hint">再次点击打开文档</div>' +
+            '<div style="text-align:center;font-size:9px;color:#6c7086;margin-top:6px;">点击关闭</div>';
         var container = document.getElementById('graphCanvas');
         if (!container) return;
         container.style.position = 'relative';
@@ -738,6 +739,12 @@
         tooltip.style.top = '8px';
         tooltip.style.left = 'auto';
         container.appendChild(tooltip);
+        tooltip.addEventListener('click', function(e) {
+            // If clicking the tooltip background (not a link/button inside), dismiss it
+            if (e.target === tooltip || e.target.classList.contains('graph-tooltip-title') || e.target.classList.contains('graph-tooltip-meta')) {
+                hideGraphTooltip();
+            }
+        });
         graphTooltipEl = tooltip;
         requestAnimationFrame(function() { tooltip.classList.add('show'); });
     }
