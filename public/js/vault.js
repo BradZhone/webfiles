@@ -1584,6 +1584,8 @@
             if (window.innerWidth > 768) return;
             var sidebar = document.getElementById('vaultSidebar');
             if (!sidebar || sidebar.classList.contains('collapsed')) return;
+            // Don't auto-close if clicking the toggle button or close button
+            if (e.target.closest('.vault-sidebar-toggle') || e.target.closest('.vault-sidebar-close')) return;
             if (!sidebar.contains(e.target)) {
                 sidebar.classList.add('collapsed');
             }
