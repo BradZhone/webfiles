@@ -1319,7 +1319,6 @@
         if (!container || savedVaultPaths.length === 0) return;
         container.innerHTML = '';
         var tb = document.createElement('div'); tb.id = 'graphToolbar'; container.appendChild(tb);
-        setupGraphToolbar();
         var graphArea = document.createElement('div');
         graphArea.id = 'graphCanvas';
         graphArea.style.cssText = 'flex:1;width:100%;position:relative;';
@@ -1369,6 +1368,7 @@
                     graphData.groupColorMap[key] = typeof n.color === 'string' ? n.color : '#a6adc8';
                 }
             });
+            setupGraphToolbar();
             renderCurrentGraph();
         } catch(e) {
             if (graphArea) graphArea.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Failed: ' + (e.message || e) + '</div>';

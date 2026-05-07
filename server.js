@@ -1909,7 +1909,7 @@ app.post('/api/vault/paths', requireAuth, (req, res) => {
   });
 
   Object.entries(tagToFiles).forEach(([tag, fileList]) => {
-    if (fileList.length <= 1 || fileList.length > 10) return;
+    if (fileList.length <= 1 || fileList.length > 50) return;
     for (let i = 0; i < fileList.length; i++) {
       for (let j = i + 1; j < fileList.length; j++) {
         const pair = [fileList[i], fileList[j]].sort().join('--tag--');
