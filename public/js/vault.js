@@ -851,7 +851,7 @@
         
         // Build tag dropdown items
         var tagItems = sortedTags.map(function(tag) {
-            return '<label class="graph-dropdown-item"><input type="checkbox" checked value="' + escapeHtml(tag) + '" onchange="applyGraphFilters()"><span class="graph-dropdown-tag">#' + escapeHtml(tag) + '</span><span class="graph-dropdown-count">' + allTags[tag] + '</span></label>';
+            return '<label class="graph-dropdown-item" ondblclick="soloGraphTag(\x27' + tag.replace(/\x27/g, "\\x27") + '\x27)"><input type="checkbox" checked value="' + tag.replace(/"/g, '&quot;') + '" onchange="applyGraphFilters()"><span class="graph-dropdown-tag">#' + escapeHtml(tag) + '</span><span class="graph-dropdown-count">' + allTags[tag] + '</span></label>';
         }).join('');
         
         tb.innerHTML = '<div class="graph-toolbar-row">' +
@@ -904,8 +904,14 @@
             displayNodes = displayNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
         }
         graphArea.style.cssText = '';
+        var existingLeg = graphArea.querySelector('.graph-legend');
+        var legHidden = existingLeg && existingLeg.classList.contains('hidden');
         initGraph(graphArea, { nodes: displayNodes, edges: displayEdges });
         renderGraphLegend(graphArea, { nodes: displayNodes, edges: displayEdges });
+        if (legHidden) {
+            var nl = graphArea.querySelector('.graph-legend');
+            if (nl) nl.classList.add('hidden');
+        }
         setTimeout(function() { if (graphNetwork) graphNetwork.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 300);
     }
     function renderGraphLegend(container, data) {
@@ -959,6 +965,14 @@
         if (legend) {
             legend.classList.toggle('hidden');
         }
+    };
+
+    global.soloGraphTag = function(tagName) {
+        var tagBoxes = document.querySelectorAll('#tagDropdown input[type="checkbox"]');
+        tagBoxes.forEach(function(cb) {
+            cb.checked = (cb.value === tagName);
+        });
+        applyGraphFilters();
     };
 
     // Close dropdowns when clicking outside
@@ -1015,8 +1029,14 @@
         
         var container = document.getElementById('graphCanvas');
         if (container) {
+            var existingLegend = container.querySelector('.graph-legend');
+            var legendWasHidden = existingLegend && existingLegend.classList.contains('hidden');
             initGraph(container, { nodes: filteredNodes, edges: filteredEdges });
             renderGraphLegend(container, { nodes: filteredNodes, edges: filteredEdges });
+            if (legendWasHidden) {
+                var newLegend = container.querySelector('.graph-legend');
+                if (newLegend) newLegend.classList.add('hidden');
+            }
         }
     }
 
