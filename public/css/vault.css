@@ -1038,3 +1038,69 @@
         font-size: 14px;
     }
 }
+
+/* Annotation comment input */
+.annotation-comment-input {
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.ann-comment-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #cdd6f4;
+    margin-bottom: 8px;
+}
+.ann-comment-quote {
+    font-size: 11px;
+    color: #6c7086;
+    font-style: italic;
+    padding: 6px 10px;
+    background: rgba(137,180,250,0.05);
+    border-left: 3px solid #89b4fa;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+#annCommentText {
+    width: 100%;
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    color: #cdd6f4;
+    padding: 8px 10px;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 60px;
+    outline: none;
+    box-sizing: border-box;
+}
+#annCommentText:focus {
+    border-color: #89b4fa;
+}
+.ann-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+.ann-comment-cancel, .ann-comment-save {
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+}
+.ann-comment-cancel {
+    background: #313244;
+    color: #a6adc8;
+}
+.ann-comment-save {
+    background: #89b4fa;
+    color: #1e1e2e;
+    font-weight: 600;
+}
+.ann-comment-save:hover {
+    background: #b4d0fb;
+}

@@ -740,10 +740,9 @@
         tooltip.style.left = 'auto';
         container.appendChild(tooltip);
         tooltip.addEventListener('click', function(e) {
-            // If clicking the tooltip background (not a link/button inside), dismiss it
-            if (e.target === tooltip || e.target.classList.contains('graph-tooltip-title') || e.target.classList.contains('graph-tooltip-meta')) {
-                hideGraphTooltip();
-            }
+            // Don't close if clicking an actual action button (if any future buttons added)
+            if (e.target.tagName === 'A') return;
+            hideGraphTooltip();
         });
         graphTooltipEl = tooltip;
         requestAnimationFrame(function() { tooltip.classList.add('show'); });

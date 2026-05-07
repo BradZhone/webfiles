@@ -85,22 +85,31 @@
 
     // Find and wrap text with highlight span
     function highlightTextInElement(container, text, annId, color, comment) {
+        // Normalize: use only first line, max 80 chars for matching
+        var searchText = text.split('\n')[0].trim();
+        if (searchText.length > 80) searchText = searchText.substring(0, 80);
+        if (!searchText || searchText.length < 3) return;
+
         var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
         var node;
         while (node = walker.nextNode()) {
-            var idx = node.textContent.indexOf(text);
+            var idx = node.textContent.indexOf(searchText);
             if (idx !== -1) {
-                var range = document.createRange();
-                range.setStart(node, idx);
-                range.setEnd(node, idx + text.length);
-                var span = document.createElement('span');
-                span.className = 'annotation-highlight annotation-' + color;
-                span.setAttribute('data-ann-id', annId);
-                span.setAttribute('data-comment', comment || '');
-                span.title = comment || '';
-                span.onclick = function(e) { e.stopPropagation(); showAnnotationPopup(this); };
-                range.surroundContents(span);
-                break;  // Only highlight first occurrence
+                try {
+                    var range = document.createRange();
+                    range.setStart(node, idx);
+                    // Highlight only the found portion (might be less than full annotation range)
+                    var endIdx = Math.min(idx + searchText.length, node.textContent.length);
+                    range.setEnd(node, endIdx);
+                    var span = document.createElement('span');
+                    span.className = 'annotation-highlight annotation-' + color;
+                    span.setAttribute('data-ann-id', annId);
+                    span.setAttribute('data-comment', comment || '');
+                    span.title = comment || '';
+                    span.onclick = function(e) { e.stopPropagation(); showAnnotationPopup(this); };
+                    range.surroundContents(span);
+                } catch (e) { /* ignore DOM errors */ }
+                break;
             }
         }
     }
@@ -201,16 +210,17 @@
             (isMobile ? '<button class="ann-btn ann-cancel-btn" onclick="hideSelectionToolbar()">取消</button>' : '');
 
         if (isMobile) {
-            // Fixed bottom bar on mobile
+            // Fixed top bar on mobile (below the browser chrome, above content)
             toolbar.style.position = 'fixed';
-            toolbar.style.bottom = '0';
-            toolbar.style.left = '0';
-            toolbar.style.right = '0';
-            toolbar.style.top = 'auto';
-            toolbar.style.borderRadius = '12px 12px 0 0';
+            toolbar.style.top = '50px';  // Below browser address bar
+            toolbar.style.left = '8px';
+            toolbar.style.right = '8px';
+            toolbar.style.bottom = 'auto';
+            toolbar.style.borderRadius = '8px';
             toolbar.style.justifyContent = 'center';
-            toolbar.style.padding = '12px 16px';
-            toolbar.style.boxShadow = '0 -4px 20px rgba(0,0,0,0.5)';
+            toolbar.style.padding = '10px 16px';
+            toolbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.5)';
+            toolbar.style.zIndex = '9999';
         } else {
             // Desktop: float above selection
             var range = selection.getRangeAt(0);
@@ -231,21 +241,79 @@
     // Called when user clicks highlight or comment button
     global.annotateSelection = function(type, color) {
         var sel = window.getSelection();
-        if (!sel || sel.isCollapsed) return;
-        var text = sel.toString().trim();
+        var text = sel ? sel.toString().trim() : '';
         if (!text) return;
 
         hideSelectionToolbar();
 
         if (type === 'comment') {
-            var comment = prompt('添加评论:');
-            if (comment === null) return;  // cancelled
-            saveAnnotation(text, 'comment', color, comment, 0, 0, text.length);
+            // Show inline comment input instead of prompt()
+            showCommentInput(text, color);
         } else {
             saveAnnotation(text, 'highlight', color, '', 0, 0, text.length);
+            if (sel) sel.removeAllRanges();
         }
+    };
 
-        sel.removeAllRanges();
+    function showCommentInput(selectedText, color) {
+        hideCommentInput();
+        var isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+        var inputBox = document.createElement('div');
+        inputBox.id = 'annotationCommentInput';
+        inputBox.className = 'annotation-comment-input';
+        inputBox.innerHTML =
+            '<div class="ann-comment-header">💬 添加评论</div>' +
+            '<div class="ann-comment-quote">' + escapeHtml(selectedText.substring(0, 50)) + (selectedText.length > 50 ? '...' : '') + '</div>' +
+            '<textarea id="annCommentText" placeholder="输入评论..." rows="3"></textarea>' +
+            '<div class="ann-comment-actions">' +
+            '<button class="ann-comment-cancel" onclick="hideCommentInput()">取消</button>' +
+            '<button class="ann-comment-save" onclick="saveCommentFromInput()">保存</button>' +
+            '</div>';
+
+        inputBox.style.position = 'fixed';
+        if (isMobile) {
+            inputBox.style.top = '50px';
+            inputBox.style.left = '8px';
+            inputBox.style.right = '8px';
+        } else {
+            inputBox.style.top = '50%';
+            inputBox.style.left = '50%';
+            inputBox.style.transform = 'translate(-50%, -50%)';
+            inputBox.style.width = '320px';
+        }
+        inputBox.style.zIndex = '10000';
+
+        // Store selected text for later save
+        inputBox.setAttribute('data-selected-text', selectedText);
+        inputBox.setAttribute('data-color', color);
+
+        document.body.appendChild(inputBox);
+
+        // Focus the textarea
+        setTimeout(function() {
+            var ta = document.getElementById('annCommentText');
+            if (ta) ta.focus();
+        }, 100);
+    }
+
+    function hideCommentInput() {
+        var el = document.getElementById('annotationCommentInput');
+        if (el) el.remove();
+    }
+
+    global.hideCommentInput = hideCommentInput;
+
+    global.saveCommentFromInput = function() {
+        var box = document.getElementById('annotationCommentInput');
+        if (!box) return;
+        var text = box.getAttribute('data-selected-text');
+        var color = box.getAttribute('data-color') || 'blue';
+        var comment = (document.getElementById('annCommentText') || {}).value || '';
+        hideCommentInput();
+        if (text) {
+            saveAnnotation(text, 'comment', color, comment, 0, 0, text.length);
+        }
     };
 
     // Render the sidebar annotation panel
