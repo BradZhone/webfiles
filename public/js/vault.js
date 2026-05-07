@@ -623,7 +623,7 @@
                 damping: 0.4,
                 avoidOverlap: 0.1
             },
-            stabilization: { iterations: 200, updateInterval: 50 },
+            stabilization: { iterations: 100, updateInterval: 100 },
             minVelocity: 1.5,
             maxVelocity: 30
         } : {
@@ -636,7 +636,7 @@
                 damping: 0.4,
                 avoidOverlap: 0.1
             },
-            stabilization: { iterations: 200, updateInterval: 50 },
+            stabilization: { iterations: 100, updateInterval: 100 },
             minVelocity: 1.5,
             maxVelocity: 30
         };
@@ -644,11 +644,14 @@
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges; network._originalNodeColors = originalNodeColors;
+        var lastTooltipShown = 0;
+
         network.on('selectNode', function(params) {
+            if (Date.now() - lastTooltipShown < 300) return;
             if (params.nodes.length > 0) {
+                lastTooltipShown = Date.now();
                 var nodeId = params.nodes[0];
                 if (selectedGraphNode === nodeId) {
-                    // Already selected — open file
                     hideGraphTooltip();
                     resetGraphHighlight();
                     selectedGraphNode = null;
@@ -665,39 +668,36 @@
             }
         });
 
-        network.on('deselectNode', function() {
-            hideGraphTooltip();
-            resetGraphHighlight();
-            selectedGraphNode = null;
-        });
-
         network.on('click', function(params) {
             if (params.nodes.length > 0) {
-                // Handled by selectNode event
-                return;
+                if (Date.now() - lastTooltipShown < 300) return;
+                lastTooltipShown = Date.now();
+                var nodeId = params.nodes[0];
+                if (selectedGraphNode === nodeId) {
+                    hideGraphTooltip();
+                    resetGraphHighlight();
+                    selectedGraphNode = null;
+                    var node = nodesDS.get(nodeId);
+                    var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
+                    if (!filePath.endsWith('.md')) filePath += '.md';
+                    switchContentTab('preview');
+                    openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
+                    return;
+                }
+                selectedGraphNode = nodeId;
+                highlightGraphConnections(nodeId);
+                showGraphTooltip(nodeId, params.pointer.DOM);
             } else if (params.edges.length > 0) {
-                // Edge click — show tag label
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
                 var edgeId = params.edges[0];
                 var edge = edgesDS.get(edgeId);
                 if (edge && edge.type === 'tag' && edge.title) {
-                    edgesDS.update({
-                        id: edgeId,
-                        label: edge.title,
-                        font: { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' }
-                    });
-                    setTimeout(function() {
-                        edgesDS.update({
-                            id: edgeId,
-                            label: '',
-                            font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
-                        });
-                    }, 3000);
+                    edgesDS.update({ id: edgeId, label: edge.title, font: { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' } });
+                    setTimeout(function() { edgesDS.update({ id: edgeId, label: '', font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' } }); }, 3000);
                 }
             } else {
-                // Empty space
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
