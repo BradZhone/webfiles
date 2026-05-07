@@ -2437,89 +2437,111 @@ app.get('/api/notes/todos', requireAuth, (req, res) => {
 
 // ===== Annotation API Routes =====
 
-// Helper: generate .md companion file from annotation JSON
-function generateAnnotationMd(annoFile, data) {
-    const mdFile = annoFile.replace(/\.json$/, '.md');
-    const source = data.source || '';
-    const title = path.basename(source, '.md');
-    const annotations = data.annotations || [];
-
-    if (annotations.length === 0) {
-        try { fs.unlinkSync(mdFile); } catch (e) {}
-        return;
-    }
-
-    let md = '---\n';
-    md += 'type: annotation\n';
-    md += 'source: ' + source + '\n';
-    md += 'tags:\n  - 批注\n';
-    md += 'created: ' + (annotations[0].created || new Date().toISOString()).split('T')[0] + '\n';
-    md += '---\n\n';
-    md += '# 批注: ' + title + '\n\n';
-
-    annotations.forEach(function(ann, i) {
-        md += '## ' + (i + 1) + '. ';
-        if (ann.type === 'highlight') {
-            md += '高亮';
-        } else {
-            md += '评论';
-        }
-        if (ann.color && ann.color !== 'yellow') md += ' (' + ann.color + ')';
-        md += '\n\n';
-        md += '> ' + (ann.range || '').replace(/\n/g, '\n> ') + '\n\n';
-        if (ann.comment) {
-            md += ann.comment + '\n\n';
-        }
-    });
-
+// Parse annotation .md file → structured data
+function parseAnnotationMd(filePath) {
     try {
-        fs.writeFileSync(mdFile, md, 'utf-8');
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        if (!fmMatch) return { source: '', annotations: [] };
+        
+        // Parse YAML frontmatter manually (simple parser for our known structure)
+        const fmText = fmMatch[1];
+        const sourceMatch = fmText.match(/^source:\s*(.+)$/m);
+        const source = sourceMatch ? sourceMatch[1].trim() : '';
+        
+        // Extract highlights array from YAML
+        const annotations = [];
+        const highlightsSection = fmText.split(/^highlights:\s*$/m)[1];
+        if (highlightsSection) {
+            const items = highlightsSection.split(/\n  - id:/);
+            items.forEach((item, i) => {
+                if (i === 0 && !item.trim()) return;
+                const text = (i === 0 ? '  - id:' : '  - id:') + item;
+                const id = (text.match(/id:\s*(.+)/)||[])[1]?.trim() || '';
+                const range = (text.match(/range:\s*"(.+?)"/)||[])[1] || '';
+                const color = (text.match(/color:\s*(\w+)/)||[])[1] || 'yellow';
+                const comment = (text.match(/comment:\s*"(.*?)"/)||[])[1] || '';
+                const paragraph = parseInt((text.match(/paragraph:\s*(\d+)/)||[])[1]) || 0;
+                const offset = parseInt((text.match(/offset:\s*(\d+)/)||[])[1]) || 0;
+                const length = parseInt((text.match(/length:\s*(\d+)/)||[])[1]) || 0;
+                if (id) annotations.push({ id, range, color, comment, paragraph, offset, length });
+            });
+        }
+        return { source, annotations };
     } catch (e) {
-        console.error('Failed to write annotation md:', e.message);
+        return { source: '', annotations: [] };
     }
+}
+
+// Generate annotation .md file from structured data
+function writeAnnotationMd(filePath, source, annotations) {
+    const title = path.basename(source, '.md');
+    
+    // Build YAML frontmatter
+    let yaml = 'type: annotation\n';
+    yaml += 'source: ' + source + '\n';
+    yaml += 'highlights:\n';
+    annotations.forEach(ann => {
+        yaml += '  - id: ' + ann.id + '\n';
+        yaml += '    range: "' + (ann.range || '').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"\n';
+        yaml += '    color: ' + (ann.color || 'yellow') + '\n';
+        yaml += '    comment: "' + (ann.comment || '').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"\n';
+        yaml += '    paragraph: ' + (ann.paragraph || 0) + '\n';
+        yaml += '    offset: ' + (ann.offset || 0) + '\n';
+        yaml += '    length: ' + (ann.length || 0) + '\n';
+    });
+    yaml += 'tags:\n  - 批注\n';
+    yaml += 'created: ' + (annotations[0]?.created || new Date().toISOString()).split('T')[0] + '\n';
+    
+    // Build readable body
+    let body = '# 批注: ' + title + '\n\n';
+    annotations.forEach((ann, i) => {
+        body += '## ' + (i + 1) + '. ';
+        body += ann.type === 'comment' ? '评论' : '高亮';
+        if (ann.color && ann.color !== 'yellow') body += ' (' + ann.color + ')';
+        body += '\n\n';
+        body += '> ' + (ann.range || '').replace(/\n/g, '\n> ') + '\n\n';
+        if (ann.comment) body += ann.comment + '\n\n';
+    });
+    
+    const content = '---\n' + yaml + '---\n\n' + body;
+    
+    // Ensure directory exists
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf-8');
 }
 
 // GET /api/vault/annotations - Get annotations for a file
 app.get('/api/vault/annotations', requireAuth, (req, res) => {
     const { vault, file } = req.query;
     if (!vault || !file) return res.json({ annotations: [] });
-    const notesDir = path.join(vault, '_notes');
-    const annoFile = path.join(notesDir, file.replace(/\.md$/, '.json'));
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
     if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
-    try {
-        if (fs.existsSync(annoFile)) {
-            const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
-            return res.json(data);
-        }
-        return res.json({ source: file, annotations: [] });
-    } catch (e) {
-        return res.json({ source: file, annotations: [] });
+    if (fs.existsSync(annoFile)) {
+        const data = parseAnnotationMd(annoFile);
+        return res.json({ source: file, annotations: data.annotations });
     }
+    return res.json({ source: file, annotations: [] });
 });
 
 // POST /api/vault/annotations - Add an annotation
 app.post('/api/vault/annotations', requireAuth, (req, res) => {
     const { vault, file, annotation } = req.body;
     if (!vault || !file || !annotation) return res.status(400).json({ error: 'Missing fields' });
-    const notesDir = path.join(vault, '_notes');
-    const subDir = path.dirname(file);
-    const annoFile = path.join(notesDir, file.replace(/\.md$/, '.json'));
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
     if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
-    try {
-        fs.mkdirSync(path.join(notesDir, subDir), { recursive: true });
-        let data = { source: file, annotations: [] };
-        if (fs.existsSync(annoFile)) {
-            data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
-        }
-        annotation.id = annotation.id || 'ann-' + Date.now();
-        annotation.created = annotation.created || new Date().toISOString();
-        data.annotations.push(annotation);
-        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
-        generateAnnotationMd(annoFile, data);
-        return res.json({ success: true, annotation });
-    } catch (e) {
-        return res.status(500).json({ error: e.message });
+    
+    let data = { source: file, annotations: [] };
+    if (fs.existsSync(annoFile)) {
+        data = parseAnnotationMd(annoFile);
     }
+    data.source = file;
+    annotation.id = annotation.id || 'ann-' + Date.now();
+    annotation.created = annotation.created || new Date().toISOString();
+    data.annotations.push(annotation);
+    
+    writeAnnotationMd(annoFile, file, data.annotations);
+    return res.json({ success: true, annotation });
 });
 
 // PUT /api/vault/annotations/:id - Edit an annotation
@@ -2527,20 +2549,17 @@ app.put('/api/vault/annotations/:id', requireAuth, (req, res) => {
     const { vault, file, updates } = req.body;
     const annoId = req.params.id;
     if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.json'));
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
     if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
-    try {
-        if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
-        const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
-        const idx = data.annotations.findIndex(a => a.id === annoId);
-        if (idx === -1) return res.status(404).json({ error: 'Annotation not found' });
-        Object.assign(data.annotations[idx], updates);
-        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
-        generateAnnotationMd(annoFile, data);
-        return res.json({ success: true, annotation: data.annotations[idx] });
-    } catch (e) {
-        return res.status(500).json({ error: e.message });
-    }
+    if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
+    
+    const data = parseAnnotationMd(annoFile);
+    const idx = data.annotations.findIndex(a => a.id === annoId);
+    if (idx === -1) return res.status(404).json({ error: 'Annotation not found' });
+    Object.assign(data.annotations[idx], updates);
+    
+    writeAnnotationMd(annoFile, file, data.annotations);
+    return res.json({ success: true, annotation: data.annotations[idx] });
 });
 
 // DELETE /api/vault/annotations/:id - Delete an annotation
@@ -2548,18 +2567,20 @@ app.delete('/api/vault/annotations/:id', requireAuth, (req, res) => {
     const { vault, file } = req.body;
     const annoId = req.params.id;
     if (!vault || !file) return res.status(400).json({ error: 'Missing fields' });
-    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.json'));
+    const annoFile = path.join(vault, '_notes', file.replace(/\.md$/, '.md'));
     if (!annoFile.startsWith(path.resolve(vault))) return res.status(403).json({ error: 'Access denied' });
-    try {
-        if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
-        const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
-        data.annotations = data.annotations.filter(a => a.id !== annoId);
-        fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
-        generateAnnotationMd(annoFile, data);
-        return res.json({ success: true });
-    } catch (e) {
-        return res.status(500).json({ error: e.message });
+    if (!fs.existsSync(annoFile)) return res.status(404).json({ error: 'Not found' });
+    
+    const data = parseAnnotationMd(annoFile);
+    data.annotations = data.annotations.filter(a => a.id !== annoId);
+    
+    if (data.annotations.length === 0) {
+        // No annotations left — delete the file
+        try { fs.unlinkSync(annoFile); } catch (e) {}
+    } else {
+        writeAnnotationMd(annoFile, file, data.annotations);
     }
+    return res.json({ success: true });
 });
 
 // GET /api/vault/wordcount - Get word/character count for a file
