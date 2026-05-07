@@ -644,10 +644,11 @@
         var network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, options);
         graphNetwork = network;
         network._nodesDS = nodesDS; network._edgesDS = edgesDS; network._allNodes = nodes; network._allEdges = edges; network._originalNodeColors = originalNodeColors;
-        network.on('click', function(params) {
+        network.on('selectNode', function(params) {
             if (params.nodes.length > 0) {
                 var nodeId = params.nodes[0];
                 if (selectedGraphNode === nodeId) {
+                    // Already selected — open file
                     hideGraphTooltip();
                     resetGraphHighlight();
                     selectedGraphNode = null;
@@ -660,8 +661,22 @@
                 }
                 selectedGraphNode = nodeId;
                 highlightGraphConnections(nodeId);
-                showGraphTooltip(nodeId, params.pointer.DOM);
+                showGraphTooltip(nodeId, params.pointer ? params.pointer.DOM : {x:0,y:0});
+            }
+        });
+
+        network.on('deselectNode', function() {
+            hideGraphTooltip();
+            resetGraphHighlight();
+            selectedGraphNode = null;
+        });
+
+        network.on('click', function(params) {
+            if (params.nodes.length > 0) {
+                // Handled by selectNode event
+                return;
             } else if (params.edges.length > 0) {
+                // Edge click — show tag label
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
@@ -671,7 +686,7 @@
                     edgesDS.update({
                         id: edgeId,
                         label: edge.title,
-                        font: { color: '#f9e2af', size: 11, strokeWidth: 3, strokeColor: '#1e1e2e' }
+                        font: { color: '#f9e2af', size: 11, strokeWidth: 5, strokeColor: '#1e1e2e' }
                     });
                     setTimeout(function() {
                         edgesDS.update({
@@ -682,22 +697,10 @@
                     }, 3000);
                 }
             } else {
+                // Empty space
                 hideGraphTooltip();
                 resetGraphHighlight();
                 selectedGraphNode = null;
-            }
-        });
-        network.on('doubleClick', function(params) {
-            if (params.nodes.length > 0) {
-                var nodeId = params.nodes[0];
-                hideGraphTooltip();
-                resetGraphHighlight();
-                selectedGraphNode = null;
-                var node = nodesDS.get(nodeId);
-                var filePath = node ? (node.path || nodeId.split(':').slice(1).join(':')) : nodeId;
-                if (!filePath.endsWith('.md')) filePath += '.md';
-                switchContentTab('preview');
-                openVaultFile(filePath, node && node.vault ? node.vault : currentVault);
             }
         });
         setTimeout(function() { if (network) network.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } }); }, 0);

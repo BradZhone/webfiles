@@ -139,7 +139,7 @@
 .vault-toolbar-actions { display: flex; gap: 4px; }
 .vault-layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; overflow: hidden; }
 .vault-sidebar {
-    display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; overflow: hidden;
     border-right: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0;
 }
 .vault-search {
@@ -485,7 +485,8 @@
 .vault-sidebar-header {
     display: flex; align-items: center; gap: 8px;
     padding: 10px 12px; border-bottom: 1px solid var(--border);
-    background: var(--bg-secondary); flex-shrink: 0;
+    background: var(--surface, #1e1e2e); flex-shrink: 0;
+    position: sticky; top: 0; z-index: 5;
 }
 .vault-sidebar-title {
     flex: 1; font-size: 11px; font-weight: 700; color: var(--dim);
@@ -497,7 +498,7 @@
     padding: 4px 6px; border-radius: 4px; font-size: 14px; transition: all 0.15s ease;
 }
 .vault-sidebar-actions button:hover { background: var(--item-hover); color: var(--text); }
-.vault-roots { flex: 1; overflow-y: auto; }
+.vault-roots { flex: 1; overflow-y: auto; min-height: 0; }
 .vault-root { border-bottom: 1px solid var(--border); }
 .vault-root:last-child { border-bottom: none; }
 .vault-root-header {

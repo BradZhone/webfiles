@@ -83,34 +83,72 @@
         });
     }
 
-    // Find and wrap text with highlight span
+    // Find and wrap text with highlight span (supports cross-paragraph)
     function highlightTextInElement(container, text, annId, color, comment) {
-        // Normalize: use only first line, max 80 chars for matching
-        var searchText = text.split('\n')[0].trim();
-        if (searchText.length > 80) searchText = searchText.substring(0, 80);
-        if (!searchText || searchText.length < 3) return;
-
+        if (!text || text.length < 3) return;
+        
+        // Normalize search text — replace \n with actual newlines for matching
+        var searchText = text.replace(/\\n/g, '\n');
+        
+        // Collect all text nodes with their positions in the full concatenated text
+        var textNodes = [];
+        var fullText = '';
         var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
         var node;
         while (node = walker.nextNode()) {
-            var idx = node.textContent.indexOf(searchText);
-            if (idx !== -1) {
-                try {
-                    var range = document.createRange();
-                    range.setStart(node, idx);
-                    // Highlight only the found portion (might be less than full annotation range)
-                    var endIdx = Math.min(idx + searchText.length, node.textContent.length);
-                    range.setEnd(node, endIdx);
-                    var span = document.createElement('span');
-                    span.className = 'annotation-highlight annotation-' + color;
-                    span.setAttribute('data-ann-id', annId);
-                    span.setAttribute('data-comment', comment || '');
-                    span.title = comment || '';
+            textNodes.push({ node: node, start: fullText.length, end: fullText.length + node.textContent.length });
+            fullText += node.textContent;
+        }
+        
+        // Find the annotation text in the full concatenated text
+        var matchIdx = fullText.indexOf(searchText);
+        if (matchIdx === -1) {
+            // Try matching just the first 60 chars (for partial matches)
+            var shortSearch = searchText.split('\n')[0].substring(0, 60);
+            if (shortSearch.length >= 3) matchIdx = fullText.indexOf(shortSearch);
+            if (matchIdx === -1) return;
+            // Adjust search length to short match
+            searchText = shortSearch;
+        }
+        
+        var matchEnd = matchIdx + searchText.length;
+        
+        // Find which text nodes overlap with [matchIdx, matchEnd)
+        var nodesToWrap = [];
+        for (var i = 0; i < textNodes.length; i++) {
+            var tn = textNodes[i];
+            if (tn.end <= matchIdx) continue;  // Before match
+            if (tn.start >= matchEnd) break;   // After match
+            // This node overlaps with the match
+            var startInNode = Math.max(0, matchIdx - tn.start);
+            var endInNode = Math.min(tn.node.textContent.length, matchEnd - tn.start);
+            nodesToWrap.push({ node: tn.node, start: startInNode, end: endInNode });
+        }
+        
+        // Wrap each overlapping portion (go in reverse to not break offsets)
+        for (var j = nodesToWrap.length - 1; j >= 0; j--) {
+            var info = nodesToWrap[j];
+            try {
+                var range = document.createRange();
+                range.setStart(info.node, info.start);
+                range.setEnd(info.node, info.end);
+                var span = document.createElement('span');
+                span.className = 'annotation-highlight annotation-' + color;
+                span.setAttribute('data-ann-id', annId);
+                span.setAttribute('data-comment', comment || '');
+                if (j === 0) {
+                    // Only first span gets click handler (to avoid duplicate popups)
                     span.onclick = function(e) { e.stopPropagation(); showAnnotationPopup(this); };
-                    range.surroundContents(span);
-                } catch (e) { /* ignore DOM errors */ }
-                break;
-            }
+                } else {
+                    span.onclick = function(e) {
+                        e.stopPropagation();
+                        // Find the first span with same ann-id and trigger its popup
+                        var first = document.querySelector('[data-ann-id="' + annId + '"]');
+                        if (first) showAnnotationPopup(first);
+                    };
+                }
+                range.surroundContents(span);
+            } catch (e) { /* skip DOM errors for this node */ }
         }
     }
 
@@ -155,40 +193,58 @@
     function setupSelectionToolbar() {
         var preview = document.getElementById('contentPreview');
         if (!preview) return;
-
+        
         // Remove old listeners if any
         if (preview._annMouseUp) {
             preview.removeEventListener('mouseup', preview._annMouseUp);
+            preview._annMouseUp = null;
         }
         if (preview._annTouchEnd) {
             preview.removeEventListener('touchend', preview._annTouchEnd);
+            preview._annTouchEnd = null;
         }
-
-        function handleSelectionEnd(e) {
-            var sel = window.getSelection();
-            if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-                hideSelectionToolbar();
-                return;
-            }
-            showSelectionToolbar(sel, e);
+        if (document._annSelChange) {
+            document.removeEventListener('selectionchange', document._annSelChange);
         }
-
-        preview._annMouseUp = function(e) {
-            setTimeout(function() { handleSelectionEnd(e); }, 10);
+        
+        var debounceTimer = null;
+        
+        document._annSelChange = function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function() {
+                var sel = window.getSelection();
+                if (!sel || sel.isCollapsed || !sel.toString().trim() || sel.toString().trim().length < 2) {
+                    // Don't hide immediately — user might still be selecting
+                    return;
+                }
+                // Check if selection is within the preview
+                if (sel.anchorNode && preview.contains(sel.anchorNode)) {
+                    showSelectionToolbar(sel);
+                }
+            }, 400);
         };
-
-        preview._annTouchEnd = function(e) {
-            setTimeout(function() { handleSelectionEnd(e); }, 100);
-        };
-
-        preview.addEventListener('mouseup', preview._annMouseUp);
-        preview.addEventListener('touchend', preview._annTouchEnd);
-
-        // Hide on click outside
+        
+        document.addEventListener('selectionchange', document._annSelChange);
+        
+        // Hide toolbar on mousedown outside toolbar (desktop)
         document.addEventListener('mousedown', function(e) {
             var toolbar = document.getElementById('annotationToolbar');
             if (toolbar && !toolbar.contains(e.target)) {
                 hideSelectionToolbar();
+            }
+        });
+        
+        // Hide toolbar on touch outside (mobile)
+        document.addEventListener('touchstart', function(e) {
+            var toolbar = document.getElementById('annotationToolbar');
+            if (toolbar && !toolbar.contains(e.target)) {
+                // Delay hiding so that tapping toolbar buttons works
+                setTimeout(function() {
+                    var tb = document.getElementById('annotationToolbar');
+                    if (tb && !tb.contains(document.activeElement)) {
+                        hideSelectionToolbar();
+                    }
+                }, 200);
             }
         });
     }
