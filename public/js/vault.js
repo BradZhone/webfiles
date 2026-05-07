@@ -843,14 +843,16 @@
         var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; });
         
         // Build folder dropdown items
-        var folderItems = sortedGroups.map(function(g) {
-            var display = g.replace(/\/\.$/, '');
+        var folderItems = '<label class="graph-dropdown-item graph-dropdown-selectall"><input type="checkbox" checked onchange="toggleAllInDropdown(\'folderDropdown\', this.checked)"><strong>全选</strong></label>';
+        folderItems += sortedGroups.map(function(g) {
+            var display = g.replace(/\/\.$/,'');
             var dotColor = (graphData.groupColorMap && graphData.groupColorMap[g]) || VAULT_COLORS[sortedGroups.indexOf(g) % VAULT_COLORS.length];
-            return '<label class="graph-dropdown-item"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="applyGraphFilters()"><span class="graph-color-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
+            return '<label class="graph-dropdown-item"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="onFolderFilterChange()"><span class="graph-color-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
         }).join('');
         
         // Build tag dropdown items
-        var tagItems = sortedTags.map(function(tag) {
+        var tagItems = '<label class="graph-dropdown-item graph-dropdown-selectall"><input type="checkbox" checked onchange="toggleAllInDropdown(\'tagDropdown\', this.checked)"><strong>全选</strong></label>';
+        tagItems += sortedTags.map(function(tag) {
             return '<label class="graph-dropdown-item" ondblclick="soloGraphTag(\x27' + tag.replace(/\x27/g, "\\x27") + '\x27)"><input type="checkbox" checked value="' + tag.replace(/"/g, '&quot;') + '" onchange="applyGraphFilters()"><span class="graph-dropdown-tag">#' + escapeHtml(tag) + '</span><span class="graph-dropdown-count">' + allTags[tag] + '</span></label>';
         }).join('');
         
@@ -975,6 +977,62 @@
         applyGraphFilters();
     };
 
+    global.toggleAllInDropdown = function(dropdownId, checked) {
+        var boxes = document.querySelectorAll('#' + dropdownId + ' input[type="checkbox"]');
+        boxes.forEach(function(cb) { cb.checked = checked; });
+        if (dropdownId === 'folderDropdown') {
+            rebuildTagDropdown();
+        }
+        applyGraphFilters();
+    };
+
+    global.onFolderFilterChange = function() {
+        // Update select-all checkbox state
+        var folderBoxes = document.querySelectorAll('#folderDropdown .graph-dropdown-item:not(.graph-dropdown-selectall) input[type="checkbox"]');
+        var allChecked = true;
+        folderBoxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+        var selectAllCb = document.querySelector('#folderDropdown .graph-dropdown-selectall input');
+        if (selectAllCb) selectAllCb.checked = allChecked;
+        // Rebuild tag list based on new folder selection
+        rebuildTagDropdown();
+        // Then apply filters
+        applyGraphFilters();
+    };
+
+    function rebuildTagDropdown() {
+        var tagMenu = document.getElementById('tagDropdown');
+        if (!tagMenu || !graphData) return;
+        
+        // Get currently selected folders
+        var folderBoxes = document.querySelectorAll('#folderDropdown .graph-dropdown-item:not(.graph-dropdown-selectall) input[type="checkbox"]');
+        var selectedFolders = {};
+        folderBoxes.forEach(function(cb) { if (cb.checked) selectedFolders[cb.value] = true; });
+        
+        // Get tags ONLY from nodes in selected folders
+        var allTags = {};
+        graphData.nodes.forEach(function(n) {
+            var folderKey = n.groupKey || n.vaultName || 'default';
+            if (!selectedFolders[folderKey]) return;
+            (n.tags || []).forEach(function(t) { allTags[t] = (allTags[t] || 0) + 1; });
+        });
+        var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; });
+        
+        // Remember which tags were previously checked
+        var prevChecked = {};
+        document.querySelectorAll('#tagDropdown .graph-dropdown-item:not(.graph-dropdown-selectall) input[type="checkbox"]').forEach(function(cb) {
+            prevChecked[cb.value] = cb.checked;
+        });
+        
+        // Rebuild tag dropdown content
+        var tagItems = '<label class="graph-dropdown-item graph-dropdown-selectall"><input type="checkbox" checked onchange="toggleAllInDropdown(\'tagDropdown\', this.checked)"><strong>\u5168\u9009</strong></label>';
+        sortedTags.forEach(function(tag) {
+            var isChecked = prevChecked[tag] !== undefined ? prevChecked[tag] : true;
+            tagItems += '<label class="graph-dropdown-item" ondblclick="soloGraphTag(\x27' + tag.replace(/\x27/g, "\\x27") + '\x27)"><input type="checkbox"' + (isChecked ? ' checked' : '') + ' value="' + tag.replace(/"/g, '&quot;') + '" onchange="applyGraphFilters()"><span class="graph-dropdown-tag">#' + escapeHtml(tag) + '</span><span class="graph-dropdown-count">' + allTags[tag] + '</span></label>';
+        });
+        
+        tagMenu.innerHTML = tagItems;
+    }
+
     // Close dropdowns when clicking outside
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.graph-dropdown-wrap')) {
@@ -986,12 +1044,12 @@
         if (!graphData) return;
         
         // Folders: checked items in #folderDropdown
-        var folderBoxes = document.querySelectorAll('#folderDropdown input[type="checkbox"]');
+        var folderBoxes = document.querySelectorAll('#folderDropdown .graph-dropdown-item:not(.graph-dropdown-selectall) input[type="checkbox"]');
         var selectedFolders = {};
         folderBoxes.forEach(function(cb) { if (cb.checked) selectedFolders[cb.value] = true; });
         
         // Tags: checked items in #tagDropdown
-        var tagBoxes = document.querySelectorAll('#tagDropdown input[type="checkbox"]');
+        var tagBoxes = document.querySelectorAll('#tagDropdown .graph-dropdown-item:not(.graph-dropdown-selectall) input[type="checkbox"]');
         var selectedTags = {};
         var allTagsChecked = true;
         tagBoxes.forEach(function(cb) {
