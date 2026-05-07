@@ -2437,6 +2437,48 @@ app.get('/api/notes/todos', requireAuth, (req, res) => {
 
 // ===== Annotation API Routes =====
 
+// Helper: generate .md companion file from annotation JSON
+function generateAnnotationMd(annoFile, data) {
+    const mdFile = annoFile.replace(/\.json$/, '.md');
+    const source = data.source || '';
+    const title = path.basename(source, '.md');
+    const annotations = data.annotations || [];
+
+    if (annotations.length === 0) {
+        try { fs.unlinkSync(mdFile); } catch (e) {}
+        return;
+    }
+
+    let md = '---\n';
+    md += 'type: annotation\n';
+    md += 'source: ' + source + '\n';
+    md += 'tags:\n  - 批注\n';
+    md += 'created: ' + (annotations[0].created || new Date().toISOString()).split('T')[0] + '\n';
+    md += '---\n\n';
+    md += '# 批注: ' + title + '\n\n';
+
+    annotations.forEach(function(ann, i) {
+        md += '## ' + (i + 1) + '. ';
+        if (ann.type === 'highlight') {
+            md += '高亮';
+        } else {
+            md += '评论';
+        }
+        if (ann.color && ann.color !== 'yellow') md += ' (' + ann.color + ')';
+        md += '\n\n';
+        md += '> ' + (ann.range || '').replace(/\n/g, '\n> ') + '\n\n';
+        if (ann.comment) {
+            md += ann.comment + '\n\n';
+        }
+    });
+
+    try {
+        fs.writeFileSync(mdFile, md, 'utf-8');
+    } catch (e) {
+        console.error('Failed to write annotation md:', e.message);
+    }
+}
+
 // GET /api/vault/annotations - Get annotations for a file
 app.get('/api/vault/annotations', requireAuth, (req, res) => {
     const { vault, file } = req.query;
@@ -2473,6 +2515,7 @@ app.post('/api/vault/annotations', requireAuth, (req, res) => {
         annotation.created = annotation.created || new Date().toISOString();
         data.annotations.push(annotation);
         fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        generateAnnotationMd(annoFile, data);
         return res.json({ success: true, annotation });
     } catch (e) {
         return res.status(500).json({ error: e.message });
@@ -2493,6 +2536,7 @@ app.put('/api/vault/annotations/:id', requireAuth, (req, res) => {
         if (idx === -1) return res.status(404).json({ error: 'Annotation not found' });
         Object.assign(data.annotations[idx], updates);
         fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        generateAnnotationMd(annoFile, data);
         return res.json({ success: true, annotation: data.annotations[idx] });
     } catch (e) {
         return res.status(500).json({ error: e.message });
@@ -2511,6 +2555,7 @@ app.delete('/api/vault/annotations/:id', requireAuth, (req, res) => {
         const data = JSON.parse(fs.readFileSync(annoFile, 'utf8'));
         data.annotations = data.annotations.filter(a => a.id !== annoId);
         fs.writeFileSync(annoFile, JSON.stringify(data, null, 2));
+        generateAnnotationMd(annoFile, data);
         return res.json({ success: true });
     } catch (e) {
         return res.status(500).json({ error: e.message });
