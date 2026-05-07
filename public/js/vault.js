@@ -27,8 +27,9 @@
     ];
     const DEFAULT_COLOR = '#58a6ff';
     const VAULT_COLORS = [
-        '#89b4fa', '#a6e3a1', '#f9e2af', '#cba6f7',
-        '#89dceb', '#f38ba8', '#fab387', '#94e2d5'
+        '#7aa2f7', '#9ece6a', '#e0af68', '#bb9af7',
+        '#7dcfff', '#f7768e', '#ff9e64', '#73daca',
+        '#b4f9f8', '#c0caf5', '#a9b1d6', '#d5a4dc'
     ];
 
     // --- Utility ---
@@ -597,7 +598,7 @@
                 to: e.to,
                 type: e.type || 'wikilink',
                 title: e.context || e.label || undefined,
-                color: getEdgeColor(e.type || 'wikilink'),
+                color: { color: 'rgba(88,91,112,0.35)', highlight: '#89b4fa', hover: 'rgba(88,91,112,0.6)' },
                 dashes: e.type === 'tag' ? [5, 5] : false,
                 width: 0.5
             };
@@ -761,7 +762,7 @@
             var isHighlighted = connectedEdgeSet[e.id];
             graphNetwork._edgesDS.update({
                 id: e.id,
-                color: isHighlighted ? { color: '#89b4fa' } : { color: 'rgba(88,91,112,0.1)' },
+                color: isHighlighted ? getEdgeColor(e.type || 'wikilink') : { color: 'rgba(88,91,112,0.1)' },
                 width: isHighlighted ? 1.5 : 0.2,
                 label: (isHighlighted && e.type === 'tag') ? (e.title || '') : '',
                 font: (isHighlighted && e.type === 'tag') ? { color: '#f9e2af', size: 10, strokeWidth: 4, strokeColor: '#1e1e2e' } : { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
@@ -782,7 +783,7 @@
         graphNetwork._edgesDS.forEach(function(e) {
             graphNetwork._edgesDS.update({
                 id: e.id,
-                color: { color: 'rgba(88,91,112,0.4)', highlight: '#89b4fa' },
+                color: { color: 'rgba(88,91,112,0.35)', highlight: '#89b4fa' },
                 width: 0.5,
                 label: '',
                 font: { color: 'transparent', size: 10, strokeWidth: 0, strokeColor: 'transparent' }
@@ -823,40 +824,41 @@
         if (!tb) return;
         tb.className = 'graph-toolbar';
         
-        // Folder checkboxes
-        var folderChecks = '';
-        var tagPills = '';
-        if (graphData && graphData.nodes) {
-            // Folders
-            var groups = {};
-            graphData.nodes.forEach(function(n) {
-                var key = n.groupKey || n.vaultName || 'default';
-                if (!groups[key]) groups[key] = true;
-            });
-            var sortedKeys = Object.keys(groups).sort();
-            sortedKeys.forEach(function(g) {
-                var display = g.replace(/\/\.$/,  '');
-                var dotColor = VAULT_COLORS[sortedKeys.indexOf(g) % VAULT_COLORS.length];
-                folderChecks += '<label class="graph-folder-check"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="applyGraphFilters()"><span class="graph-folder-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
-            });
-            
-            var allTags = {};
-            graphData.nodes.forEach(function(n) {
-                (n.tags || []).forEach(function(t) {
-                    allTags[t] = (allTags[t] || 0) + 1;
-                });
-            });
-            var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; }).slice(0, 20);
-            sortedTags.forEach(function(tag) {
-                tagPills += '<span class="graph-tag-pill" data-tag="' + escapeHtml(tag) + '" onclick="toggleGraphTag(this)">#' + escapeHtml(tag) + '</span>';
-            });
-        }
+        if (!graphData || !graphData.nodes) { tb.innerHTML = ''; return; }
+        
+        // Collect groups
+        var groups = {};
+        graphData.nodes.forEach(function(n) {
+            var key = n.groupKey || n.vaultName || 'default';
+            if (!groups[key]) groups[key] = true;
+        });
+        var sortedGroups = Object.keys(groups).sort();
+        
+        // Collect tags
+        var allTags = {};
+        graphData.nodes.forEach(function(n) {
+            (n.tags || []).forEach(function(t) { allTags[t] = (allTags[t] || 0) + 1; });
+        });
+        var sortedTags = Object.keys(allTags).sort(function(a, b) { return allTags[b] - allTags[a]; });
+        
+        // Build folder dropdown items
+        var folderItems = sortedGroups.map(function(g) {
+            var display = g.replace(/\/\.$/, '');
+            var dotColor = (graphData.groupColorMap && graphData.groupColorMap[g]) || VAULT_COLORS[sortedGroups.indexOf(g) % VAULT_COLORS.length];
+            return '<label class="graph-dropdown-item"><input type="checkbox" checked value="' + escapeHtml(g) + '" onchange="applyGraphFilters()"><span class="graph-color-dot" style="background:' + dotColor + '"></span>' + escapeHtml(display) + '</label>';
+        }).join('');
+        
+        // Build tag dropdown items
+        var tagItems = sortedTags.map(function(tag) {
+            return '<label class="graph-dropdown-item"><input type="checkbox" checked value="' + escapeHtml(tag) + '" onchange="applyGraphFilters()"><span class="graph-dropdown-tag">#' + escapeHtml(tag) + '</span><span class="graph-dropdown-count">' + allTags[tag] + '</span></label>';
+        }).join('');
         
         tb.innerHTML = '<div class="graph-toolbar-row">' +
-            '<div class="graph-filter-section"><span class="graph-filter-label">文件夹</span><div class="graph-folder-filters">' + folderChecks + '</div></div>' +
-            (tagPills ? '<div class="graph-filter-section"><span class="graph-filter-label">标签</span><div class="graph-tag-pills">' + tagPills + '</div></div>' : '') +
-            '<div class="graph-filter-section"><select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
-            '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="applyGraphFilters()"> 隐藏孤立</label></div>' +
+            '<div class="graph-dropdown-wrap"><button class="graph-dropdown-btn" onclick="toggleGraphDropdown(\'folderDropdown\')">📁 文件夹 ▾</button><div class="graph-dropdown-menu" id="folderDropdown">' + folderItems + '</div></div>' +
+            '<div class="graph-dropdown-wrap"><button class="graph-dropdown-btn" onclick="toggleGraphDropdown(\'tagDropdown\')">🏷️ 标签 ▾</button><div class="graph-dropdown-menu" id="tagDropdown">' + tagItems + '</div></div>' +
+            '<select id="graphGroupBy" onchange="updateGraphGrouping(this.value)" class="graph-select"><option value="directory">按目录着色</option><option value="tag">按标签着色</option></select>' +
+            '<label class="graph-toggle"><input type="checkbox" id="graphHideOrphans" onchange="applyGraphFilters()"> 隐藏孤立</label>' +
+            '<button class="graph-legend-toggle" onclick="toggleGraphLegend()">📊</button>' +
             '</div>';
     }
     function setGraphMode(mode) {
@@ -913,10 +915,8 @@
         var vaults = {};
         (data.nodes || []).forEach(function(n) {
             var gKey = n.groupKey || n.vaultName;
-            if (gKey && n.color && !vaults[gKey]) {
-                var colorVal = typeof n.color === 'string' ? n.color : (n.color.background || '#89b4fa');
-                var displayName = gKey.replace(/\/\.$/, '');
-                vaults[displayName] = colorVal;
+            if (gKey && !vaults[gKey]) {
+                vaults[gKey] = (graphData && graphData.groupColorMap && graphData.groupColorMap[gKey]) || '#a6adc8';
             }
         });
         var html = '<div class="graph-legend-title">图例</div>';
@@ -943,62 +943,74 @@
         renderCurrentGraph();
     }
 
-    function toggleGraphTag(el) {
-        el.classList.toggle('active');
-        applyGraphFilters();
-    }
+    global.toggleGraphDropdown = function(id) {
+        var menu = document.getElementById(id);
+        if (!menu) return;
+        document.querySelectorAll('.graph-dropdown-menu.open').forEach(function(m) {
+            if (m.id !== id) m.classList.remove('open');
+        });
+        menu.classList.toggle('open');
+    };
+
+    global.toggleGraphLegend = function() {
+        var legend = document.querySelector('.graph-legend');
+        if (legend) {
+            legend.classList.toggle('hidden');
+        }
+    };
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.graph-dropdown-wrap')) {
+            document.querySelectorAll('.graph-dropdown-menu.open').forEach(function(m) { m.classList.remove('open'); });
+        }
+    });
 
     function applyGraphFilters() {
         if (!graphData) return;
         
-        // Get checked folders
-        var folderBoxes = document.querySelectorAll('.graph-folder-check input[type="checkbox"]');
+        // Folders: checked items in #folderDropdown
+        var folderBoxes = document.querySelectorAll('#folderDropdown input[type="checkbox"]');
         var selectedFolders = {};
         folderBoxes.forEach(function(cb) { if (cb.checked) selectedFolders[cb.value] = true; });
         
-        var activeTags = [];
-        document.querySelectorAll('.graph-tag-pill.active').forEach(function(el) {
-            activeTags.push(el.getAttribute('data-tag'));
+        // Tags: checked items in #tagDropdown
+        var tagBoxes = document.querySelectorAll('#tagDropdown input[type="checkbox"]');
+        var selectedTags = {};
+        var allTagsChecked = true;
+        tagBoxes.forEach(function(cb) {
+            if (cb.checked) selectedTags[cb.value] = true;
+            else allTagsChecked = false;
         });
-        var hasTagFilter = activeTags.length > 0;
         
-        // Hide orphans?
         var hideOrphans = document.getElementById('graphHideOrphans');
         var shouldHideOrphans = hideOrphans && hideOrphans.checked;
         
         var filteredNodes = graphData.nodes.filter(function(n) {
             var folderKey = n.groupKey || n.vaultName || 'default';
             if (!selectedFolders[folderKey]) return false;
-            
-            if (hasTagFilter) {
+            if (!allTagsChecked) {
                 var nodeTags = n.tags || [];
-                var hasMatch = activeTags.some(function(t) { return nodeTags.indexOf(t) !== -1; });
+                if (nodeTags.length === 0) return false;
+                var hasMatch = nodeTags.some(function(t) { return selectedTags[t]; });
                 if (!hasMatch) return false;
             }
             return true;
         });
         
-        // Build node ID set
         var nodeIds = {};
         filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
+        var filteredEdges = graphData.edges.filter(function(e) { return nodeIds[e.from] && nodeIds[e.to]; });
         
-        // Filter edges
-        var filteredEdges = graphData.edges.filter(function(e) {
-            return nodeIds[e.from] && nodeIds[e.to];
-        });
-        
-        // Hide orphans (nodes with no edges in filtered set)
         if (shouldHideOrphans) {
             var connectedIds = {};
             filteredEdges.forEach(function(e) { connectedIds[e.from] = true; connectedIds[e.to] = true; });
             filteredNodes = filteredNodes.filter(function(n) { return connectedIds[n.id || n.path]; });
-            // Re-filter edges
             nodeIds = {};
             filteredNodes.forEach(function(n) { nodeIds[n.id || n.path] = true; });
             filteredEdges = filteredEdges.filter(function(e) { return nodeIds[e.from] && nodeIds[e.to]; });
         }
         
-        // Redraw graph
         var container = document.getElementById('graphCanvas');
         if (container) {
             initGraph(container, { nodes: filteredNodes, edges: filteredEdges });
@@ -1350,6 +1362,13 @@
                 });
             });
             graphData = { nodes: allNodes, edges: allEdges };
+            graphData.groupColorMap = {};
+            allNodes.forEach(function(n) {
+                var key = n.groupKey || n.vaultName || 'default';
+                if (!graphData.groupColorMap[key] && n.color) {
+                    graphData.groupColorMap[key] = typeof n.color === 'string' ? n.color : '#a6adc8';
+                }
+            });
             renderCurrentGraph();
         } catch(e) {
             if (graphArea) graphArea.innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px;">Failed: ' + (e.message || e) + '</div>';
@@ -1414,7 +1433,6 @@
     global.setGraphMode = setGraphMode;
     global.refreshGraph = refreshGraph;
     global.filterGraphByVault = filterGraphByVault;
-    global.toggleGraphTag = toggleGraphTag;
     global.applyGraphFilters = applyGraphFilters;
     global.setupGraphToolbar = setupGraphToolbar;
     global.togglePanel = togglePanel;
