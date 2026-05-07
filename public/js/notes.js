@@ -34,11 +34,35 @@
     const TYPE_LABELS = { note: '笔记', idea: '想法', todo: '待办', journal: '日记' };
     const CATEGORY_MAP = { all: '全部', note: '笔记', idea: '想法', todo: '待办' };
 
+    // ========== Annotation Path Sync ==========
+    async function syncAnnotationPaths() {
+        try {
+            var resp = await fetch('/api/vault/notes-paths');
+            var data = await resp.json();
+            if (!data.notesPaths || data.notesPaths.length === 0) return;
+            var configResp = await fetch('/api/notes/paths');
+            var configData = await configResp.json();
+            var existingPaths = (configData.paths || configData || []).map(function(p) { return p.path; });
+            for (var i = 0; i < data.notesPaths.length; i++) {
+                var np = data.notesPaths[i];
+                if (existingPaths.indexOf(np.path) === -1) {
+                    await fetch('/api/notes/paths', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: np.path, name: np.name })
+                    });
+                }
+            }
+        } catch (e) {}
+    }
+
+
     // ========== View Initialization ==========
     global.showNotesView = async function() {
         showView('notesView');
         document.getElementById('headerTitle').textContent = '📝 笔记';
         serverSearchActive = false;
+        await syncAnnotationPaths();
         await loadNotesPaths();
         renderPathSelector();
         renderTagFilterBar();

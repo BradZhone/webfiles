@@ -2526,12 +2526,34 @@ app.get('/api/vault/wordcount', requireAuth, (req, res) => {
     try {
         const content = fs.readFileSync(filePath, 'utf8');
         const body = content.replace(/^---[\s\S]*?---\n*/, '');
-        const chars = body.replace(/\s/g, '').length;
-        const words = body.match(/[a-zA-Z]+|[\u4e00-\u9fa5]/g);
-        const wordCount = words ? words.length : 0;
-        return res.json({ chars, words: wordCount });
+        // Count Chinese characters
+        const chineseChars = (body.match(/[\u4e00-\u9fa5]/g) || []).length;
+        // Count English words
+        const englishWords = (body.match(/[a-zA-Z]+/g) || []).length;
+        // Determine display mode
+        const hasChinese = chineseChars > 0;
+        const total = chineseChars + englishWords;
+        return res.json({ total, hasChinese, chineseChars, englishWords });
     } catch (e) {
         return res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/vault/notes-paths — Get all _notes/ directories across vaults
+app.get('/api/vault/notes-paths', requireAuth, (req, res) => {
+    try {
+        const config = loadConfig();
+        const vaultPaths = config.vaultPaths || [];
+        const notesPaths = [];
+        vaultPaths.forEach(vp => {
+            const notesDir = path.join(vp, '_notes');
+            if (fs.existsSync(notesDir)) {
+                notesPaths.push({ path: notesDir, name: path.basename(vp) + ' 批注', vault: vp });
+            }
+        });
+        return res.json({ notesPaths });
+    } catch (e) {
+        return res.json({ notesPaths: [] });
     }
 });
 

@@ -288,7 +288,13 @@
             var resp = await fetch('/api/vault/wordcount?vault=' + encodeURIComponent(vault) + '&file=' + encodeURIComponent(file));
             var data = await resp.json();
             var el = document.getElementById('vaultWordCount');
-            if (el) el.textContent = data.chars + ' 字 · ' + data.words + ' words';
+            if (el) {
+                if (data.hasChinese) {
+                    el.textContent = data.total.toLocaleString() + ' 字';
+                } else {
+                    el.textContent = data.total.toLocaleString() + ' words';
+                }
+            }
         } catch (e) {}
     }
 
