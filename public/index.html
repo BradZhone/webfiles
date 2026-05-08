@@ -532,6 +532,8 @@
                         <button class="content-tab active" onclick="switchContentTab('preview')" id="tabPreview">📄 预览</button>
                         <button class="content-tab" onclick="switchContentTab('edit')" id="tabEdit">✏️ 编辑</button>
                         <button class="content-tab" onclick="switchContentTab('graph')" id="tabGraph">🌐 图谱</button>
+                        <button class="vault-action-btn" onclick="lintCurrentFile()" title="格式检查">🔍</button>
+                        <button class="vault-action-btn" onclick="showFormatSpec()" title="格式规范">❓</button>
                     </div>
                     <span id="vaultWordCount" class="vault-word-count"></span>
                     <div class="vault-content-body" id="contentPreview">
@@ -550,6 +552,11 @@
                         <textarea id="vaultEditor" style="width:100%;flex:1;background:var(--bg);color:var(--text);border:none;padding:16px;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px;line-height:1.6;resize:none;outline:none;tab-size:4;" spellcheck="false"></textarea>
                     </div>
                     <div class="vault-content-body" id="contentGraph" style="display:none;">
+                    </div>
+                    <div id="lintResultsPanel" class="lint-panel" style="display:none;">
+                        <div class="lint-panel-header"><span>📋 格式检查结果</span><button onclick="closeLintPanel()">✕</button></div>
+                        <div id="lintResultsBody"></div>
+                        <div class="lint-panel-actions" id="lintActions" style="display:none;"><button onclick="fixAllLintIssues()">🔧 一键修复</button></div>
                     </div>
                 </div>
             </div>
