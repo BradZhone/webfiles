@@ -1,5 +1,6 @@
 // ========== 隐私模式 (Privacy Mode) ==========
 // Desktop-only: hides real content when mouse leaves the page
+// Reveal requires clicking a secret button on the decoy overlay.
 
 (function () {
     'use strict';
@@ -11,9 +12,7 @@
     let overlay = null;
     let btn = null;
     let pollTimer = null;
-    let lastMouseX = -1;
-    let lastMouseY = -1;
-    let mouseInViewport = true;
+    let revealBtn = null;
 
     // Desktop detection: pointer device with hover capability
     function isDesktop() {
@@ -28,6 +27,11 @@
     function getBtn() {
         if (!btn) btn = document.getElementById('privacyBtn');
         return btn;
+    }
+
+    function getRevealBtn() {
+        if (!revealBtn) revealBtn = document.getElementById('privacyRevealBtn');
+        return revealBtn;
     }
 
     function updateDecoyTime() {
@@ -77,15 +81,8 @@
         // Check if mouse actually left viewport bounds
         if (e.clientY <= 0 || e.clientX <= 0 ||
             e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
-            mouseInViewport = false;
             showDecoy();
         }
-    }
-
-    function onMouseEnter() {
-        if (!privacyEnabled) return;
-        mouseInViewport = true;
-        hideDecoy();
     }
 
     // --- Detection Strategy 2: mouseout with relatedTarget check ---
@@ -93,7 +90,6 @@
         if (!privacyEnabled) return;
         // relatedTarget is null when mouse leaves the document entirely
         if (e.relatedTarget === null || e.relatedTarget.nodeName === 'HTML') {
-            mouseInViewport = false;
             showDecoy();
         }
     }
@@ -103,27 +99,14 @@
         if (!privacyEnabled) return;
         if (document.hidden) {
             showDecoy();
-        } else {
-            // Tab is visible again — only hide if mouse is confirmed in viewport
-            // Use a small delay to let mouseenter fire first
-            setTimeout(function () {
-                if (mouseInViewport) hideDecoy();
-            }, 50);
         }
+        // Tab becoming visible again does NOT auto-reveal — user must click the button
     }
 
-    // --- Detection Strategy 4: blur/focus on window ---
+    // --- Detection Strategy 4: blur on window ---
     function onWindowBlur() {
         if (!privacyEnabled) return;
-        // Window lost focus — mouse likely left to browser chrome or other app
-        mouseInViewport = false;
         showDecoy();
-    }
-
-    function onWindowFocus() {
-        if (!privacyEnabled) return;
-        // Only hide on focus if we detect mouse is back inside
-        // The mouseenter handler will take care of actually hiding
     }
 
     // --- Detection Strategy 5: polling fallback ---
@@ -131,8 +114,7 @@
         if (pollTimer) return;
         pollTimer = setInterval(function () {
             if (!privacyEnabled) return;
-            // If document doesn't have focus and we haven't seen mouse recently, show decoy
-            if (!document.hasFocus() && !mouseInViewport) {
+            if (!document.hasFocus()) {
                 showDecoy();
             }
         }, POLL_INTERVAL);
@@ -145,12 +127,10 @@
         }
     }
 
-    // --- Track mouse position for fallback logic ---
-    function onMouseMove(e) {
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        mouseInViewport = true;
-        // If decoy is showing but mouse is inside, hide it
+    // --- Click-to-reveal handler ---
+    function onRevealClick(e) {
+        e.stopPropagation();
+        e.preventDefault();
         if (privacyEnabled) {
             hideDecoy();
         }
@@ -158,25 +138,31 @@
 
     function bindEvents() {
         document.documentElement.addEventListener('mouseleave', onMouseLeave);
-        document.documentElement.addEventListener('mouseenter', onMouseEnter);
         document.addEventListener('mouseout', onMouseOut);
         document.addEventListener('visibilitychange', onVisibilityChange);
-        document.addEventListener('mousemove', onMouseMove);
         window.addEventListener('blur', onWindowBlur);
-        window.addEventListener('focus', onWindowFocus);
         startPolling();
+
+        // Bind reveal button
+        const rb = getRevealBtn();
+        if (rb) {
+            rb.addEventListener('click', onRevealClick);
+        }
     }
 
     function unbindEvents() {
         document.documentElement.removeEventListener('mouseleave', onMouseLeave);
-        document.documentElement.removeEventListener('mouseenter', onMouseEnter);
         document.removeEventListener('mouseout', onMouseOut);
         document.removeEventListener('visibilitychange', onVisibilityChange);
-        document.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('blur', onWindowBlur);
-        window.removeEventListener('focus', onWindowFocus);
         stopPolling();
         hideDecoy();
+
+        // Unbind reveal button
+        const rb = getRevealBtn();
+        if (rb) {
+            rb.removeEventListener('click', onRevealClick);
+        }
     }
 
     // Global toggle function (called by onclick)

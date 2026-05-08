@@ -64,6 +64,9 @@
     margin-left: auto;
     flex-shrink: 0;
 }
+#boostBtn {
+    margin-left: 4px;
+}
 .stats-boost-btn:hover {
     background: var(--accent-subtle);
     border-color: var(--accent);
