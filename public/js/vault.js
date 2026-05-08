@@ -1478,26 +1478,35 @@
 
     // --- Format Lint ---
     global.lintCurrentFile = async function() {
-        if (!currentVault || !currentFile) { showToast('请先打开文件', 'info'); return; }
-        var resp = await fetch('/api/vault/lint?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(currentFile));
-        var data = await resp.json();
-        var panel = document.getElementById('lintResultsPanel');
-        var body = document.getElementById('lintResultsBody');
-        var actions = document.getElementById('lintActions');
-        if (!panel || !body) return;
-        panel.style.display = 'block';
-        if (!data.issues || data.issues.length === 0) {
-            body.innerHTML = '<div class="lint-pass">✅ 格式检查通过</div>';
-            if (actions) actions.style.display = 'none';
-            return;
+        if (!currentVault || !currentFile) { showToast('请先打开一个文件', 'info'); return; }
+        try {
+            var resp = await fetch('/api/vault/lint?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(currentFile));
+            if (!resp.ok) {
+                var err = await resp.json();
+                showToast('检查失败: ' + (err.error || resp.status), 'error');
+                return;
+            }
+            var data = await resp.json();
+            var panel = document.getElementById('lintResultsPanel');
+            var body = document.getElementById('lintResultsBody');
+            var actions = document.getElementById('lintActions');
+            if (!panel || !body) return;
+            panel.style.display = 'block';
+            if (!data.issues || data.issues.length === 0) {
+                body.innerHTML = '<div class="lint-pass">✅ 格式检查通过</div>';
+                if (actions) actions.style.display = 'none';
+                return;
+            }
+            var html = '';
+            data.issues.forEach(function(i) {
+                var icon = i.level === 'error' ? '🔴' : (i.level === 'warning' ? '🟡' : '🟢');
+                html += '<div class="lint-issue"><span>' + icon + '</span><span class="lint-msg">' + i.message + '</span>' + (i.fixable ? '<span class="lint-fix-tag">可修复</span>' : '') + '</div>';
+            });
+            body.innerHTML = html;
+            if (actions) actions.style.display = data.fixable > 0 ? 'block' : 'none';
+        } catch(e) {
+            showToast('格式检查失败: ' + e.message, 'error');
         }
-        var html = '';
-        data.issues.forEach(function(i) {
-            var icon = i.level === 'error' ? '🔴' : (i.level === 'warning' ? '🟡' : '🟢');
-            html += '<div class="lint-issue"><span>' + icon + '</span><span class="lint-msg">' + i.message + '</span>' + (i.fixable ? '<span class="lint-fix-tag">可修复</span>' : '') + '</div>';
-        });
-        body.innerHTML = html;
-        if (actions) actions.style.display = data.fixable > 0 ? 'block' : 'none';
     };
 
     global.fixAllLintIssues = async function() {
