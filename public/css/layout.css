@@ -74,6 +74,90 @@
     pointer-events: none;
 }
 
+/* Privacy Mode Button */
+.stats-privacy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 2px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.stats-privacy-btn:hover {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.stats-privacy-btn.active {
+    background: rgba(63, 185, 80, 0.15);
+    border-color: var(--success);
+    color: var(--success);
+    box-shadow: 0 0 6px rgba(63, 185, 80, 0.3);
+}
+
+/* Privacy Mode Overlay */
+.privacy-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 99999;
+    background: #202124;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.privacy-overlay.visible {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 80ms ease, visibility 0s linear 0s;
+}
+.privacy-decoy {
+    text-align: center;
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+}
+.privacy-decoy-search {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+.privacy-decoy-logo {
+    opacity: 0.9;
+}
+.privacy-decoy-searchbox {
+    width: 100%;
+    max-width: 560px;
+    height: 44px;
+    background: #303134;
+    border: 1px solid #5f6368;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+}
+.privacy-decoy-cursor {
+    width: 1px;
+    height: 20px;
+    background: #e8eaed;
+    animation: privacy-blink 1s step-end infinite;
+}
+@keyframes privacy-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
 /* 头部 */
 .header {
     background: var(--bg-secondary);

@@ -59,6 +59,7 @@
             <span class="stats-item-label">Uptime</span>
             <span class="stats-item-value" id="uptime">--</span>
         </div>
+        <button class="stats-privacy-btn" onclick="togglePrivacyMode()" id="privacyBtn" title="隐私模式">🔓</button>
         <button class="stats-boost-btn" onclick="runSystemBoost()" id="boostBtn" title="一键加速">🚀</button>
     </div>
 
@@ -994,5 +995,21 @@
     <script src="js/annotations.js"></script>
     <script src="js/notes.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/privacy.js"></script>
+
+    <!-- Privacy Mode Decoy Overlay -->
+    <div id="privacyOverlay" class="privacy-overlay">
+        <div class="privacy-decoy">
+            <div class="privacy-decoy-search">
+                <svg class="privacy-decoy-logo" viewBox="0 0 272 92" width="272" height="92">
+                    <text x="50%" y="60%" text-anchor="middle" font-size="72" font-family="Arial" fill="#e8eaed" dominant-baseline="middle">Google</text>
+                </svg>
+                <div class="privacy-decoy-searchbox">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <span class="privacy-decoy-cursor"></span>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
