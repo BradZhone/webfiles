@@ -1121,3 +1121,18 @@
 .ann-comment-save:hover {
     background: #b4d0fb;
 }
+
+/* Lint Panel */
+.lint-panel { border-top: 1px solid var(--border); background: var(--bg-secondary); max-height: 180px; overflow-y: auto; }
+.lint-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); }
+.lint-panel-header button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+.lint-issue { display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 12px; color: var(--text-secondary); }
+.lint-issue:hover { background: rgba(137,180,250,0.05); }
+.lint-msg { flex: 1; }
+.lint-fix-tag { font-size: 10px; background: rgba(166,227,161,0.15); color: #a6e3a1; padding: 1px 6px; border-radius: 4px; }
+.lint-pass { padding: 12px; text-align: center; color: #a6e3a1; font-size: 12px; }
+.lint-panel-actions { padding: 6px 12px; border-top: 1px solid var(--border); }
+.lint-panel-actions button { background: rgba(137,180,250,0.15); color: #89b4fa; border: 1px solid rgba(137,180,250,0.3); border-radius: 4px; padding: 4px 12px; font-size: 11px; cursor: pointer; }
+.lint-panel-actions button:hover { background: rgba(137,180,250,0.25); }
+.vault-action-btn { background: none; border: none; color: var(--text-secondary); font-size: 15px; cursor: pointer; padding: 4px 6px; border-radius: 4px; margin-left: 4px; }
+.vault-action-btn:hover { background: var(--hover); color: var(--text); }

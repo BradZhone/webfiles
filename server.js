@@ -2700,6 +2700,148 @@ app.get('/api/vault/notes-paths', requireAuth, (req, res) => {
     }
 });
 
+// ========== Format Lint ==========
+
+function lintMarkdownFile(content, fileName, vault) {
+    const issues = [];
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) {
+        issues.push({ level: 'error', rule: 'missing-frontmatter', message: '缺少 YAML frontmatter', fixable: true });
+        return issues;
+    }
+    const fmText = fmMatch[1];
+    if (!/^title:/m.test(fmText)) issues.push({ level: 'warning', rule: 'missing-title', message: '缺少 title 字段', fixable: true });
+    if (!/^tags:/m.test(fmText)) issues.push({ level: 'warning', rule: 'missing-tags', message: '缺少 tags 字段', fixable: true });
+    if (!/^created:/m.test(fmText)) issues.push({ level: 'warning', rule: 'missing-created', message: '缺少 created 日期', fixable: true });
+    const body = content.slice(fmMatch[0].length);
+    if (/^#[A-Z]{2}\|/m.test(body)) issues.push({ level: 'warning', rule: 'line-markers', message: '正文含有编辑器行号标记', fixable: true });
+    if (/^\*\*标签\*\*:/m.test(body)) issues.push({ level: 'warning', rule: 'duplicate-tags', message: '正文含有重复标签行', fixable: true });
+    // Heading skip check
+    const headings = body.match(/^(#{1,6})\s/gm) || [];
+    let prevLevel = 0;
+    for (const h of headings) {
+        const level = h.trim().length - 1;
+        if (prevLevel > 0 && level > prevLevel + 1) {
+            issues.push({ level: 'info', rule: 'heading-skip', message: '标题层级跳跃: H' + prevLevel + ' → H' + level, fixable: false });
+            break;
+        }
+        prevLevel = level;
+    }
+    return issues;
+}
+
+function fixMarkdownFile(content, fileName) {
+    const changes = [];
+    let fixed = content;
+    const fmMatch = fixed.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) {
+        const h1 = fixed.match(/^#\s+(.+)/m);
+        const title = h1 ? h1[1].trim() : path.basename(fileName, '.md');
+        const inlineTags = fixed.match(/#([\w\u4e00-\u9fa5]+)/g) || [];
+        const tags = [...new Set(inlineTags.map(t => t.slice(1)).filter(t => t.length > 1 && !/^[A-Z]{2}$/.test(t)))].slice(0, 5);
+        let fm = '---\ntitle: "' + title + '"\n';
+        if (tags.length > 0) fm += 'tags:\n' + tags.map(t => '  - ' + t).join('\n') + '\n';
+        fm += 'created: ' + new Date().toISOString().split('T')[0] + '\n---\n\n';
+        fixed = fm + fixed;
+        changes.push({ rule: 'missing-frontmatter', action: '添加 frontmatter' });
+    } else {
+        let fmText = fmMatch[1];
+        let fmChanged = false;
+        if (!/^title:/m.test(fmText)) {
+            const h1 = fixed.slice(fmMatch[0].length).match(/^#\s+(.+)/m);
+            const title = h1 ? h1[1].trim() : path.basename(fileName, '.md');
+            fmText += '\ntitle: "' + title + '"';
+            fmChanged = true;
+            changes.push({ rule: 'missing-title', action: '从标题提取 title' });
+        }
+        if (!/^tags:/m.test(fmText)) {
+            const body = fixed.slice(fmMatch[0].length);
+            const inlineTags = body.match(/#([\w\u4e00-\u9fa5]+)/g) || [];
+            const tags = [...new Set(inlineTags.map(t => t.slice(1)).filter(t => t.length > 1 && !/^[A-Z]{2}$/.test(t)))].slice(0, 5);
+            if (tags.length > 0) {
+                fmText += '\ntags:\n' + tags.map(t => '  - ' + t).join('\n');
+                fmChanged = true;
+                changes.push({ rule: 'missing-tags', action: '提取 ' + tags.length + ' 个标签' });
+            }
+        }
+        if (!/^created:/m.test(fmText)) {
+            fmText += '\ncreated: ' + new Date().toISOString().split('T')[0];
+            fmChanged = true;
+            changes.push({ rule: 'missing-created', action: '添加创建日期' });
+        }
+        if (fmChanged) fixed = '---\n' + fmText + '\n---' + fixed.slice(fmMatch[0].length);
+    }
+    if (/^#[A-Z]{2}\|/m.test(fixed)) { fixed = fixed.replace(/^#[A-Z]{2}\|/gm, ''); changes.push({ rule: 'line-markers', action: '删除行号标记' }); }
+    if (/^\*\*标签\*\*:/m.test(fixed)) { fixed = fixed.replace(/^\*\*标签\*\*:.*\n?/gm, ''); changes.push({ rule: 'duplicate-tags', action: '删除重复标签行' }); }
+    return { fixed, changes };
+}
+
+// Format spec
+app.get('/api/vault/format-spec', requireAuth, (req, res) => {
+    if (req.query.format === 'json') {
+        return res.json({
+            version: '1.0',
+            frontmatter: { required: ['title'], recommended: ['tags', 'created'], optional: ['type', 'aliases'],
+                formats: { title: 'string', tags: 'string[]', created: 'YYYY-MM-DD', type: 'enum: note|article|todo|annotation', aliases: 'string[]' }
+            },
+            body: { supported: ['headings','bold','italic','strikethrough','links','images','codeBlocks','blockquotes','lists','taskLists','tables','wikilinks','mermaid'], unsupported: ['latex','callouts','fileEmbeds','footnotes'] }
+        });
+    }
+    const specPath = path.join(__dirname, 'public', 'docs', 'format-spec.md');
+    if (fs.existsSync(specPath)) return res.type('text/markdown').send(fs.readFileSync(specPath, 'utf-8'));
+    res.status(404).json({ error: 'Not found' });
+});
+
+// Lint single file
+app.get('/api/vault/lint', requireAuth, (req, res) => {
+    const { vault, file } = req.query;
+    if (!vault || !file) return res.status(400).json({ error: 'Missing params' });
+    const filePath = path.resolve(path.join(vault, file));
+    if (!isPathSafe(filePath, vault)) return res.status(403).json({ error: 'Access denied' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const issues = lintMarkdownFile(content, file, vault);
+    res.json({ file, issues, fixable: issues.filter(i => i.fixable).length });
+});
+
+// Lint fix
+app.post('/api/vault/lint-fix', requireAuth, (req, res) => {
+    const { vault, file, dryRun } = req.body;
+    if (!vault || !file) return res.status(400).json({ error: 'Missing params' });
+    const filePath = path.resolve(path.join(vault, file));
+    if (!isPathSafe(filePath, vault)) return res.status(403).json({ error: 'Access denied' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const { fixed, changes } = fixMarkdownFile(content, file);
+    if (!dryRun && changes.length > 0) fs.writeFileSync(filePath, fixed, 'utf-8');
+    res.json({ file, changes, dryRun: !!dryRun });
+});
+
+// Lint all files in vault
+app.get('/api/vault/lint-all', requireAuth, (req, res) => {
+    const { vault } = req.query;
+    if (!vault) return res.status(400).json({ error: 'Missing vault' });
+    if (!isPathSafe(vault, HOME_DIR)) return res.status(403).json({ error: 'Access denied' });
+    const results = [];
+    function walk(dir) {
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const entry of entries) {
+            if (entry.name.startsWith('.') || entry.name === '_notes') continue;
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(fullPath);
+            else if (entry.name.endsWith('.md')) {
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                const relPath = path.relative(vault, fullPath);
+                const issues = lintMarkdownFile(content, relPath, vault);
+                if (issues.length > 0) results.push({ file: relPath, issues, fixable: issues.filter(i => i.fixable).length });
+            }
+        }
+    }
+    walk(vault);
+    res.json({ vault, files: results, totalFiles: results.length, totalIssues: results.reduce((s,r)=>s+r.issues.length,0), totalFixable: results.reduce((s,r)=>s+r.fixable,0) });
+});
+
 // JSON error handler for API routes
 app.use("/api", (err, req, res, next) => {
     console.error("API Error:", err.message);

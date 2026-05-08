@@ -1476,6 +1476,56 @@
         } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
     }
 
+    // --- Format Lint ---
+    global.lintCurrentFile = async function() {
+        if (!currentVault || !currentFile) { showToast('请先打开文件', 'info'); return; }
+        var resp = await fetch('/api/vault/lint?vault=' + encodeURIComponent(currentVault) + '&file=' + encodeURIComponent(currentFile));
+        var data = await resp.json();
+        var panel = document.getElementById('lintResultsPanel');
+        var body = document.getElementById('lintResultsBody');
+        var actions = document.getElementById('lintActions');
+        if (!panel || !body) return;
+        panel.style.display = 'block';
+        if (!data.issues || data.issues.length === 0) {
+            body.innerHTML = '<div class="lint-pass">✅ 格式检查通过</div>';
+            if (actions) actions.style.display = 'none';
+            return;
+        }
+        var html = '';
+        data.issues.forEach(function(i) {
+            var icon = i.level === 'error' ? '🔴' : (i.level === 'warning' ? '🟡' : '🟢');
+            html += '<div class="lint-issue"><span>' + icon + '</span><span class="lint-msg">' + i.message + '</span>' + (i.fixable ? '<span class="lint-fix-tag">可修复</span>' : '') + '</div>';
+        });
+        body.innerHTML = html;
+        if (actions) actions.style.display = data.fixable > 0 ? 'block' : 'none';
+    };
+
+    global.fixAllLintIssues = async function() {
+        if (!currentVault || !currentFile) return;
+        var resp = await fetch('/api/vault/lint-fix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({vault:currentVault,file:currentFile}) });
+        var data = await resp.json();
+        if (data.changes && data.changes.length > 0) {
+            showToast('已修复 ' + data.changes.length + ' 个问题', 'success');
+            openVaultFile(currentFile, currentVault);
+            setTimeout(lintCurrentFile, 500);
+        } else { showToast('无可修复项', 'info'); }
+    };
+
+    global.closeLintPanel = function() {
+        var p = document.getElementById('lintResultsPanel'); if (p) p.style.display = 'none';
+    };
+
+    global.showFormatSpec = async function() {
+        var resp = await fetch('/api/vault/format-spec');
+        var md = await resp.text();
+        switchContentTab('preview');
+        var preview = document.getElementById('contentPreview');
+        if (preview) {
+            if (typeof renderMarkdown === 'function') preview.innerHTML = renderMarkdown(md);
+            else preview.innerHTML = '<pre style="white-space:pre-wrap;padding:20px;">' + md.replace(/</g,'&lt;') + '</pre>';
+        }
+    };
+
     // --- Public API ---
     global.showVaultView = showVaultView;
     global.toggleVaultRoot = toggleVaultRoot;
