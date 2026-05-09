@@ -2552,6 +2552,9 @@ function parseAnnotationMd(filePath) {
 
 // Generate annotation .md file from structured data
 function writeAnnotationMd(filePath, source, annotations) {
+    // Sort by position before writing
+    annotations = annotations.slice().sort((a, b) => (a.offset || 0) - (b.offset || 0));
+
     const title = path.basename(source, '.md');
     
     // Build YAML frontmatter

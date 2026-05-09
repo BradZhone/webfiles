@@ -315,18 +315,37 @@
         var text = sel ? sel.toString().trim() : '';
         if (!text) return;
 
+        // Calculate position in document
+        var docOffset = 0;
+        var preview = document.getElementById('contentPreview');
+        if (preview && sel.rangeCount > 0) {
+            var selRange = sel.getRangeAt(0);
+            var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null, false);
+            var node;
+            var found = false;
+            while (node = walker.nextNode()) {
+                if (node === selRange.startContainer) {
+                    docOffset += selRange.startOffset;
+                    found = true;
+                    break;
+                }
+                docOffset += node.textContent.length;
+            }
+            if (!found) docOffset = 0;
+        }
+
         hideSelectionToolbar();
 
         if (type === 'comment') {
-            // Show inline comment input instead of prompt()
-            showCommentInput(text, color);
+            showCommentInput(text, color, docOffset);
         } else {
-            saveAnnotation(text, 'highlight', color, '', 0, 0, text.length);
-            if (sel) sel.removeAllRanges();
+            saveAnnotation(text, 'highlight', color, '', 0, docOffset, text.length);
         }
+
+        if (sel) sel.removeAllRanges();
     };
 
-    function showCommentInput(selectedText, color) {
+    function showCommentInput(selectedText, color, docOffset) {
         hideCommentInput();
         var isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
@@ -358,6 +377,7 @@
         // Store selected text for later save
         inputBox.setAttribute('data-selected-text', selectedText);
         inputBox.setAttribute('data-color', color);
+        inputBox.setAttribute('data-doc-offset', docOffset || 0);
 
         document.body.appendChild(inputBox);
 
@@ -380,10 +400,11 @@
         if (!box) return;
         var text = box.getAttribute('data-selected-text');
         var color = box.getAttribute('data-color') || 'blue';
+        var docOffset = parseInt(box.getAttribute('data-doc-offset')) || 0;
         var comment = (document.getElementById('annCommentText') || {}).value || '';
         hideCommentInput();
         if (text) {
-            saveAnnotation(text, 'comment', color, comment, 0, 0, text.length);
+            saveAnnotation(text, 'comment', color, comment, 0, docOffset, text.length);
         }
     };
 
@@ -400,8 +421,13 @@
             return;
         }
 
+        // Sort by document position (offset field)
+        var sorted = currentAnnotations.slice().sort(function(a, b) {
+            return (a.offset || 0) - (b.offset || 0);
+        });
+
         var html = '';
-        currentAnnotations.forEach(function(ann) {
+        sorted.forEach(function(ann) {
             var shortText = (ann.range || '').substring(0, 30) + (ann.range && ann.range.length > 30 ? '...' : '');
             html += '<div class="annotation-panel-item annotation-' + (ann.color || 'yellow') + '" onclick="scrollToAnnotation(\'' + ann.id + '\')">';
             html += '<div class="annotation-panel-text">' + escapeHtml(shortText) + '</div>';
