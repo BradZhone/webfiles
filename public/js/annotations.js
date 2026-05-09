@@ -111,7 +111,7 @@
         
         // Normalize search text
         var searchText = text.replace(/\\n/g, '\n');
-        var searchNormalized = searchText.replace(/[\n\r\s]+/g, '');  // Remove ALL whitespace for matching
+        var searchNormalized = searchText.replace(/[\n\r]+/g, '');  // Only remove newlines, keep spaces
         if (searchNormalized.length < 3) return;
         
         // Collect all text nodes
@@ -129,7 +129,7 @@
         var normToOrig = [];  // normToOrig[i] = original fullText position of char at normalized index i
         for (var k = 0; k < fullText.length; k++) {
             var ch = fullText[k];
-            if (!/[\n\r\s]/.test(ch)) {
+            if (ch !== '\n' && ch !== '\r') {
                 normToOrig.push(k);
                 normalizedFull += ch;
             }

@@ -319,13 +319,6 @@
             // metadata displayed in preview Properties block
             var title = payload.metadata && payload.metadata.title ? payload.metadata.title : filePath.split('/').pop().replace(/\.md$/, '');
             document.getElementById('headerTitle').textContent = '\ud83d\udcda ' + title;
-            // Auto-open TOC panel when file loaded
-            var tocBody = document.getElementById('panelToc');
-            var tocArrow = document.getElementById('panelTocArrow');
-            if (tocBody && tocBody.classList.contains('collapsed')) {
-                tocBody.classList.remove('collapsed');
-                if (tocArrow) tocArrow.textContent = '▼';
-            }
         } catch (e) {
             preview.innerHTML = '<div class="panel-empty">Failed: ' + escapeHtml(e.message) + '</div>';
         }
