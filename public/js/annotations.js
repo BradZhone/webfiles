@@ -87,8 +87,9 @@
     function highlightTextInElement(container, text, annId, color, comment) {
         if (!text || text.length < 3) return;
         
-        // Normalize search text — replace \n with actual newlines for matching
+        // Normalize search text — replace literal \n from JSON, then remove all newlines for matching
         var searchText = text.replace(/\\n/g, '\n');
+        var searchNormalized = searchText.replace(/[\n\r]/g, '');  // Remove newlines for DOM matching
         
         // Collect all text nodes with their positions in the full concatenated text
         var textNodes = [];
@@ -100,18 +101,17 @@
             fullText += node.textContent;
         }
         
-        // Find the annotation text in the full concatenated text
-        var matchIdx = fullText.indexOf(searchText);
+        // Search with normalized (no newlines) text
+        var matchIdx = fullText.indexOf(searchNormalized);
         if (matchIdx === -1) {
-            // Try matching just the first 60 chars (for partial matches)
-            var shortSearch = searchText.split('\n')[0].substring(0, 60);
+            // Try matching just the first 60 chars
+            var shortSearch = searchNormalized.substring(0, 60);
             if (shortSearch.length >= 3) matchIdx = fullText.indexOf(shortSearch);
             if (matchIdx === -1) return;
-            // Adjust search length to short match
-            searchText = shortSearch;
+            searchNormalized = shortSearch;
         }
         
-        var matchEnd = matchIdx + searchText.length;
+        var matchEnd = matchIdx + searchNormalized.length;
         
         // Find which text nodes overlap with [matchIdx, matchEnd)
         var nodesToWrap = [];
