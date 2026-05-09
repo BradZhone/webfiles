@@ -1137,3 +1137,50 @@
 .vault-action-btn { background: none; border: none; color: var(--text-secondary); font-size: 15px; cursor: pointer; padding: 4px 6px; border-radius: 4px; margin-left: 4px; }
 .vault-action-btn:hover { background: var(--hover); color: var(--text); }
 .vault-action-btn:first-of-type { margin-left: auto; }
+
+/* Annotation confirm dialog */
+.ann-confirm-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+.ann-confirm-box {
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 10px;
+    padding: 20px;
+    min-width: 250px;
+    max-width: 320px;
+    text-align: center;
+}
+.ann-confirm-msg {
+    color: #cdd6f4;
+    font-size: 14px;
+    margin: 0 0 16px;
+}
+.ann-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.ann-confirm-cancel, .ann-confirm-ok {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+}
+.ann-confirm-cancel {
+    background: #313244;
+    color: #a6adc8;
+}
+.ann-confirm-ok {
+    background: #f38ba8;
+    color: #1e1e2e;
+    font-weight: 600;
+}
+.ann-confirm-ok:hover { background: #f5a0b8; }

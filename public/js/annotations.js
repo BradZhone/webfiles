@@ -14,6 +14,7 @@
             var data = await resp.json();
             currentAnnotations = data.annotations || [];
             renderHighlights();
+            recalcAnnotationOffsets();
             renderAnnotationPanel();
             return currentAnnotations;
         } catch (e) {
@@ -80,6 +81,27 @@
         currentAnnotations.forEach(function(ann) {
             if (!ann.range) return;
             highlightTextInElement(preview, ann.range, ann.id, ann.color || 'yellow', ann.comment);
+        });
+    }
+
+    // Recalculate annotation offsets using DOM positions after rendering
+    function recalcAnnotationOffsets() {
+        var preview = document.getElementById('contentPreview');
+        if (!preview) return;
+
+        currentAnnotations.forEach(function(ann) {
+            var el = preview.querySelector('[data-ann-id="' + ann.id + '"]');
+            if (el) {
+                // Calculate offset from top of preview using element position
+                ann._sortOffset = el.offsetTop * 10000 + el.offsetLeft;
+            } else {
+                // Not found in DOM — try text-based offset calculation
+                var fullText = preview.textContent || '';
+                var searchText = (ann.range || '').replace(/\\n/g, '\n').replace(/[\n\r\s]+/g, '');
+                var normalizedFull = fullText.replace(/[\n\r\s]+/g, '');
+                var idx = normalizedFull.indexOf(searchText.substring(0, 40));
+                ann._sortOffset = idx >= 0 ? idx : 999999;
+            }
         });
     }
 
@@ -423,7 +445,7 @@
 
         // Sort by document position (offset field)
         var sorted = currentAnnotations.slice().sort(function(a, b) {
-            return (a.offset || 0) - (b.offset || 0);
+            return (a._sortOffset || a.offset || 0) - (b._sortOffset || b.offset || 0);
         });
 
         var html = '';
@@ -448,30 +470,84 @@
     };
 
     global.deleteAnnotationById = function(id) {
-        if (confirm('删除这条批注？')) deleteAnnotation(id);
+        showAnnotationConfirm('确定删除这条批注？', function() {
+            deleteAnnotation(id);
+        });
     };
 
     global.editAnnotationComment = function(id) {
         var ann = currentAnnotations.find(function(a) { return a.id === id; });
         if (!ann) return;
-        var newComment = prompt('编辑评论:', ann.comment || '');
-        if (newComment === null) return;
         hideAnnotationPopup();
-        fetch('/api/vault/annotations/' + id, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ vault: currentVault, file: currentFile, updates: { comment: newComment } })
-        }).then(function(r) { return r.json(); }).then(function(data) {
-            if (data.success) {
-                ann.comment = newComment;
-                renderHighlights();
-                renderAnnotationPanel();
-            }
-        });
+        showEditCommentInput(ann);
     };
 
     function escapeHtml(str) {
         return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showAnnotationConfirm(message, onConfirm) {
+        hideAnnotationPopup();
+        var overlay = document.createElement('div');
+        overlay.id = 'annConfirmOverlay';
+        overlay.className = 'ann-confirm-overlay';
+        overlay.innerHTML =
+            '<div class="ann-confirm-box">' +
+            '<p class="ann-confirm-msg">' + message + '</p>' +
+            '<div class="ann-confirm-actions">' +
+            '<button class="ann-confirm-cancel" onclick="closeAnnotationConfirm()">取消</button>' +
+            '<button class="ann-confirm-ok" id="annConfirmOk">确定</button>' +
+            '</div></div>';
+        document.body.appendChild(overlay);
+        document.getElementById('annConfirmOk').onclick = function() {
+            closeAnnotationConfirm();
+            onConfirm();
+        };
+    }
+
+    global.closeAnnotationConfirm = function() {
+        var el = document.getElementById('annConfirmOverlay');
+        if (el) el.remove();
+    };
+
+    function showEditCommentInput(ann) {
+        hideCommentInput();
+        var isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        var inputBox = document.createElement('div');
+        inputBox.id = 'annotationCommentInput';
+        inputBox.className = 'annotation-comment-input';
+        inputBox.innerHTML =
+            '<div class="ann-comment-header">✏️ 编辑评论</div>' +
+            '<div class="ann-comment-quote">' + escapeHtml((ann.range || '').substring(0, 50)) + '</div>' +
+            '<textarea id="annCommentText" placeholder="输入评论..." rows="3">' + escapeHtml(ann.comment || '') + '</textarea>' +
+            '<div class="ann-comment-actions">' +
+            '<button class="ann-comment-cancel" onclick="hideCommentInput()">取消</button>' +
+            '<button class="ann-comment-save" id="annEditSaveBtn">保存</button>' +
+            '</div>';
+        inputBox.style.position = 'fixed';
+        if (isMobile) {
+            inputBox.style.top = '50px'; inputBox.style.left = '8px'; inputBox.style.right = '8px';
+        } else {
+            inputBox.style.top = '50%'; inputBox.style.left = '50%'; inputBox.style.transform = 'translate(-50%, -50%)'; inputBox.style.width = '320px';
+        }
+        inputBox.style.zIndex = '10000';
+        document.body.appendChild(inputBox);
+        document.getElementById('annEditSaveBtn').onclick = function() {
+            var newComment = (document.getElementById('annCommentText') || {}).value || '';
+            hideCommentInput();
+            fetch('/api/vault/annotations/' + ann.id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vault: currentVault, file: currentFile, updates: { comment: newComment } })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.success) {
+                    ann.comment = newComment;
+                    renderHighlights();
+                    renderAnnotationPanel();
+                }
+            });
+        };
+        setTimeout(function() { var ta = document.getElementById('annCommentText'); if (ta) ta.focus(); }, 100);
     }
 
     // Word count display
