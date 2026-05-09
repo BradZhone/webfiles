@@ -87,11 +87,12 @@
     function highlightTextInElement(container, text, annId, color, comment) {
         if (!text || text.length < 3) return;
         
-        // Normalize search text — replace literal \n from JSON, then remove all newlines for matching
+        // Normalize search text
         var searchText = text.replace(/\\n/g, '\n');
-        var searchNormalized = searchText.replace(/[\n\r]/g, '');  // Remove newlines for DOM matching
+        var searchNormalized = searchText.replace(/[\n\r\s]+/g, '');  // Remove ALL whitespace for matching
+        if (searchNormalized.length < 3) return;
         
-        // Collect all text nodes with their positions in the full concatenated text
+        // Collect all text nodes
         var textNodes = [];
         var fullText = '';
         var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
@@ -101,31 +102,47 @@
             fullText += node.textContent;
         }
         
-        // Search with normalized (no newlines) text
-        var matchIdx = fullText.indexOf(searchNormalized);
-        if (matchIdx === -1) {
-            // Try matching just the first 60 chars
-            var shortSearch = searchNormalized.substring(0, 60);
-            if (shortSearch.length >= 3) matchIdx = fullText.indexOf(shortSearch);
-            if (matchIdx === -1) return;
+        // Build normalized fullText with position mapping back to original
+        var normalizedFull = '';
+        var normToOrig = [];  // normToOrig[i] = original fullText position of char at normalized index i
+        for (var k = 0; k < fullText.length; k++) {
+            var ch = fullText[k];
+            if (!/[\n\r\s]/.test(ch)) {
+                normToOrig.push(k);
+                normalizedFull += ch;
+            }
+        }
+        
+        // Search in normalized text
+        var normMatchIdx = normalizedFull.indexOf(searchNormalized);
+        if (normMatchIdx === -1) {
+            // Try shorter match (first 40 chars)
+            var shortSearch = searchNormalized.substring(0, 40);
+            if (shortSearch.length >= 3) normMatchIdx = normalizedFull.indexOf(shortSearch);
+            if (normMatchIdx === -1) return;
             searchNormalized = shortSearch;
         }
         
-        var matchEnd = matchIdx + searchNormalized.length;
+        // Map normalized positions back to original fullText positions
+        var matchStart = normToOrig[normMatchIdx];
+        var matchEndNormIdx = normMatchIdx + searchNormalized.length - 1;
+        var matchEnd = (matchEndNormIdx < normToOrig.length) ? normToOrig[matchEndNormIdx] + 1 : fullText.length;
         
-        // Find which text nodes overlap with [matchIdx, matchEnd)
+        // Find which text nodes overlap with [matchStart, matchEnd) in original fullText
         var nodesToWrap = [];
         for (var i = 0; i < textNodes.length; i++) {
             var tn = textNodes[i];
-            if (tn.end <= matchIdx) continue;  // Before match
-            if (tn.start >= matchEnd) break;   // After match
-            // This node overlaps with the match
-            var startInNode = Math.max(0, matchIdx - tn.start);
+            if (tn.end <= matchStart) continue;
+            if (tn.start >= matchEnd) break;
+            var startInNode = Math.max(0, matchStart - tn.start);
             var endInNode = Math.min(tn.node.textContent.length, matchEnd - tn.start);
+            // Skip whitespace-only portions
+            var portion = tn.node.textContent.substring(startInNode, endInNode);
+            if (portion.trim().length === 0) continue;
             nodesToWrap.push({ node: tn.node, start: startInNode, end: endInNode });
         }
         
-        // Wrap each overlapping portion (go in reverse to not break offsets)
+        // Wrap each overlapping portion (reverse order to preserve offsets)
         for (var j = nodesToWrap.length - 1; j >= 0; j--) {
             var info = nodesToWrap[j];
             try {
@@ -137,18 +154,16 @@
                 span.setAttribute('data-ann-id', annId);
                 span.setAttribute('data-comment', comment || '');
                 if (j === 0) {
-                    // Only first span gets click handler (to avoid duplicate popups)
                     span.onclick = function(e) { e.stopPropagation(); showAnnotationPopup(this); };
                 } else {
                     span.onclick = function(e) {
                         e.stopPropagation();
-                        // Find the first span with same ann-id and trigger its popup
                         var first = document.querySelector('[data-ann-id="' + annId + '"]');
                         if (first) showAnnotationPopup(first);
                     };
                 }
                 range.surroundContents(span);
-            } catch (e) { /* skip DOM errors for this node */ }
+            } catch (e) { /* skip DOM errors */ }
         }
     }
 
