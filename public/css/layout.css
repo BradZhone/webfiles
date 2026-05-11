@@ -544,3 +544,20 @@
     font-weight: 600;
 }
 .custom-dialog-btn.confirm:hover { background: #b4d0fb; }
+
+.quicknote-settings-btn {
+    background: none;
+    border: none;
+    color: #6c7086;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+.quicknote-settings-btn:hover { color: #cdd6f4; }
+.quicknote-recent-item {
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.quicknote-recent-item:hover {
+    background: rgba(137,180,250,0.08);
+}

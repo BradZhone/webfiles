@@ -43,9 +43,11 @@ const HOME_DIR = process.env.WEBFILES_HOME || configFile.homeDir || process.env.
 const sessionSecret = process.env.WEBFILES_SECRET || crypto.randomBytes(32).toString('hex');
 const vaultPaths = configFile.vaultPaths || [];
 
-// Quick note default path
-const QUICKNOTE_DIR = process.env.WEBFILES_QUICKNOTE || path.join(HOME_DIR, 'QuickNotes');
-if (!fs.existsSync(QUICKNOTE_DIR)) fs.mkdirSync(QUICKNOTE_DIR, { recursive: true });
+// Quick note directory (dynamic from config)
+function getQuickNoteDir() {
+    const config = loadConfig() || {};
+    return config.quickNotePath || process.env.WEBFILES_QUICKNOTE || path.join(HOME_DIR, 'QuickNotes');
+}
 
 // Clean up: remove sessionSecret from config.json if present
 if (configFile.sessionSecret) {
@@ -2853,7 +2855,43 @@ app.get('/api/vault/lint-all', requireAuth, (req, res) => {
 
 // GET /api/quicknote/config — get quicknote path
 app.get('/api/quicknote/config', requireAuth, (req, res) => {
-    res.json({ path: QUICKNOTE_DIR });
+    res.json({ path: getQuickNoteDir() });
+});
+
+// POST /api/quicknote/config — set quicknote path
+app.post('/api/quicknote/config', requireAuth, (req, res) => {
+    const { path: newPath } = req.body;
+    if (!newPath) return res.status(400).json({ error: 'Missing path' });
+    const resolved = path.resolve(newPath);
+    if (!resolved.startsWith(HOME_DIR)) return res.status(403).json({ error: 'Path must be within home directory' });
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(resolved)) fs.mkdirSync(resolved, { recursive: true });
+    // Save to config
+    const config = loadConfig() || {};
+    config.quickNotePath = resolved;
+    saveConfig(config);
+    res.json({ success: true, path: resolved });
+});
+
+// GET /api/quicknote/sync — sync quicknote path to notes
+app.get('/api/quicknote/sync', requireAuth, (req, res) => {
+    const qnDir = getQuickNoteDir();
+    if (!fs.existsSync(qnDir)) {
+        fs.mkdirSync(qnDir, { recursive: true });
+    }
+    
+    // Check if quicknote path is already in notes config
+    const config = loadConfig() || {};
+    const notesPaths = config.notesPaths || [];
+    const alreadyAdded = notesPaths.some(function(p) { return p.path === qnDir; });
+    
+    if (!alreadyAdded) {
+        notesPaths.push({ path: qnDir, name: '速记', id: 'quicknote-' + Date.now() });
+        config.notesPaths = notesPaths;
+        saveConfig(config);
+    }
+    
+    res.json({ synced: true, path: qnDir, alreadyAdded: alreadyAdded });
 });
 
 // POST /api/quicknote — save a quick note
@@ -2876,7 +2914,7 @@ app.post('/api/quicknote', requireAuth, (req, res) => {
 
     // For journal type, append to today's journal file
     if (noteType === 'journal') {
-        const journalDir = path.join(QUICKNOTE_DIR, cfg.folder);
+        const journalDir = path.join(getQuickNoteDir(), cfg.folder);
         if (!fs.existsSync(journalDir)) fs.mkdirSync(journalDir, { recursive: true });
         const journalFile = path.join(journalDir, dateStr + '.md');
 
@@ -2892,7 +2930,7 @@ app.post('/api/quicknote', requireAuth, (req, res) => {
     }
 
     // For idea/todo, create individual file
-    const noteDir = path.join(QUICKNOTE_DIR, cfg.folder);
+    const noteDir = path.join(getQuickNoteDir(), cfg.folder);
     if (!fs.existsSync(noteDir)) fs.mkdirSync(noteDir, { recursive: true });
 
     // Generate filename from first line or timestamp
@@ -2929,11 +2967,11 @@ app.get('/api/quicknote/recent', requireAuth, (req, res) => {
                 if (entry.isDirectory()) { scan(fullPath); }
                 else if (entry.name.endsWith('.md')) {
                     const stat = fs.statSync(fullPath);
-                    recent.push({ name: entry.name, path: path.relative(QUICKNOTE_DIR, fullPath), modified: stat.mtime });
+                    recent.push({ name: entry.name, path: path.relative(getQuickNoteDir(), fullPath), modified: stat.mtime });
                 }
             }
         }
-        scan(QUICKNOTE_DIR);
+        scan(getQuickNoteDir());
         recent.sort((a, b) => new Date(b.modified) - new Date(a.modified));
     } catch {}
     res.json({ notes: recent.slice(0, 10) });

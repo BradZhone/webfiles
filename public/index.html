@@ -1034,7 +1034,9 @@
     <div id="quickNotePanel" class="quicknote-panel" style="display:none;">
         <div class="quicknote-header">
             <span class="quicknote-title">📝 速记</span>
-            <button class="quicknote-close" onclick="toggleQuickNote()">✕</button>
+            <div style="display:flex;gap:4px;">
+                <button class="quicknote-settings-btn" onclick="configQuickNotePath()" title="设置路径">⚙</button>
+                <button class="quicknote-close" onclick="toggleQuickNote()">✕</button>
         </div>
         <div class="quicknote-types">
             <button class="quicknote-type active" data-type="idea" onclick="setQuickNoteType(this)">💡 灵感</button>
