@@ -43,24 +43,24 @@ async function batchDelete() {
         return;
     }
 
-    if (!confirm(`确定删除选中的 ${selectedFiles.size} 个项目？`)) return;
+    customConfirm(`确定删除选中的 ${selectedFiles.size} 个项目？`, async function() {
+        try {
+            const res = await fetch('/api/batch-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paths: Array.from(selectedFiles) })
+            });
+            const data = await res.json();
 
-    try {
-        const res = await fetch('/api/batch-delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paths: Array.from(selectedFiles) })
-        });
-        const data = await res.json();
+            const success = data.results.filter(r => r.success).length;
+            showToast(`已删除 ${success} 个项目`, 'success');
 
-        const success = data.results.filter(r => r.success).length;
-        showToast(`已删除 ${success} 个项目`, 'success');
-
-        cancelSelect();
-        loadFiles(currentPath);
-    } catch (e) {
-        showToast(e.message, 'error');
-    }
+            cancelSelect();
+            loadFiles(currentPath);
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    });
 }
 
 // 批量操作相关

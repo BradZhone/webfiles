@@ -278,7 +278,14 @@ function showView(id) {
 function goBack() {
     // 检查是否有未保存的文件
     const modifiedFiles = Object.keys(openFiles).filter(p => openFiles[p].modified);
-    if (modifiedFiles.length > 0 && !confirm(`有 ${modifiedFiles.length} 个文件未保存，确定返回？`)) return;
+    if (modifiedFiles.length > 0) {
+        customConfirm(`有 ${modifiedFiles.length} 个文件未保存，确定返回？`, function() {
+            showView('listView');
+            document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';
+            document.getElementById('viewToggle').style.display = 'none';
+        });
+        return;
+    }
 
     showView('listView');
     document.getElementById('headerTitle').textContent = currentPath.split('/').pop() || 'Home';

@@ -390,9 +390,18 @@ function closeFileTab(path) {
     if (!fileData) return;
 
     // 检查是否有未保存的更改
-    if (fileData.modified && !confirm(`${fileData.name} 有未保存的更改，确定关闭？`)) {
+    if (fileData.modified) {
+        customConfirm(`${fileData.name} 有未保存的更改，确定关闭？`, function() {
+            doCloseFileTab(path);
+        });
         return;
     }
+    doCloseFileTab(path);
+}
+
+function doCloseFileTab(path) {
+    var fileData = openFiles[path];
+    if (!fileData) return;
 
     // 移除标签
     const tab = document.getElementById('editorTab_' + path.replace(/[^a-zA-Z0-9]/g, '_'));

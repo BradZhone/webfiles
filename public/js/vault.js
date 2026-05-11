@@ -1276,47 +1276,49 @@
 
     async function createVaultFile() {
         if (!currentVault) { showToast('请先选择 Vault', 'warning'); return; }
-        var fileName = prompt('文件名 (例如: notes/my-note.md):');
-        if (!fileName) return;
-        if (!fileName.endsWith('.md')) fileName += '.md';
-        try {
-            var resp = await fetch('/api/vault/write', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ vault: currentVault, file: fileName, content: '# ' + fileName.replace(/\.md$/, '').split('/').pop() + '\n\n' })
-            });
-            var data = await resp.json();
-            if (data.success) {
-                showToast('文件已创建', 'success');
-                await loadAllVaults();
-                openVaultFile(fileName, currentVault);
-            } else {
-                showToast('创建失败: ' + (data.error || ''), 'error');
-            }
-        } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+        customPrompt('文件名 (例如: notes/my-note.md):', '', async function(fileName) {
+            if (!fileName) return;
+            if (!fileName.endsWith('.md')) fileName += '.md';
+            try {
+                var resp = await fetch('/api/vault/write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vault: currentVault, file: fileName, content: '# ' + fileName.replace(/\.md$/, '').split('/').pop() + '\n\n' })
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    showToast('文件已创建', 'success');
+                    await loadAllVaults();
+                    openVaultFile(fileName, currentVault);
+                } else {
+                    showToast('创建失败: ' + (data.error || ''), 'error');
+                }
+            } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+        });
     }
 
     async function deleteVaultFile() {
         if (!currentVault || !currentFile) return;
-        if (!confirm('确定删除 ' + currentFile + '？此操作不可撤销。')) return;
-        try {
-            var resp = await fetch('/api/vault/file', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ vault: currentVault, file: currentFile })
-            });
-            var data = await resp.json();
-            if (data.success) {
-                showToast('文件已删除', 'success');
-                currentFile = null;
-                currentFileRaw = '';
-                switchContentTab('preview');
-                document.getElementById('contentPreview').innerHTML = '<div class="vault-empty-state"><div class="empty-icon">📑</div><p>选择文件开始浏览</p></div>';
-                await loadAllVaults();
-            } else {
-                showToast('删除失败: ' + (data.error || ''), 'error');
-            }
-        } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
+        customConfirm('确定删除 ' + currentFile + '？此操作不可撤销。', async function() {
+            try {
+                var resp = await fetch('/api/vault/file', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vault: currentVault, file: currentFile })
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    showToast('文件已删除', 'success');
+                    currentFile = null;
+                    currentFileRaw = '';
+                    switchContentTab('preview');
+                    document.getElementById('contentPreview').innerHTML = '<div class="vault-empty-state"><div class="empty-icon">📑</div><p>选择文件开始浏览</p></div>';
+                    await loadAllVaults();
+                } else {
+                    showToast('删除失败: ' + (data.error || ''), 'error');
+                }
+            } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
+        });
     }
 
     // Ctrl+S save in editor
@@ -1449,24 +1451,25 @@
     }
 
     async function createVaultFileInVault(vaultPath) {
-        var fileName = prompt('新建文档 (例如: notes/my-note.md):');
-        if (!fileName) return;
-        if (!fileName.endsWith('.md')) fileName += '.md';
-        try {
-            var resp = await fetch('/api/vault/write', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ vault: vaultPath, file: fileName, content: '# ' + fileName.replace(/\.md$/, '').split('/').pop() + '\n\n' })
-            });
-            var data = await resp.json();
-            if (data.success) {
-                showToast('文件已创建', 'success');
-                await loadAllVaults();
-                openVaultFile(fileName, vaultPath);
-            } else {
-                showToast('创建失败: ' + (data.error || ''), 'error');
-            }
-        } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+        customPrompt('新建文档 (例如: notes/my-note.md):', '', async function(fileName) {
+            if (!fileName) return;
+            if (!fileName.endsWith('.md')) fileName += '.md';
+            try {
+                var resp = await fetch('/api/vault/write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vault: vaultPath, file: fileName, content: '# ' + fileName.replace(/\.md$/, '').split('/').pop() + '\n\n' })
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    showToast('文件已创建', 'success');
+                    await loadAllVaults();
+                    openVaultFile(fileName, vaultPath);
+                } else {
+                    showToast('创建失败: ' + (data.error || ''), 'error');
+                }
+            } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+        });
     }
 
     // --- Format Lint ---

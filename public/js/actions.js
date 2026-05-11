@@ -74,11 +74,14 @@ function closeAllOpenFiles() {
     const paths = Object.keys(openFiles);
     for (const path of paths) {
         if (openFiles[path]?.modified) {
-            if (!confirm(`${openFiles[path].name} 有未保存的更改，确定关闭？`)) {
-                continue;
-            }
+            customConfirm(`${openFiles[path].name} 有未保存的更改，确定关闭？`, function() {
+                closeFileTab(path);
+                renderOpenFilesList();
+                updateOpenFilesCount();
+            });
+        } else {
+            closeFileTab(path);
         }
-        closeFileTab(path);
     }
     renderOpenFilesList();
     updateOpenFilesCount();
@@ -132,8 +135,8 @@ async function doAction(action) {
         });
     } else if (action === 'compress') {
         hideActionMenu();
-        var compressName = prompt('压缩包名称:', actionTarget.name + '.zip');
-        if (compressName) {
+        customPrompt('压缩包名称:', actionTarget.name + '.zip', async function(compressName) {
+            if (!compressName) return;
             try {
                 showToast('正在压缩...', 'success');
                 var format = compressName.endsWith('.tar.gz') ? 'tar.gz' : 'zip';
@@ -145,7 +148,7 @@ async function doAction(action) {
                 if (res.ok) { showToast('压缩完成', 'success'); loadFiles(currentPath); }
                 else { var d = await res.json(); showToast('压缩失败: ' + (d.error || ''), 'error'); }
             } catch(e) { showToast('压缩失败: ' + e.message, 'error'); }
-        }
+        });
     } else if (action === 'unzip') {
         await unzipFile(actionTarget.path);
     } else if (action === 'terminal') {
@@ -153,20 +156,21 @@ async function doAction(action) {
         showTerminalView();
         createTerminal(dirPath);
     } else if (action === 'delete') {
-        if (!confirm('确定删除 ' + actionTarget.name + '？')) return;
-        try {
-            const res = await fetch('/api/file', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: actionTarget.path })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            showToast('删除成功', 'success');
-            loadFiles(currentPath);
-        } catch (e) {
-            showToast(e.message, 'error');
-        }
+        customConfirm('确定删除 ' + actionTarget.name + '？', async function() {
+            try {
+                const res = await fetch('/api/file', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: actionTarget.path })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                showToast('删除成功', 'success');
+                loadFiles(currentPath);
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        });
     }
 }
 
@@ -230,32 +234,33 @@ async function batchCompress() {
     const zipName = currentPath.split('/').pop() || 'archive';
     const defaultName = zipName + '.zip';
 
-    const name = prompt('请输入压缩包名称:', defaultName);
-    if (!name) return;
+    customPrompt('请输入压缩包名称:', defaultName, async function(name) {
+        if (!name) return;
 
-    let finalName = name.trim();
-    if (!finalName.endsWith('.zip')) finalName += '.zip';
-    const outputPath = currentPath + '/' + finalName;
+        let finalName = name.trim();
+        if (!finalName.endsWith('.zip')) finalName += '.zip';
+        const outputPath = currentPath + '/' + finalName;
 
-    try {
-        showToast('正在压缩...', 'success');
-        const res = await fetch('/api/compress', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                paths: Array.from(selectedFiles),
-                outputPath
-            })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        try {
+            showToast('正在压缩...', 'success');
+            const res = await fetch('/api/compress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    paths: Array.from(selectedFiles),
+                    outputPath
+                })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-        showToast(`已创建 ${finalName}`, 'success');
-        cancelSelect();
-        loadFiles(currentPath);
-    } catch (e) {
-        showToast('压缩失败: ' + e.message, 'error');
-    }
+            showToast(`已创建 ${finalName}`, 'success');
+            cancelSelect();
+            loadFiles(currentPath);
+        } catch (e) {
+            showToast('压缩失败: ' + e.message, 'error');
+        }
+    });
 }
 
 async function unzipFile(filePath) {
@@ -265,22 +270,22 @@ async function unzipFile(filePath) {
         return;
     }
 
-    if (!confirm('确定解压 ' + filePath.split('/').pop() + '？')) return;
+    customConfirm('确定解压 ' + filePath.split('/').pop() + '？', async function() {
+        try {
+            const res = await fetch('/api/unzip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: filePath })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-    try {
-        const res = await fetch('/api/unzip', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: filePath })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        showToast('解压成功', 'success');
-        loadFiles(currentPath);
-    } catch (e) {
-        showToast(e.message, 'error');
-    }
+            showToast('解压成功', 'success');
+            loadFiles(currentPath);
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    });
 }
 
 // 下载文件

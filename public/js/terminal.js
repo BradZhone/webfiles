@@ -503,48 +503,48 @@ function switchTerminal(terminalId) {
 }
 
 async function closeTerminal(terminalId) {
-    if (!confirm('确定关闭此终端？终端内容将被清除。')) return;
+    customConfirm('确定关闭此终端？终端内容将被清除。', async function() {
+        try {
+            await fetch('/api/terminals/' + terminalId, { method: 'DELETE' });
+        } catch (e) {}
 
-    try {
-        await fetch('/api/terminals/' + terminalId, { method: 'DELETE' });
-    } catch (e) {}
-
-    // 关闭 WebSocket
-    if (terminals[terminalId] && terminals[terminalId].ws) {
-        terminals[terminalId].ws.close();
-    }
-
-    // 移除标签
-    const tab = document.getElementById('tab_' + terminalId);
-    if (tab) tab.remove();
-
-    // 移除终端容器
-    const inst = document.getElementById('instance_' + terminalId);
-    if (inst) inst.remove();
-
-    // 清理
-    delete terminals[terminalId];
-    delete searchAddons[terminalId];
-    delete terminalFitAddons[terminalId];
-
-    updateTerminalEmptyState();
-
-    if (activeTerminalId === terminalId) {
-        activeTerminalId = null;
-        // 切换到另一个终端
-        const remainingIds = Object.keys(terminals);
-        if (remainingIds.length > 0) {
-            switchTerminal(remainingIds[0]);
+        // 关闭 WebSocket
+        if (terminals[terminalId] && terminals[terminalId].ws) {
+            terminals[terminalId].ws.close();
         }
-    }
+
+        // 移除标签
+        const tab = document.getElementById('tab_' + terminalId);
+        if (tab) tab.remove();
+
+        // 移除终端容器
+        const inst = document.getElementById('instance_' + terminalId);
+        if (inst) inst.remove();
+
+        // 清理
+        delete terminals[terminalId];
+        delete searchAddons[terminalId];
+        delete terminalFitAddons[terminalId];
+
+        updateTerminalEmptyState();
+
+        if (activeTerminalId === terminalId) {
+            activeTerminalId = null;
+            // 切换到另一个终端
+            const remainingIds = Object.keys(terminals);
+            if (remainingIds.length > 0) {
+                switchTerminal(remainingIds[0]);
+            }
+        }
+    });
 }
 
 async function renameTerminal(terminalId) {
     const term = terminals[terminalId];
     if (!term) return;
 
-    const newName = prompt('输入新名称:', term.name);
-    if (newName && newName.trim()) {
+    customPrompt('输入新名称:', term.name, async function(newName) {
+        if (!newName || !newName.trim()) return;
         term.name = newName.trim();
 
         // 更新标签显示
@@ -562,7 +562,7 @@ async function renameTerminal(terminalId) {
                 body: JSON.stringify({ name: newName.trim() })
             });
         } catch (e) {}
-    }
+    });
 }
 
 function duplicateTerminal() {
@@ -1207,12 +1207,13 @@ function deleteCustomShortcut(index) {
 }
 
 function resetShortcuts() {
-    if (!confirm('确定要重置所有自定义快捷键吗？')) return;
-    customShortcuts = [];
-    saveCustomShortcuts();
-    renderSavedShortcutsList();
-    renderCustomShortcuts();
-    showToast('已重置', 'success');
+    customConfirm('确定要重置所有自定义快捷键吗？', function() {
+        customShortcuts = [];
+        saveCustomShortcuts();
+        renderSavedShortcutsList();
+        renderCustomShortcuts();
+        showToast('已重置', 'success');
+    });
 }
 
 // ========== Quick Commands ==========

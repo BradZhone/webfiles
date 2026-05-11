@@ -140,27 +140,28 @@
 
 
     global.removeNotesPath = async function(id) {
-        if (!confirm('确定要移除此笔记路径吗？（不会删除文件）')) return;
-        try {
-            const resp = await fetch('/api/notes/paths/' + id, { method: 'DELETE' });
-            const data = await resp.json();
-            if (data.error) { showToast(data.error, 'error'); return; }
-            notesPaths = data.paths;
-            renderNotesPathManager();
-            renderPathSelector();
-            if (notesPaths.length > 0 && !notesPaths.find(p => p.path === currentNotesPath)) {
-                currentNotesPath = notesPaths[0].path;
+        customConfirm('确定要移除此笔记路径吗？（不会删除文件）', async function() {
+            try {
+                const resp = await fetch('/api/notes/paths/' + id, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) { showToast(data.error, 'error'); return; }
+                notesPaths = data.paths;
+                renderNotesPathManager();
+                renderPathSelector();
+                if (notesPaths.length > 0 && !notesPaths.find(p => p.path === currentNotesPath)) {
+                    currentNotesPath = notesPaths[0].path;
+                }
+                if (notesPaths.length === 0) {
+                    currentNotesPath = null;
+                    renderEmptyPaths();
+                } else {
+                    await loadNotes();
+                }
+                showToast('路径已移除', 'success');
+            } catch (e) {
+                showToast('移除失败: ' + e.message, 'error');
             }
-            if (notesPaths.length === 0) {
-                currentNotesPath = null;
-                renderEmptyPaths();
-            } else {
-                await loadNotes();
-            }
-            showToast('路径已移除', 'success');
-        } catch (e) {
-            showToast('移除失败: ' + e.message, 'error');
-        }
+        });
     };
 
     function renderEmptyPaths() {
@@ -191,25 +192,26 @@
         if (!currentNotesPath) { showToast('\u8bf7\u5148\u9009\u62e9\u8def\u5f84', 'error'); return; }
         const currentP = notesPaths.find(function(p) { return p.path === currentNotesPath; });
         if (!currentP) return;
-        if (!confirm('\u786e\u5b9a\u8981\u79fb\u9664\u300c' + currentP.name + '\u300d\u5417\uff1f\uff08\u4e0d\u4f1a\u5220\u9664\u6587\u4ef6\uff09')) return;
-        try {
-            const resp = await fetch('/api/notes/paths/' + currentP.id, { method: 'DELETE' });
-            const data = await resp.json();
-            if (data.error) { showToast(data.error, 'error'); return; }
-            notesPaths = data.paths;
-            if (notesPaths.length > 0) {
-                currentNotesPath = notesPaths[0].path;
-                renderPathSelector();
-                await loadNotes();
-            } else {
-                currentNotesPath = null;
-                renderPathSelector();
-                renderEmptyPaths();
+        customConfirm('\u786e\u5b9a\u8981\u79fb\u9664\u300c' + currentP.name + '\u300d\u5417\uff1f\uff08\u4e0d\u4f1a\u5220\u9664\u6587\u4ef6\uff09', async function() {
+            try {
+                const resp = await fetch('/api/notes/paths/' + currentP.id, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) { showToast(data.error, 'error'); return; }
+                notesPaths = data.paths;
+                if (notesPaths.length > 0) {
+                    currentNotesPath = notesPaths[0].path;
+                    renderPathSelector();
+                    await loadNotes();
+                } else {
+                    currentNotesPath = null;
+                    renderPathSelector();
+                    renderEmptyPaths();
+                }
+                showToast('\u8def\u5f84\u5df2\u79fb\u9664', 'success');
+            } catch (e) {
+                showToast('\u79fb\u9664\u5931\u8d25: ' + e.message, 'error');
             }
-            showToast('\u8def\u5f84\u5df2\u79fb\u9664', 'success');
-        } catch (e) {
-            showToast('\u79fb\u9664\u5931\u8d25: ' + e.message, 'error');
-        }
+        });
     };
 
     // ========== Directory Browser ==========
@@ -434,26 +436,27 @@
 
     global.deleteNotesFile = async function() {
         if (!currentNote || !currentNotesPath) return;
-        if (!confirm('确定要删除此笔记吗？')) return;
-        try {
-            const resp = await fetch('/api/notes/delete', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: currentNotesPath, file: currentNote.relativePath })
-            });
-            const data = await resp.json();
-            if (data.error) { showToast(data.error, 'error'); return; }
-            currentNote = null;
-            currentNoteContent = '';
-            if (notesEditor) notesEditor.setValue('');
-            isModified = false;
-            clearAutoSave();
-            showToast('笔记已删除', 'success');
-            showEmptyState();
-            await loadNotes();
-        } catch (e) {
-            showToast('删除失败: ' + e.message, 'error');
-        }
+        customConfirm('确定要删除此笔记吗？', async function() {
+            try {
+                const resp = await fetch('/api/notes/delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: currentNotesPath, file: currentNote.relativePath })
+                });
+                const data = await resp.json();
+                if (data.error) { showToast(data.error, 'error'); return; }
+                currentNote = null;
+                currentNoteContent = '';
+                if (notesEditor) notesEditor.setValue('');
+                isModified = false;
+                clearAutoSave();
+                showToast('笔记已删除', 'success');
+                showEmptyState();
+                await loadNotes();
+            } catch (e) {
+                showToast('删除失败: ' + e.message, 'error');
+            }
+        });
     };
 
     // ========== Note Creation ==========
