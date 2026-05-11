@@ -52,6 +52,12 @@
     }
 }
 
+.stats-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
 .stats-boost-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -60,12 +66,8 @@
     padding: 2px 6px;
     cursor: pointer;
     border-radius: 4px;
-    transition: all 0.2s ease;
-    margin-left: auto;
     flex-shrink: 0;
-}
-#boostBtn {
-    margin-left: 4px !important;
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
 }
 .stats-boost-btn:hover {
     background: var(--accent-subtle);

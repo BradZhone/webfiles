@@ -59,9 +59,10 @@
             <span class="stats-item-label">Uptime</span>
             <span class="stats-item-value" id="uptime">--</span>
         </div>
-        <button class="stats-boost-btn" onclick="togglePrivacyMode()" id="privacyBtn" title="隐私模式">🔓</button>
-        <button class="stats-boost-btn" onclick="runSystemBoost()" id="boostBtn" title="一键加速">🚀</button>
-        <button class="stats-boost-btn" onclick="toggleQuickNote()" id="quickNoteBtn" title="速记">📝</button>
+        <div class="stats-actions">
+            <button class="stats-boost-btn" onclick="togglePrivacyMode()" id="privacyBtn" title="隐私模式">🔓</button>
+            <button class="stats-boost-btn" onclick="runSystemBoost()" id="boostBtn" title="一键加速">🚀</button>
+            <button class="stats-boost-btn" onclick="toggleQuickNote()" id="quickNoteBtn" title="速记">📝</button>
     </div>
 
     <!-- 头部 -->
@@ -138,24 +139,6 @@
                 </div>
             </div>
             <button class="toolbar-btn" onclick="showDisplaySettings()">⚙ 显示</button>
-        </div>
-        <!-- 速记面板 -->
-        <div id="quickNotePanel" class="quicknote-panel" style="display:none;">
-            <div class="quicknote-header">
-                <span class="quicknote-title">📝 速记</span>
-                <button class="quicknote-close" onclick="toggleQuickNote()">✕</button>
-            </div>
-            <div class="quicknote-types">
-                <button class="quicknote-type active" data-type="idea" onclick="setQuickNoteType(this)">💡 灵感</button>
-                <button class="quicknote-type" data-type="todo" onclick="setQuickNoteType(this)">✅ 待办</button>
-                <button class="quicknote-type" data-type="journal" onclick="setQuickNoteType(this)">📅 日记</button>
-            </div>
-            <textarea id="quickNoteContent" class="quicknote-textarea" placeholder="写点什么..." rows="4"></textarea>
-            <div class="quicknote-footer">
-                <span class="quicknote-hint" id="quickNoteHint">Ctrl+Enter 保存</span>
-                <button class="quicknote-save" onclick="saveQuickNote()">保存</button>
-            </div>
-            <div class="quicknote-recent" id="quickNoteRecent"></div>
         </div>
         <!-- 批量操作栏 -->
         <div class="toolbar" id="batchToolbar" style="display:none">
@@ -1045,6 +1028,25 @@
             </div>
             <div class="privacy-decoy-footer">Privacy · Terms · Settings</div>
         </div>
+    </div>
+
+    <!-- Quick Note Panel (global, always accessible) -->
+    <div id="quickNotePanel" class="quicknote-panel" style="display:none;">
+        <div class="quicknote-header">
+            <span class="quicknote-title">📝 速记</span>
+            <button class="quicknote-close" onclick="toggleQuickNote()">✕</button>
+        </div>
+        <div class="quicknote-types">
+            <button class="quicknote-type active" data-type="idea" onclick="setQuickNoteType(this)">💡 灵感</button>
+            <button class="quicknote-type" data-type="todo" onclick="setQuickNoteType(this)">✅ 待办</button>
+            <button class="quicknote-type" data-type="journal" onclick="setQuickNoteType(this)">📅 日记</button>
+        </div>
+        <textarea id="quickNoteContent" class="quicknote-textarea" placeholder="写点什么..." rows="4"></textarea>
+        <div class="quicknote-footer">
+            <span class="quicknote-hint" id="quickNoteHint">Ctrl+Enter 保存</span>
+            <button class="quicknote-save" onclick="saveQuickNote()">保存</button>
+        </div>
+        <div class="quicknote-recent" id="quickNoteRecent"></div>
     </div>
 </body>
 </html>
