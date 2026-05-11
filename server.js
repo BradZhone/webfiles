@@ -43,6 +43,10 @@ const HOME_DIR = process.env.WEBFILES_HOME || configFile.homeDir || process.env.
 const sessionSecret = process.env.WEBFILES_SECRET || crypto.randomBytes(32).toString('hex');
 const vaultPaths = configFile.vaultPaths || [];
 
+// Quick note default path
+const QUICKNOTE_DIR = process.env.WEBFILES_QUICKNOTE || path.join(HOME_DIR, 'QuickNotes');
+if (!fs.existsSync(QUICKNOTE_DIR)) fs.mkdirSync(QUICKNOTE_DIR, { recursive: true });
+
 // Clean up: remove sessionSecret from config.json if present
 if (configFile.sessionSecret) {
     delete configFile.sessionSecret;
@@ -2843,6 +2847,96 @@ app.get('/api/vault/lint-all', requireAuth, (req, res) => {
     }
     walk(vault);
     res.json({ vault, files: results, totalFiles: results.length, totalIssues: results.reduce((s,r)=>s+r.issues.length,0), totalFixable: results.reduce((s,r)=>s+r.fixable,0) });
+});
+
+// ========== Quick Note API ==========
+
+// GET /api/quicknote/config — get quicknote path
+app.get('/api/quicknote/config', requireAuth, (req, res) => {
+    res.json({ path: QUICKNOTE_DIR });
+});
+
+// POST /api/quicknote — save a quick note
+app.post('/api/quicknote', requireAuth, (req, res) => {
+    const { type, content } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
+
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+    const noteType = type || 'idea';
+
+    // Type configs
+    const typeConfig = {
+        idea: { emoji: '💡', label: '灵感', folder: '灵感' },
+        todo: { emoji: '✅', label: '待办', folder: '待办' },
+        journal: { emoji: '📅', label: '日记', folder: '日记' }
+    };
+    const cfg = typeConfig[noteType] || typeConfig.idea;
+
+    // For journal type, append to today's journal file
+    if (noteType === 'journal') {
+        const journalDir = path.join(QUICKNOTE_DIR, cfg.folder);
+        if (!fs.existsSync(journalDir)) fs.mkdirSync(journalDir, { recursive: true });
+        const journalFile = path.join(journalDir, dateStr + '.md');
+
+        let existing = '';
+        if (fs.existsSync(journalFile)) {
+            existing = fs.readFileSync(journalFile, 'utf-8');
+        } else {
+            existing = '---\ntitle: "' + dateStr + ' 日记"\ntags:\n  - 日记\ntype: journal\ncreated: ' + dateStr + '\n---\n\n# ' + dateStr + ' 日记\n\n';
+        }
+        existing += '### ' + now.toTimeString().split(' ')[0] + '\n\n' + content.trim() + '\n\n---\n\n';
+        fs.writeFileSync(journalFile, existing, 'utf-8');
+        return res.json({ success: true, file: dateStr + '.md', type: noteType });
+    }
+
+    // For idea/todo, create individual file
+    const noteDir = path.join(QUICKNOTE_DIR, cfg.folder);
+    if (!fs.existsSync(noteDir)) fs.mkdirSync(noteDir, { recursive: true });
+
+    // Generate filename from first line or timestamp
+    const firstLine = content.trim().split('\n')[0].substring(0, 30).replace(/[<>:"/\\|?*]/g, '');
+    const fileName = dateStr + '-' + (firstLine || timeStr) + '.md';
+    const filePath = path.join(noteDir, fileName);
+
+    let md = '---\ntitle: "' + firstLine + '"\ntags:\n  - ' + cfg.label + '\ntype: ' + noteType + '\ncreated: ' + dateStr + '\n---\n\n';
+
+    if (noteType === 'todo') {
+        // Convert each line to a todo item
+        const lines = content.trim().split('\n');
+        md += '# ' + (firstLine || '待办事项') + '\n\n';
+        lines.forEach(line => {
+            if (line.trim()) md += '- [ ] ' + line.trim() + '\n';
+        });
+    } else {
+        md += '# ' + cfg.emoji + ' ' + (firstLine || '灵感') + '\n\n' + content.trim() + '\n';
+    }
+
+    fs.writeFileSync(filePath, md, 'utf-8');
+    res.json({ success: true, file: fileName, type: noteType });
+});
+
+// GET /api/quicknote/recent — get recent quick notes
+app.get('/api/quicknote/recent', requireAuth, (req, res) => {
+    const recent = [];
+    try {
+        function scan(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) { scan(fullPath); }
+                else if (entry.name.endsWith('.md')) {
+                    const stat = fs.statSync(fullPath);
+                    recent.push({ name: entry.name, path: path.relative(QUICKNOTE_DIR, fullPath), modified: stat.mtime });
+                }
+            }
+        }
+        scan(QUICKNOTE_DIR);
+        recent.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    } catch {}
+    res.json({ notes: recent.slice(0, 10) });
 });
 
 // JSON error handler for API routes

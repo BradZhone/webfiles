@@ -108,6 +108,7 @@
             <button class="toolbar-btn" onclick="showTerminalView()" id="terminalBtn">终端</button>
             <button class="toolbar-btn" onclick="showVaultView()" id="vaultBtn">知识库</button>
             <button class="toolbar-btn" onclick="showNotesView()" id="notesBtn">笔记</button>
+            <button class="toolbar-btn" onclick="toggleQuickNote()" id="quickNoteBtn" title="速记">📝 速记</button>
             <div class="toolbar-divider"></div>
             <div class="view-mode-group">
                 <button class="view-mode-btn active" id="viewListBtn" onclick="setViewMode('list')" title="列表视图">☰</button>
@@ -137,6 +138,24 @@
                 </div>
             </div>
             <button class="toolbar-btn" onclick="showDisplaySettings()">⚙ 显示</button>
+        </div>
+        <!-- 速记面板 -->
+        <div id="quickNotePanel" class="quicknote-panel" style="display:none;">
+            <div class="quicknote-header">
+                <span class="quicknote-title">📝 速记</span>
+                <button class="quicknote-close" onclick="toggleQuickNote()">✕</button>
+            </div>
+            <div class="quicknote-types">
+                <button class="quicknote-type active" data-type="idea" onclick="setQuickNoteType(this)">💡 灵感</button>
+                <button class="quicknote-type" data-type="todo" onclick="setQuickNoteType(this)">✅ 待办</button>
+                <button class="quicknote-type" data-type="journal" onclick="setQuickNoteType(this)">📅 日记</button>
+            </div>
+            <textarea id="quickNoteContent" class="quicknote-textarea" placeholder="写点什么..." rows="4"></textarea>
+            <div class="quicknote-footer">
+                <span class="quicknote-hint" id="quickNoteHint">Ctrl+Enter 保存</span>
+                <button class="quicknote-save" onclick="saveQuickNote()">保存</button>
+            </div>
+            <div class="quicknote-recent" id="quickNoteRecent"></div>
         </div>
         <!-- 批量操作栏 -->
         <div class="toolbar" id="batchToolbar" style="display:none">
@@ -1001,6 +1020,7 @@
     <script src="js/vault.js"></script>
     <script src="js/annotations.js"></script>
     <script src="js/notes.js"></script>
+    <script src="js/quicknote.js"></script>
     <script src="js/app.js"></script>
     <script src="js/privacy.js"></script>
 
