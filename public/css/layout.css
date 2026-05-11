@@ -353,7 +353,7 @@
 /* Quick Note Panel */
 .quicknote-panel {
     position: fixed;
-    top: 44px;
+    top: 32px;
     right: 12px;
     width: 340px;
     background: #1e1e2e;
