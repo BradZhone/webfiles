@@ -15,6 +15,9 @@ const unzipper = require('unzipper');
 const bcrypt = require('bcryptjs');
 const tar = require('tar');
 const rateLimit = require('express-rate-limit');
+const { streamText, tool, generateText } = require('ai');
+const { createOpenAI } = require('@ai-sdk/openai');
+const { z } = require('zod');
 const helmet = require('helmet');
 
 const app = express();
@@ -3021,6 +3024,579 @@ app.get('/api/quicknote/recent', requireAuth, (req, res) => {
         recent.sort((a, b) => new Date(b.modified) - new Date(a.modified));
     } catch {}
     res.json({ notes: recent.slice(0, 10) });
+});
+
+// ========== AI Assistant ==========
+
+const CONV_DIR = path.join(__dirname, '.conversations');
+if (!fs.existsSync(CONV_DIR)) fs.mkdirSync(CONV_DIR, { recursive: true });
+
+function getAIConfig() {
+  const config = loadConfigFile();
+  return config.ai || {};
+}
+
+function getAIModel() {
+  const ai = getAIConfig();
+  if (!ai.apiKey) throw new Error('AI API Key not configured');
+  const provider = createOpenAI({
+    baseURL: ai.baseUrl || 'https://api.z.ai/api/coding/paas/v4',
+    apiKey: ai.apiKey,
+    compatibility: 'compatible'
+  });
+  return provider(ai.model || 'glm-5.1');
+}
+
+// VaultIndex — AI-friendly knowledge graph index
+class VaultIndex {
+  constructor() { this.cache = new Map(); this.ttl = 5 * 60 * 1000; }
+
+  _scan(vaultPath) {
+    const cached = this.cache.get(vaultPath);
+    if (cached && Date.now() - cached.time < this.ttl) return cached.data;
+    const files = scanVault(vaultPath);
+    const fileIndex = new Map();
+    const tagIndex = new Map();
+    const linkIndex = new Map(); // target -> [{source, context}]
+    for (const f of files) {
+      fileIndex.set(f.relativePath, f);
+      for (const tag of f.tags) {
+        if (!tagIndex.has(tag)) tagIndex.set(tag, []);
+        tagIndex.get(tag).push(f.relativePath);
+      }
+      for (const link of (f.linksWithContext || [])) {
+        const target = link.target;
+        if (!linkIndex.has(target)) linkIndex.set(target, []);
+        linkIndex.get(target).push({ source: f.relativePath, context: link.context });
+      }
+    }
+    const data = { files, fileIndex, tagIndex, linkIndex };
+    this.cache.set(vaultPath, { data, time: Date.now() });
+    return data;
+  }
+
+  getOverview(vaultPath) {
+    const { files, tagIndex, linkIndex } = this._scan(vaultPath);
+    const folderMap = new Map();
+    for (const f of files) {
+      const folder = path.dirname(f.relativePath) || '.';
+      folderMap.set(folder, (folderMap.get(folder) || 0) + 1);
+    }
+    const folders = [...folderMap.entries()].map(([folder, fileCount]) => ({ folder, fileCount })).sort((a, b) => b.fileCount - a.fileCount);
+    const tags = [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length, sampleFiles: paths.slice(0, 3) })).sort((a, b) => b.count - a.count).slice(0, 20);
+    const hubFiles = files.map(f => {
+      const inLinks = linkIndex.get(f.basename) || [];
+      return { file: f.relativePath, inLinks: inLinks.length, outLinks: f.links.length, tags: f.tags, summary: f.metadata?.title || f.basename };
+    }).sort((a, b) => (b.inLinks + b.outLinks) - (a.inLinks + a.outLinks)).slice(0, 10);
+    const recentFiles = files.slice().sort((a, b) => {
+      try { return fs.statSync(path.join(vaultPath, b.relativePath)).mtimeMs - fs.statSync(path.join(vaultPath, a.relativePath)).mtimeMs; } catch { return 0; }
+    }).slice(0, 10).map(f => ({ file: f.relativePath, tags: f.tags }));
+    return { stats: { totalFiles: files.length, totalLinks: [...linkIndex.values()].reduce((s, a) => s + a.length, 0), totalTags: tagIndex.size }, folders, tags, hubFiles, recentFiles };
+  }
+
+  getNeighborhood(vaultPath, file, depth = 1) {
+    const { fileIndex, tagIndex, linkIndex } = this._scan(vaultPath);
+    const center = fileIndex.get(file);
+    if (!center) return { error: 'File not found in index' };
+    const outgoing = (center.linksWithContext || []).map(l => ({ file: l.target, context: l.context }));
+    const incoming = (linkIndex.get(center.basename) || []).filter(l => l.source !== file);
+    const sameTagFiles = [];
+    for (const tag of center.tags) {
+      for (const f of (tagIndex.get(tag) || [])) {
+        if (f !== file && !sameTagFiles.find(x => x.file === f)) {
+          sameTagFiles.push({ file: f, sharedTags: [tag] });
+        }
+      }
+    }
+    const dir = path.dirname(file);
+    const siblings = [...fileIndex.keys()].filter(k => path.dirname(k) === dir && k !== file).slice(0, 10);
+    return { center: { file, title: center.metadata?.title || center.basename, tags: center.tags }, directLinks: { outgoing, incoming }, sameTagFiles: sameTagFiles.slice(0, 10), siblings };
+  }
+}
+const vaultIndex = new VaultIndex();
+
+// Section operations
+function splitSections(content) {
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const frontmatter = fmMatch ? fmMatch[0] : '';
+  const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+  const lines = body.split('\n');
+  const sections = [];
+  let current = { index: 0, heading: null, level: 0, lines: [] };
+  for (const line of lines) {
+    const m = line.match(/^(#{1,6})\s+(.+)/);
+    if (m && current.lines.length > 0) {
+      sections.push(current);
+      current = { index: sections.length, heading: m[2].trim(), level: m[1].length, lines: [] };
+    }
+    current.lines.push(line);
+  }
+  sections.push(current);
+  return { frontmatter, sections };
+}
+
+function buildDocOutline(content) {
+  const { metadata } = parseFrontmatter(content);
+  const { sections } = splitSections(content);
+  const body = content.replace(/^---[\s\S]*?---\n*/, '');
+  const chineseChars = (body.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishWords = (body.match(/[a-zA-Z]+/g) || []).length;
+  const totalWords = chineseChars + englishWords;
+  return {
+    metadata,
+    wordCount: totalWords,
+    sections: sections.map(s => ({
+      index: s.index,
+      level: s.level,
+      heading: s.heading,
+      wordCount: s.lines.join(' ').replace(/\s+/g, ' ').trim().split(/\s+/).length,
+      preview: s.lines.find(l => l.trim() && !l.match(/^#{1,6}\s/) && !l.startsWith('```'))?.trim().slice(0, 100) || ''
+    }))
+  };
+}
+
+function editSectionContent(content, sectionIndex, newContent) {
+  const { frontmatter, sections } = splitSections(content);
+  if (sectionIndex < 0 || sectionIndex >= sections.length) throw new Error('Invalid section index');
+  sections[sectionIndex].lines = newContent.split('\n');
+  return frontmatter + sections.map(s => s.lines.join('\n')).join('\n');
+}
+
+function insertSectionContent(content, afterIndex, newContent) {
+  const { frontmatter, sections } = splitSections(content);
+  if (afterIndex < 0 || afterIndex >= sections.length) throw new Error('Invalid section index');
+  sections.splice(afterIndex + 1, 0, { index: -1, heading: null, level: 0, lines: newContent.split('\n') });
+  return frontmatter + sections.map(s => s.lines.join('\n')).join('\n');
+}
+
+function editFileMetadata(content, updates) {
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fmMatch) return `---\n${Object.entries(updates).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n${content}`;
+  let fm = fmMatch[1];
+  for (const [key, value] of Object.entries(updates)) {
+    const regex = new RegExp(`^${key}:.*$`, 'm');
+    const replacement = `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`;
+    if (regex.test(fm)) {
+      fm = fm.replace(regex, replacement);
+    } else {
+      fm += '\n' + replacement;
+    }
+  }
+  return `---\n${fm}\n---` + content.slice(fmMatch[0].length);
+}
+
+// AI file path resolver
+function resolveAIFilePath(args) {
+  let base;
+  if (args.vault) base = args.vault;
+  else if (args.notesPath) base = args.notesPath;
+  else throw new Error('Must specify vault or notesPath');
+  const resolved = path.resolve(path.join(base, args.file));
+  if (!resolved.startsWith(path.resolve(base)) || !resolved.startsWith(HOME_DIR)) {
+    throw new Error('Path not allowed');
+  }
+  return resolved;
+}
+
+function clearAICaches() {
+  vaultCache.clear();
+  notesCache.clear();
+  vaultIndex.cache.clear();
+}
+
+// AI Tool Definitions
+const aiTools = {
+  get_vault_overview: tool({
+    description: '获取知识库概览 / Get vault overview: stats, folders, tags, hub files',
+    parameters: z.object({ vault: z.string().describe('Vault path') }),
+    execute: async ({ vault }) => {
+      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
+      return vaultIndex.getOverview(vault);
+    }
+  }),
+  get_graph_neighborhood: tool({
+    description: '获取文件的局部关系图 / Get local subgraph around a file',
+    parameters: z.object({ vault: z.string(), file: z.string().describe('Relative path in vault') }),
+    execute: async ({ vault, file }) => {
+      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
+      return vaultIndex.getNeighborhood(vault, file);
+    }
+  }),
+  search_content: tool({
+    description: '全文搜索笔记和知识库 / Full-text search across notes and vaults',
+    parameters: z.object({ query: z.string(), vault: z.string().optional(), notesPath: z.string().optional() }),
+    execute: async ({ query, vault, notesPath }) => {
+      const results = [];
+      const q = query.toLowerCase();
+      const searchIn = [];
+      if (vault && validateVaultPath(vault, HOME_DIR)) {
+        const files = scanVault(vault);
+        for (const f of files) {
+          try {
+            const content = fs.readFileSync(f.path, 'utf-8');
+            const idx = content.toLowerCase().indexOf(q);
+            if (idx !== -1 || f.basename.toLowerCase().includes(q)) {
+              results.push({ file: f.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'vault' });
+            }
+          } catch {}
+        }
+      }
+      if (notesPath) {
+        const resolved = path.resolve(notesPath);
+        if (resolved.startsWith(HOME_DIR)) {
+          const notes = scanNotes(resolved);
+          for (const note of notes) {
+            try {
+              const content = fs.readFileSync(note.path, 'utf-8');
+              const idx = content.toLowerCase().indexOf(q);
+              if (idx !== -1 || note.name.toLowerCase().includes(q)) {
+                results.push({ file: note.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'notes' });
+              }
+            } catch {}
+          }
+        }
+      }
+      return { query, results: results.slice(0, 20), total: results.length };
+    }
+  }),
+  list_notes: tool({
+    description: '列出笔记文件 / List notes with optional type/tag filter',
+    parameters: z.object({ notesPath: z.string(), type: z.string().optional(), tag: z.string().optional() }),
+    execute: async ({ notesPath, type, tag }) => {
+      const resolved = path.resolve(notesPath);
+      if (!resolved.startsWith(HOME_DIR)) throw new Error('Access denied');
+      const notes = scanNotes(resolved, type, tag);
+      return { notes: notes.slice(0, 30).map(n => ({ name: n.name, relativePath: n.relativePath, title: n.title, type: n.type, tags: n.tags, modified: n.modified })) };
+    }
+  }),
+  read_outline: tool({
+    description: '读取文档结构大纲 / Read document structure outline without full content',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return buildDocOutline(content);
+    }
+  }),
+  read_section: tool({
+    description: '读取文档某个章节 / Read one section by index',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { sections } = splitSections(content);
+      if (args.sectionIndex < 0 || args.sectionIndex >= sections.length) throw new Error('Invalid section index');
+      const s = sections[args.sectionIndex];
+      return { index: s.index, heading: s.heading, level: s.level, content: s.lines.join('\n') };
+    }
+  }),
+  read_full: tool({
+    description: '读取整个文件内容 / Read entire file content',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { metadata } = parseFrontmatter(content);
+      return { content, metadata, size: content.length };
+    }
+  }),
+  get_tags: tool({
+    description: '获取知识库所有标签 / Get all tags in vault',
+    parameters: z.object({ vault: z.string() }),
+    execute: async ({ vault }) => {
+      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
+      const { tagIndex } = vaultIndex._scan(vault);
+      return { tags: [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length })).sort((a, b) => b.count - a.count) };
+    }
+  }),
+  get_todos: tool({
+    description: '获取未完成的待办事项 / Get uncompleted todos across notes',
+    parameters: z.object({ notesPath: z.string().optional() }),
+    execute: async ({ notesPath }) => {
+      const config = loadConfigFile();
+      const paths = notesPath ? [{ path: notesPath }] : (config.notesPaths || []);
+      const todos = [];
+      for (const np of paths) {
+        const resolved = path.resolve(np.path);
+        if (!resolved.startsWith(HOME_DIR)) continue;
+        const notes = scanNotes(resolved);
+        for (const note of notes) {
+          try {
+            const content = fs.readFileSync(note.path, 'utf-8');
+            const lines = content.split('\n');
+            lines.forEach((line, idx) => {
+              const m = line.match(/^\s*- \[ \]\s+(.+)/);
+              if (m) todos.push({ text: m[1].trim(), file: note.relativePath, line: idx });
+            });
+          } catch {}
+        }
+      }
+      return { todos: todos.slice(0, 50), total: todos.length };
+    }
+  }),
+  edit_section: tool({
+    description: '替换文档中某个章节 / Replace a section by index',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const updated = editSectionContent(content, args.sectionIndex, args.newContent);
+      fs.writeFileSync(filePath, updated, 'utf-8');
+      clearAICaches();
+      return { success: true, file: args.file };
+    }
+  }),
+  insert_section: tool({
+    description: '在某个章节后插入内容 / Insert content after a section',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const updated = insertSectionContent(content, args.afterIndex, args.newContent);
+      fs.writeFileSync(filePath, updated, 'utf-8');
+      clearAICaches();
+      return { success: true, file: args.file };
+    }
+  }),
+  edit_metadata: tool({
+    description: '修改文件 frontmatter / Modify file frontmatter metadata',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), updates: z.record(z.any()) }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const updated = editFileMetadata(content, args.updates);
+      fs.writeFileSync(filePath, updated, 'utf-8');
+      clearAICaches();
+      return { success: true, file: args.file };
+    }
+  }),
+  write_new_file: tool({
+    description: '创建新文件 / Create a new markdown file',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), content: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      if (fs.existsSync(filePath)) throw new Error('File already exists');
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, args.content, 'utf-8');
+      clearAICaches();
+      return { success: true, file: args.file };
+    }
+  }),
+  rename_note: tool({
+    description: '重命名笔记 / Rename a note file',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), newName: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const base = args.vault || args.notesPath;
+      const newPath = path.resolve(path.join(base, args.newName));
+      if (!newPath.startsWith(path.resolve(base)) || !newPath.startsWith(HOME_DIR)) throw new Error('Path not allowed');
+      if (fs.existsSync(newPath)) throw new Error('Target already exists');
+      const dir = path.dirname(newPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.renameSync(filePath, newPath);
+      clearAICaches();
+      return { success: true, oldFile: args.file, newFile: args.newName };
+    }
+  }),
+  lint_fix: tool({
+    description: '自动修复 Markdown 格式问题 / Auto-fix formatting issues',
+    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    execute: async (args) => {
+      const filePath = resolveAIFilePath(args);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { fixed, changes } = fixMarkdownFile(content, args.file);
+      if (changes.length > 0) {
+        fs.writeFileSync(filePath, fixed, 'utf-8');
+        clearAICaches();
+      }
+      return { file: args.file, changes, fixCount: changes.length };
+    }
+  }),
+  quick_capture: tool({
+    description: '速记一条笔记到 inbox / Quick capture a note to inbox',
+    parameters: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional() }),
+    execute: async ({ content, tags, notesPath }) => {
+      const config = loadConfigFile();
+      const notesPaths = config.notesPaths || [];
+      if (notesPaths.length === 0 && !notesPath) throw new Error('No notes path configured');
+      const targetPath = notesPath ? path.resolve(notesPath) : path.resolve(notesPaths[0].path);
+      if (!targetPath.startsWith(HOME_DIR)) throw new Error('Access denied');
+      const inboxFile = path.join(targetPath, 'inbox.md');
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+      const tagStr = tags && tags.length > 0 ? ' ' + tags.map(t => '#' + t).join(' ') : '';
+      const line = `- ${timestamp} ${content}${tagStr}\n`;
+      if (!fs.existsSync(inboxFile)) {
+        fs.writeFileSync(inboxFile, '---\ntype: note\ntags: [inbox]\ncreated: ' + now.toISOString().split('T')[0] + '\n---\n\n# Inbox\n\n' + line, 'utf-8');
+      } else {
+        fs.appendFileSync(inboxFile, line, 'utf-8');
+      }
+      clearAICaches();
+      return { success: true, timestamp };
+    }
+  })
+};
+
+// System prompt builder
+function buildAISystemPrompt(context, aiConfig) {
+  let prompt = aiConfig.systemPrompt || `你是 WebFiles 的 AI 助手，可以查看和编辑用户的笔记和知识库。
+
+工作原则：
+- 先了解再动手：用 get_vault_overview 或 read_outline 了解全貌
+- 最小修改：优先用 edit_section 改一个章节，不要全篇重写
+- 长文档分段读：先 read_outline 看结构，再 read_section 读需要的部分
+- 保持格式规范：Markdown frontmatter 用 YAML 格式，标题层级连续
+- 操作后确认：修改文件后告诉用户改了什么
+- 用中文回复`;
+
+  if (context) {
+    prompt += '\n\n## 当前上下文\n';
+    if (context.currentView) prompt += `- 用户当前页面: ${context.currentView}\n`;
+    if (context.currentFile) prompt += `- 正在查看: ${context.currentFile}\n`;
+    if (context.currentVault) prompt += `- 当前知识库: ${context.currentVault}\n`;
+    if (context.currentNotesPath) prompt += `- 当前笔记目录: ${context.currentNotesPath}\n`;
+  }
+  const config = loadConfigFile();
+  if (config.vaultPaths?.length) {
+    prompt += `\n## 可用知识库\n${config.vaultPaths.map(p => `- ${p}`).join('\n')}\n`;
+  }
+  if (config.notesPaths?.length) {
+    prompt += `\n## 可用笔记目录\n${config.notesPaths.map(p => `- ${p.name}: ${p.path}`).join('\n')}\n`;
+  }
+  return prompt;
+}
+
+// Conversation helpers
+function loadConversation(id) {
+  const file = path.join(CONV_DIR, `${id}.json`);
+  if (!fs.existsSync(file)) return null;
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return null; }
+}
+
+function saveConversation(conv) {
+  fs.writeFileSync(path.join(CONV_DIR, `${conv.id}.json`), JSON.stringify(conv, null, 2));
+}
+
+function summarizeToolResult(result) {
+  const str = typeof result === 'string' ? result : JSON.stringify(result);
+  return str.length > 200 ? str.slice(0, 200) + '...' : str;
+}
+
+// POST /api/ai/chat — Core chat endpoint with SSE streaming
+app.post('/api/ai/chat', requireAuth, async (req, res) => {
+  try {
+    const { message, conversationId, context } = req.body;
+    if (!message) return res.status(400).json({ error: 'Missing message' });
+    const model = getAIModel();
+    const aiConfig = getAIConfig();
+
+    // Load or create conversation
+    let conv;
+    if (conversationId) {
+      conv = loadConversation(conversationId);
+    }
+    if (!conv) {
+      conv = { id: crypto.randomBytes(8).toString('hex'), title: message.slice(0, 50), messages: [], created: new Date().toISOString(), updated: new Date().toISOString() };
+    }
+    conv.messages.push({ role: 'user', content: message });
+    conv.updated = new Date().toISOString();
+
+    // SSE headers
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+
+    const systemPrompt = buildAISystemPrompt(context, aiConfig);
+    const aiMessages = conv.messages.map(m => ({ role: m.role, content: m.content }));
+
+    let fullText = '';
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages: aiMessages,
+      tools: aiTools,
+      maxSteps: 15,
+      onStepFinish: ({ toolCalls, toolResults }) => {
+        if (toolCalls) {
+          for (const tc of toolCalls) {
+            res.write(`data: ${JSON.stringify({ type: 'tool_call', name: tc.toolName, args: tc.args })}\n\n`);
+          }
+        }
+        if (toolResults) {
+          for (const tr of toolResults) {
+            res.write(`data: ${JSON.stringify({ type: 'tool_result', name: tr.toolName, result: summarizeToolResult(tr.result) })}\n\n`);
+          }
+        }
+      }
+    });
+
+    for await (const chunk of result.textStream) {
+      fullText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
+    }
+
+    conv.messages.push({ role: 'assistant', content: fullText });
+    saveConversation(conv);
+    res.write(`data: ${JSON.stringify({ type: 'done', conversationId: conv.id })}\n\n`);
+    res.end();
+  } catch (e) {
+    if (!res.headersSent) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+    }
+    res.write(`data: ${JSON.stringify({ type: 'error', message: e.message || 'AI service error' })}\n\n`);
+    res.end();
+  }
+});
+
+// GET /api/ai/conversations — List conversations
+app.get('/api/ai/conversations', requireAuth, (req, res) => {
+  try {
+    const files = fs.readdirSync(CONV_DIR).filter(f => f.endsWith('.json'));
+    const list = [];
+    for (const file of files) {
+      try {
+        const conv = JSON.parse(fs.readFileSync(path.join(CONV_DIR, file), 'utf-8'));
+        list.push({ id: conv.id, title: conv.title, updated: conv.updated, messageCount: conv.messages.length });
+      } catch {}
+    }
+    list.sort((a, b) => new Date(b.updated) - new Date(a.updated));
+    res.json({ conversations: list });
+  } catch {
+    res.json({ conversations: [] });
+  }
+});
+
+// GET /api/ai/conversations/:id — Get conversation detail
+app.get('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+  res.json(conv);
+});
+
+// DELETE /api/ai/conversations/:id — Delete conversation
+app.delete('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const file = path.join(CONV_DIR, `${req.params.id}.json`);
+  if (fs.existsSync(file)) fs.unlinkSync(file);
+  res.json({ success: true });
+});
+
+// GET /api/ai/config — Get AI config (mask API key)
+app.get('/api/ai/config', requireAuth, (req, res) => {
+  const ai = getAIConfig();
+  res.json({
+    configured: !!ai.apiKey,
+    baseUrl: ai.baseUrl || 'https://api.z.ai/api/coding/paas/v4',
+    model: ai.model || 'glm-5.1',
+    keyPreview: ai.apiKey ? ai.apiKey.slice(0, 8) + '...' : null
+  });
+});
+
+// POST /api/ai/config — Save AI config
+app.post('/api/ai/config', requireAuth, (req, res) => {
+  const { apiKey, model, baseUrl, systemPrompt } = req.body;
+  const config = loadConfigFile();
+  config.ai = { ...(config.ai || {}), ...( apiKey !== undefined && { apiKey }), ...(model !== undefined && { model }), ...(baseUrl !== undefined && { baseUrl }), ...(systemPrompt !== undefined && { systemPrompt }) };
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  res.json({ success: true });
 });
 
 // JSON error handler for API routes
