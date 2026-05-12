@@ -65,20 +65,36 @@
     font-size: 14px;
     width: 28px;
     height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 24px;
+    max-height: 24px;
     padding: 0;
+    margin: 0;
     cursor: pointer;
     border-radius: 4px;
     flex-shrink: 0;
-    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+    flex-grow: 0;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     box-sizing: border-box;
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
 }
 .stats-boost-btn:hover {
     background: var(--accent-subtle);
     border-color: var(--accent);
     color: var(--accent);
+}
+.stats-boost-btn:active,
+.stats-boost-btn:focus {
+    outline: none;
+    width: 28px;
+    height: 24px;
 }
 .stats-boost-btn.loading {
     color: #45475a;
