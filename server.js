@@ -1718,12 +1718,14 @@ function extractWikiLinksWithContext(content) {
   const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
   const links = [];
   let match;
-  while ((match = regex.exec(content)) !== null) {
+  match = regex.exec(content);
+  while (match !== null) {
     const target = match[1].trim();
     const start = Math.max(0, match.index - 30);
     const end = Math.min(content.length, match.index + match[0].length + 30);
     const context = content.substring(start, end).replace(/\n/g, ' ').trim();
     links.push({ target, context });
+    match = regex.exec(content);
   }
   return links;
 }
@@ -3044,7 +3046,7 @@ function getAIModel() {
     apiKey: ai.apiKey,
     compatibility: 'compatible'
   });
-  return provider(ai.model || 'glm-5.1');
+  return provider.chat(ai.model || 'glm-5.1');
 }
 
 // VaultIndex — AI-friendly knowledge graph index
@@ -3208,7 +3210,7 @@ function clearAICaches() {
 const aiTools = {
   get_vault_overview: tool({
     description: '获取知识库概览 / Get vault overview: stats, folders, tags, hub files',
-    parameters: z.object({ vault: z.string().describe('Vault path') }),
+    inputSchema: z.object({ vault: z.string().describe('Vault path') }),
     execute: async ({ vault }) => {
       if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
       return vaultIndex.getOverview(vault);
@@ -3216,7 +3218,7 @@ const aiTools = {
   }),
   get_graph_neighborhood: tool({
     description: '获取文件的局部关系图 / Get local subgraph around a file',
-    parameters: z.object({ vault: z.string(), file: z.string().describe('Relative path in vault') }),
+    inputSchema: z.object({ vault: z.string(), file: z.string().describe('Relative path in vault') }),
     execute: async ({ vault, file }) => {
       if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
       return vaultIndex.getNeighborhood(vault, file);
@@ -3224,7 +3226,7 @@ const aiTools = {
   }),
   search_content: tool({
     description: '全文搜索笔记和知识库 / Full-text search across notes and vaults',
-    parameters: z.object({ query: z.string(), vault: z.string().optional(), notesPath: z.string().optional() }),
+    inputSchema: z.object({ query: z.string(), vault: z.string().optional(), notesPath: z.string().optional() }),
     execute: async ({ query, vault, notesPath }) => {
       const results = [];
       const q = query.toLowerCase();
@@ -3261,7 +3263,7 @@ const aiTools = {
   }),
   list_notes: tool({
     description: '列出笔记文件 / List notes with optional type/tag filter',
-    parameters: z.object({ notesPath: z.string(), type: z.string().optional(), tag: z.string().optional() }),
+    inputSchema: z.object({ notesPath: z.string(), type: z.string().optional(), tag: z.string().optional() }),
     execute: async ({ notesPath, type, tag }) => {
       const resolved = path.resolve(notesPath);
       if (!resolved.startsWith(HOME_DIR)) throw new Error('Access denied');
@@ -3271,7 +3273,7 @@ const aiTools = {
   }),
   read_outline: tool({
     description: '读取文档结构大纲 / Read document structure outline without full content',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3280,7 +3282,7 @@ const aiTools = {
   }),
   read_section: tool({
     description: '读取文档某个章节 / Read one section by index',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3292,7 +3294,7 @@ const aiTools = {
   }),
   read_full: tool({
     description: '读取整个文件内容 / Read entire file content',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3302,7 +3304,7 @@ const aiTools = {
   }),
   get_tags: tool({
     description: '获取知识库所有标签 / Get all tags in vault',
-    parameters: z.object({ vault: z.string() }),
+    inputSchema: z.object({ vault: z.string() }),
     execute: async ({ vault }) => {
       if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
       const { tagIndex } = vaultIndex._scan(vault);
@@ -3311,7 +3313,7 @@ const aiTools = {
   }),
   get_todos: tool({
     description: '获取未完成的待办事项 / Get uncompleted todos across notes',
-    parameters: z.object({ notesPath: z.string().optional() }),
+    inputSchema: z.object({ notesPath: z.string().optional() }),
     execute: async ({ notesPath }) => {
       const config = loadConfigFile();
       const paths = notesPath ? [{ path: notesPath }] : (config.notesPaths || []);
@@ -3336,7 +3338,7 @@ const aiTools = {
   }),
   edit_section: tool({
     description: '替换文档中某个章节 / Replace a section by index',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3348,7 +3350,7 @@ const aiTools = {
   }),
   insert_section: tool({
     description: '在某个章节后插入内容 / Insert content after a section',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3360,7 +3362,7 @@ const aiTools = {
   }),
   edit_metadata: tool({
     description: '修改文件 frontmatter / Modify file frontmatter metadata',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), updates: z.record(z.any()) }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), updates: z.record(z.any()) }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3372,7 +3374,7 @@ const aiTools = {
   }),
   write_new_file: tool({
     description: '创建新文件 / Create a new markdown file',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), content: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), content: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       if (fs.existsSync(filePath)) throw new Error('File already exists');
@@ -3385,7 +3387,7 @@ const aiTools = {
   }),
   rename_note: tool({
     description: '重命名笔记 / Rename a note file',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), newName: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), newName: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const base = args.vault || args.notesPath;
@@ -3401,7 +3403,7 @@ const aiTools = {
   }),
   lint_fix: tool({
     description: '自动修复 Markdown 格式问题 / Auto-fix formatting issues',
-    parameters: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
     execute: async (args) => {
       const filePath = resolveAIFilePath(args);
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -3415,7 +3417,7 @@ const aiTools = {
   }),
   quick_capture: tool({
     description: '速记一条笔记到 inbox / Quick capture a note to inbox',
-    parameters: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional() }),
+    inputSchema: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional() }),
     execute: async ({ content, tags, notesPath }) => {
       const config = loadConfigFile();
       const notesPaths = config.notesPaths || [];
