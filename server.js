@@ -3190,14 +3190,61 @@ function editFileMetadata(content, updates) {
 // AI file path resolver
 function resolveAIFilePath(args) {
   let base;
-  if (args.vault) base = args.vault;
-  else if (args.notesPath) base = args.notesPath;
-  else throw new Error('Must specify vault or notesPath');
+  if (args.vault) base = resolveVaultPath(args.vault);
+  else if (args.notesPath) base = resolveNotesPath(args.notesPath);
+  else {
+    // Auto-detect: try vault first, then notes
+    const config = loadConfigFile();
+    if (config.vaultPaths && config.vaultPaths.length > 0) base = config.vaultPaths[0];
+    else if (config.notesPaths && config.notesPaths.length > 0) base = config.notesPaths[0].path;
+    else throw new Error('No vault or notes path configured');
+  }
   const resolved = path.resolve(path.join(base, args.file));
   if (!resolved.startsWith(path.resolve(base)) || !resolved.startsWith(HOME_DIR)) {
     throw new Error('Path not allowed');
   }
   return resolved;
+}
+
+// Smart vault path resolution — model doesn't need to know exact filesystem paths
+function resolveVaultPath(requestedVault) {
+  const config = loadConfigFile();
+  const vaultPaths = config.vaultPaths || [];
+
+  // If exact match, use it
+  if (requestedVault && vaultPaths.includes(requestedVault)) return requestedVault;
+
+  // If partial match (name or last segment)
+  if (requestedVault) {
+    const match = vaultPaths.find(p =>
+      p.endsWith('/' + requestedVault) ||
+      path.basename(p) === requestedVault ||
+      p.toLowerCase().includes(requestedVault.toLowerCase())
+    );
+    if (match) return match;
+  }
+
+  // Default to first configured vault
+  if (vaultPaths.length > 0) return vaultPaths[0];
+
+  throw new Error('No vault configured');
+}
+
+function resolveNotesPath(requestedPath) {
+  const config = loadConfigFile();
+  const notesPaths = config.notesPaths || [];
+
+  if (requestedPath) {
+    const match = notesPaths.find(p =>
+      p.path === requestedPath ||
+      p.name === requestedPath ||
+      p.path.toLowerCase().includes(requestedPath.toLowerCase())
+    );
+    if (match) return match.path;
+  }
+
+  if (notesPaths.length > 0) return notesPaths[0].path;
+  throw new Error('No notes path configured');
 }
 
 function clearAICaches() {
@@ -3210,43 +3257,55 @@ function clearAICaches() {
 const aiTools = {
   get_vault_overview: tool({
     description: '获取知识库概览 / Get vault overview: stats, folders, tags, hub files',
-    inputSchema: z.object({ vault: z.string().describe('Vault path') }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)') }),
     execute: async ({ vault }) => {
-      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
-      return vaultIndex.getOverview(vault);
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        return vaultIndex.getOverview(resolvedVault);
+      } catch (e) {
+        console.error('[AI Tool Error] get_vault_overview:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   get_graph_neighborhood: tool({
     description: '获取文件的局部关系图 / Get local subgraph around a file',
-    inputSchema: z.object({ vault: z.string(), file: z.string().describe('Relative path in vault') }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), file: z.string().describe('Relative path in vault') }),
     execute: async ({ vault, file }) => {
-      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
-      return vaultIndex.getNeighborhood(vault, file);
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        return vaultIndex.getNeighborhood(resolvedVault, file);
+      } catch (e) {
+        console.error('[AI Tool Error] get_graph_neighborhood:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   search_content: tool({
     description: '全文搜索笔记和知识库 / Full-text search across notes and vaults',
-    inputSchema: z.object({ query: z.string(), vault: z.string().optional(), notesPath: z.string().optional() }),
+    inputSchema: z.object({ query: z.string(), vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
     execute: async ({ query, vault, notesPath }) => {
-      const results = [];
-      const q = query.toLowerCase();
-      const searchIn = [];
-      if (vault && validateVaultPath(vault, HOME_DIR)) {
-        const files = scanVault(vault);
-        for (const f of files) {
-          try {
-            const content = fs.readFileSync(f.path, 'utf-8');
-            const idx = content.toLowerCase().indexOf(q);
-            if (idx !== -1 || f.basename.toLowerCase().includes(q)) {
-              results.push({ file: f.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'vault' });
-            }
-          } catch {}
-        }
-      }
-      if (notesPath) {
-        const resolved = path.resolve(notesPath);
-        if (resolved.startsWith(HOME_DIR)) {
-          const notes = scanNotes(resolved);
+      try {
+        const results = [];
+        const q = query.toLowerCase();
+        // Resolve vault
+        try {
+          const resolvedVault = resolveVaultPath(vault);
+          const files = scanVault(resolvedVault);
+          for (const f of files) {
+            try {
+              const content = fs.readFileSync(f.path, 'utf-8');
+              const idx = content.toLowerCase().indexOf(q);
+              if (idx !== -1 || f.basename.toLowerCase().includes(q)) {
+                results.push({ file: f.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'vault' });
+              }
+            } catch {}
+          }
+        } catch {}
+        // Resolve notes
+        try {
+          const resolvedNotes = resolveNotesPath(notesPath);
+          const notes = scanNotes(resolvedNotes);
           for (const note of notes) {
             try {
               const content = fs.readFileSync(note.path, 'utf-8');
@@ -3256,186 +3315,251 @@ const aiTools = {
               }
             } catch {}
           }
-        }
+        } catch {}
+        return { query, results: results.slice(0, 20), total: results.length };
+      } catch (e) {
+        console.error('[AI Tool Error] search_content:', e.message);
+        return { error: e.message };
       }
-      return { query, results: results.slice(0, 20), total: results.length };
     }
   }),
   list_notes: tool({
     description: '列出笔记文件 / List notes with optional type/tag filter',
-    inputSchema: z.object({ notesPath: z.string(), type: z.string().optional(), tag: z.string().optional() }),
+    inputSchema: z.object({ notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), type: z.string().optional(), tag: z.string().optional() }),
     execute: async ({ notesPath, type, tag }) => {
-      const resolved = path.resolve(notesPath);
-      if (!resolved.startsWith(HOME_DIR)) throw new Error('Access denied');
-      const notes = scanNotes(resolved, type, tag);
-      return { notes: notes.slice(0, 30).map(n => ({ name: n.name, relativePath: n.relativePath, title: n.title, type: n.type, tags: n.tags, modified: n.modified })) };
+      try {
+        const resolved = resolveNotesPath(notesPath);
+        const notes = scanNotes(resolved, type, tag);
+        return { notes: notes.slice(0, 30).map(n => ({ name: n.name, relativePath: n.relativePath, title: n.title, type: n.type, tags: n.tags, modified: n.modified })) };
+      } catch (e) {
+        console.error('[AI Tool Error] list_notes:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   read_outline: tool({
     description: '读取文档结构大纲 / Read document structure outline without full content',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      return buildDocOutline(content);
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return buildDocOutline(content);
+      } catch (e) {
+        console.error('[AI Tool Error] read_outline:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   read_section: tool({
     description: '读取文档某个章节 / Read one section by index',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), sectionIndex: z.number() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const { sections } = splitSections(content);
-      if (args.sectionIndex < 0 || args.sectionIndex >= sections.length) throw new Error('Invalid section index');
-      const s = sections[args.sectionIndex];
-      return { index: s.index, heading: s.heading, level: s.level, content: s.lines.join('\n') };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { sections } = splitSections(content);
+        if (args.sectionIndex < 0 || args.sectionIndex >= sections.length) return { error: 'Invalid section index' };
+        const s = sections[args.sectionIndex];
+        return { index: s.index, heading: s.heading, level: s.level, content: s.lines.join('\n') };
+      } catch (e) {
+        console.error('[AI Tool Error] read_section:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   read_full: tool({
     description: '读取整个文件内容 / Read entire file content',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const { metadata } = parseFrontmatter(content);
-      return { content, metadata, size: content.length };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { metadata } = parseFrontmatter(content);
+        return { content, metadata, size: content.length };
+      } catch (e) {
+        console.error('[AI Tool Error] read_full:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   get_tags: tool({
     description: '获取知识库所有标签 / Get all tags in vault',
-    inputSchema: z.object({ vault: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)') }),
     execute: async ({ vault }) => {
-      if (!validateVaultPath(vault, HOME_DIR)) throw new Error('Invalid vault');
-      const { tagIndex } = vaultIndex._scan(vault);
-      return { tags: [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length })).sort((a, b) => b.count - a.count) };
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const { tagIndex } = vaultIndex._scan(resolvedVault);
+        return { tags: [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length })).sort((a, b) => b.count - a.count) };
+      } catch (e) {
+        console.error('[AI Tool Error] get_tags:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   get_todos: tool({
     description: '获取未完成的待办事项 / Get uncompleted todos across notes',
-    inputSchema: z.object({ notesPath: z.string().optional() }),
+    inputSchema: z.object({ notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
     execute: async ({ notesPath }) => {
-      const config = loadConfigFile();
-      const paths = notesPath ? [{ path: notesPath }] : (config.notesPaths || []);
-      const todos = [];
-      for (const np of paths) {
-        const resolved = path.resolve(np.path);
-        if (!resolved.startsWith(HOME_DIR)) continue;
-        const notes = scanNotes(resolved);
-        for (const note of notes) {
-          try {
-            const content = fs.readFileSync(note.path, 'utf-8');
-            const lines = content.split('\n');
-            lines.forEach((line, idx) => {
-              const m = line.match(/^\s*- \[ \]\s+(.+)/);
-              if (m) todos.push({ text: m[1].trim(), file: note.relativePath, line: idx });
-            });
-          } catch {}
+      try {
+        const config = loadConfigFile();
+        const resolvedPath = notesPath ? resolveNotesPath(notesPath) : null;
+        const paths = resolvedPath ? [{ path: resolvedPath }] : (config.notesPaths || []);
+        const todos = [];
+        for (const np of paths) {
+          const resolved = path.resolve(np.path);
+          if (!resolved.startsWith(HOME_DIR)) continue;
+          const notes = scanNotes(resolved);
+          for (const note of notes) {
+            try {
+              const content = fs.readFileSync(note.path, 'utf-8');
+              const lines = content.split('\n');
+              lines.forEach((line, idx) => {
+                const m = line.match(/^\s*- \[ \]\s+(.+)/);
+                if (m) todos.push({ text: m[1].trim(), file: note.relativePath, line: idx });
+              });
+            } catch {}
+          }
         }
+        return { todos: todos.slice(0, 50), total: todos.length };
+      } catch (e) {
+        console.error('[AI Tool Error] get_todos:', e.message);
+        return { error: e.message };
       }
-      return { todos: todos.slice(0, 50), total: todos.length };
     }
   }),
   edit_section: tool({
     description: '替换文档中某个章节 / Replace a section by index',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const updated = editSectionContent(content, args.sectionIndex, args.newContent);
-      fs.writeFileSync(filePath, updated, 'utf-8');
-      clearAICaches();
-      return { success: true, file: args.file };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = editSectionContent(content, args.sectionIndex, args.newContent);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] edit_section:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   insert_section: tool({
     description: '在某个章节后插入内容 / Insert content after a section',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const updated = insertSectionContent(content, args.afterIndex, args.newContent);
-      fs.writeFileSync(filePath, updated, 'utf-8');
-      clearAICaches();
-      return { success: true, file: args.file };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = insertSectionContent(content, args.afterIndex, args.newContent);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] insert_section:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   edit_metadata: tool({
     description: '修改文件 frontmatter / Modify file frontmatter metadata',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), updates: z.record(z.any()) }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), updates: z.record(z.any()) }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const updated = editFileMetadata(content, args.updates);
-      fs.writeFileSync(filePath, updated, 'utf-8');
-      clearAICaches();
-      return { success: true, file: args.file };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = editFileMetadata(content, args.updates);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] edit_metadata:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   write_new_file: tool({
     description: '创建新文件 / Create a new markdown file',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), content: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), content: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      if (fs.existsSync(filePath)) throw new Error('File already exists');
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(filePath, args.content, 'utf-8');
-      clearAICaches();
-      return { success: true, file: args.file };
+      try {
+        const filePath = resolveAIFilePath(args);
+        if (fs.existsSync(filePath)) return { error: 'File already exists' };
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, args.content, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] write_new_file:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   rename_note: tool({
     description: '重命名笔记 / Rename a note file',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string(), newName: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), newName: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const base = args.vault || args.notesPath;
-      const newPath = path.resolve(path.join(base, args.newName));
-      if (!newPath.startsWith(path.resolve(base)) || !newPath.startsWith(HOME_DIR)) throw new Error('Path not allowed');
-      if (fs.existsSync(newPath)) throw new Error('Target already exists');
-      const dir = path.dirname(newPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.renameSync(filePath, newPath);
-      clearAICaches();
-      return { success: true, oldFile: args.file, newFile: args.newName };
+      try {
+        const filePath = resolveAIFilePath(args);
+        const base = args.vault ? resolveVaultPath(args.vault) : resolveNotesPath(args.notesPath);
+        const newPath = path.resolve(path.join(base, args.newName));
+        if (!newPath.startsWith(path.resolve(base)) || !newPath.startsWith(HOME_DIR)) return { error: 'Path not allowed' };
+        if (fs.existsSync(newPath)) return { error: 'Target already exists' };
+        const dir = path.dirname(newPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.renameSync(filePath, newPath);
+        clearAICaches();
+        return { success: true, oldFile: args.file, newFile: args.newName };
+      } catch (e) {
+        console.error('[AI Tool Error] rename_note:', e.message);
+        return { error: e.message };
+      }
     }
   }),
   lint_fix: tool({
     description: '自动修复 Markdown 格式问题 / Auto-fix formatting issues',
-    inputSchema: z.object({ vault: z.string().optional(), notesPath: z.string().optional(), file: z.string() }),
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
     execute: async (args) => {
-      const filePath = resolveAIFilePath(args);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const { fixed, changes } = fixMarkdownFile(content, args.file);
-      if (changes.length > 0) {
-        fs.writeFileSync(filePath, fixed, 'utf-8');
-        clearAICaches();
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { fixed, changes } = fixMarkdownFile(content, args.file);
+        if (changes.length > 0) {
+          fs.writeFileSync(filePath, fixed, 'utf-8');
+          clearAICaches();
+        }
+        return { file: args.file, changes, fixCount: changes.length };
+      } catch (e) {
+        console.error('[AI Tool Error] lint_fix:', e.message);
+        return { error: e.message };
       }
-      return { file: args.file, changes, fixCount: changes.length };
     }
   }),
   quick_capture: tool({
     description: '速记一条笔记到 inbox / Quick capture a note to inbox',
-    inputSchema: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional() }),
+    inputSchema: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
     execute: async ({ content, tags, notesPath }) => {
-      const config = loadConfigFile();
-      const notesPaths = config.notesPaths || [];
-      if (notesPaths.length === 0 && !notesPath) throw new Error('No notes path configured');
-      const targetPath = notesPath ? path.resolve(notesPath) : path.resolve(notesPaths[0].path);
-      if (!targetPath.startsWith(HOME_DIR)) throw new Error('Access denied');
-      const inboxFile = path.join(targetPath, 'inbox.md');
-      const now = new Date();
-      const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
-      const tagStr = tags && tags.length > 0 ? ' ' + tags.map(t => '#' + t).join(' ') : '';
-      const line = `- ${timestamp} ${content}${tagStr}\n`;
-      if (!fs.existsSync(inboxFile)) {
-        fs.writeFileSync(inboxFile, '---\ntype: note\ntags: [inbox]\ncreated: ' + now.toISOString().split('T')[0] + '\n---\n\n# Inbox\n\n' + line, 'utf-8');
-      } else {
-        fs.appendFileSync(inboxFile, line, 'utf-8');
+      try {
+        const resolvedPath = resolveNotesPath(notesPath);
+        if (!resolvedPath.startsWith(HOME_DIR)) return { error: 'Access denied' };
+        const inboxFile = path.join(resolvedPath, 'inbox.md');
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+        const tagStr = tags && tags.length > 0 ? ' ' + tags.map(t => '#' + t).join(' ') : '';
+        const line = `- ${timestamp} ${content}${tagStr}\n`;
+        if (!fs.existsSync(inboxFile)) {
+          fs.writeFileSync(inboxFile, '---\ntype: note\ntags: [inbox]\ncreated: ' + now.toISOString().split('T')[0] + '\n---\n\n# Inbox\n\n' + line, 'utf-8');
+        } else {
+          fs.appendFileSync(inboxFile, line, 'utf-8');
+        }
+        clearAICaches();
+        return { success: true, timestamp };
+      } catch (e) {
+        console.error('[AI Tool Error] quick_capture:', e.message);
+        return { error: e.message };
       }
-      clearAICaches();
-      return { success: true, timestamp };
     }
   })
 };
@@ -3450,7 +3574,10 @@ function buildAISystemPrompt(context, aiConfig) {
 - 长文档分段读：先 read_outline 看结构，再 read_section 读需要的部分
 - 保持格式规范：Markdown frontmatter 用 YAML 格式，标题层级连续
 - 操作后确认：修改文件后告诉用户改了什么
-- 用中文回复`;
+- 用中文回复
+
+重要提示：你可以直接调用工具而不需要指定 vault 或 notesPath 参数，系统会自动使用已配置的知识库和笔记目录。
+例如：直接调用 get_vault_overview() 即可查看知识库概览，无需传入路径。`;
 
   if (context) {
     prompt += '\n\n## 当前上下文\n';
@@ -3461,10 +3588,10 @@ function buildAISystemPrompt(context, aiConfig) {
   }
   const config = loadConfigFile();
   if (config.vaultPaths?.length) {
-    prompt += `\n## 可用知识库\n${config.vaultPaths.map(p => `- ${p}`).join('\n')}\n`;
+    prompt += `\n## 可用知识库\n${config.vaultPaths.map(p => `- 路径: ${p} (名称: ${path.basename(p)})\n  使用工具时可传 vault="${p}" 或直接省略`).join('\n')}\n`;
   }
   if (config.notesPaths?.length) {
-    prompt += `\n## 可用笔记目录\n${config.notesPaths.map(p => `- ${p.name}: ${p.path}`).join('\n')}\n`;
+    prompt += `\n## 可用笔记目录\n${config.notesPaths.map(p => `- 路径: ${p.path} (名称: ${p.name})\n  使用工具时可传 notesPath="${p.path}" 或直接省略`).join('\n')}\n`;
   }
   return prompt;
 }
@@ -3511,20 +3638,29 @@ app.post('/api/ai/chat', requireAuth, async (req, res) => {
     const aiMessages = conv.messages.map(m => ({ role: m.role, content: m.content }));
 
     let fullText = '';
+    let hadToolCalls = false;
     const result = streamText({
       model,
       system: systemPrompt,
       messages: aiMessages,
       tools: aiTools,
       maxSteps: 15,
-      onStepFinish: ({ toolCalls, toolResults }) => {
-        if (toolCalls) {
-          for (const tc of toolCalls) {
+      maxTokens: 4096,
+      onStepFinish: (step) => {
+        console.log('[AI Step]', {
+          hasText: !!step.text,
+          toolCalls: step.toolCalls?.length || 0,
+          toolResults: step.toolResults?.length || 0,
+          finishReason: step.finishReason
+        });
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          hadToolCalls = true;
+          for (const tc of step.toolCalls) {
             res.write(`data: ${JSON.stringify({ type: 'tool_call', name: tc.toolName, args: tc.args })}\n\n`);
           }
         }
-        if (toolResults) {
-          for (const tr of toolResults) {
+        if (step.toolResults && step.toolResults.length > 0) {
+          for (const tr of step.toolResults) {
             res.write(`data: ${JSON.stringify({ type: 'tool_result', name: tr.toolName, result: summarizeToolResult(tr.result) })}\n\n`);
           }
         }
@@ -3536,11 +3672,18 @@ app.post('/api/ai/chat', requireAuth, async (req, res) => {
       res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
     }
 
+    // If no text generated but tool calls happened, send fallback
+    if (!fullText && hadToolCalls) {
+      fullText = '[AI 已完成工具调用但未生成回复文本]';
+      res.write(`data: ${JSON.stringify({ type: 'text', content: fullText })}\n\n`);
+    }
+
     conv.messages.push({ role: 'assistant', content: fullText });
     saveConversation(conv);
     res.write(`data: ${JSON.stringify({ type: 'done', conversationId: conv.id })}\n\n`);
     res.end();
   } catch (e) {
+    console.error('[AI Chat Error]', e.message, e.stack);
     if (!res.headersSent) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
     }

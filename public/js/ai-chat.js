@@ -150,7 +150,12 @@
 
             // If no text was received, show a fallback
             if (!fullText && !contentEl.querySelector('.ai-error')) {
-                contentEl.innerHTML = '<span class="ai-typing">无响应内容</span>';
+                var hasToolCalls = toolsEl && toolsEl.querySelectorAll('.ai-tool-call').length > 0;
+                if (hasToolCalls) {
+                    contentEl.innerHTML = '<span class="ai-done">操作已完成</span>';
+                } else {
+                    contentEl.innerHTML = '<span class="ai-typing">AI 未返回内容，请重试</span>';
+                }
             }
 
         } catch (err) {
