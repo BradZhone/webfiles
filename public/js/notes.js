@@ -19,6 +19,8 @@
     let sidebarCollapsed = false;
     let dirBrowserCurrentPath = '';
 
+    let wordCountTimer = null;
+
     function onEditorChange() {
         isModified = true;
         updateSaveStatus('modified');
@@ -26,6 +28,26 @@
         if (currentTab === 'preview') {
             renderPreview(notesEditor.getValue());
         }
+        scheduleWordCount();
+    }
+
+    function scheduleWordCount() {
+        if (wordCountTimer) clearTimeout(wordCountTimer);
+        wordCountTimer = setTimeout(updateWordCount, 300);
+    }
+
+    function updateWordCount() {
+        if (!notesEditor) return;
+        var text = notesEditor.getValue();
+        var el = document.getElementById('notesWordCount');
+        if (!el) return;
+        var chars = text.length;
+        var lines = text.split('\n').length;
+        // Word count: Chinese chars + English words
+        var chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+        var englishWords = text.replace(/[\u4e00-\u9fa5]/g, ' ').match(/[a-zA-Z0-9]+/g);
+        var words = chineseChars + (englishWords ? englishWords.length : 0);
+        el.textContent = '\u5b57\u6570: ' + chars + ' | \u8bcd\u6570: ' + words + ' | \u884c\u6570: ' + lines;
     }
 
     // ========== Constants ==========
@@ -167,7 +189,7 @@
     function renderEmptyPaths() {
         const list = document.getElementById('notesList');
         if (list) {
-            list.innerHTML = '<div class="notes-list-empty"><span class="empty-icon">📝</span>点击 + 添加笔记目录</div>';
+            list.innerHTML = '<div class="notes-list-empty"><span class="empty-icon">📝</span>点击 ⚙️ 管理笔记目录</div>';
         }
         showEmptyState();
     }
@@ -332,7 +354,7 @@
         }
 
         list.innerHTML = filtered.map(note => {
-            const title = note.name.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '');
+            const title = note.title || note.name.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '');
             const type = note.type || 'note';
             const icon = TYPE_ICONS[type] || '📝';
             const modified = formatRelativeTime(note.modified);
@@ -371,6 +393,13 @@
             if (editorHeader) editorHeader.style.display = 'flex';
             if (editorContainer) editorContainer.style.display = 'flex';
 
+            // Update editor title
+            const titleEl = document.getElementById('notesEditorTitle');
+            if (titleEl) {
+                const noteTitle = (data.metadata && data.metadata.title) || data.relativePath.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/^.*[\/\\]/, '');
+                titleEl.textContent = noteTitle;
+            }
+
             // Update editor
             if (notesEditor) {
                 notesEditor.off('change', onEditorChange);
@@ -384,6 +413,7 @@
 
             // Update preview
             renderPreview(data.content);
+            updateWordCount();
 
             switchNotesTab(currentTab === 'todos' ? 'edit' : currentTab);
 
@@ -459,11 +489,65 @@
         });
     };
 
+    // ========== Note Rename ==========
+    global.startRenameNote = function() {
+        if (!currentNote) return;
+        const titleEl = document.getElementById('notesEditorTitle');
+        if (!titleEl) return;
+        const currentTitle = titleEl.textContent;
+        customPrompt('重命名笔记', currentTitle, async function(newTitle) {
+            if (!newTitle || newTitle === currentTitle) return;
+            try {
+                const resp = await fetch('/api/notes/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: currentNotesPath,
+                        file: currentNote.relativePath,
+                        newTitle: newTitle
+                    })
+                });
+                const data = await resp.json();
+                if (data.error) { showToast(data.error, 'error'); return; }
+                titleEl.textContent = newTitle;
+                showToast('已重命名', 'success');
+                await loadNotes();
+                if (data.newRelativePath) {
+                    await openNote(data.newRelativePath);
+                }
+            } catch (e) {
+                showToast('重命名失败: ' + e.message, 'error');
+            }
+        });
+    };
+
     // ========== Note Creation ==========
+    let selectedNoteType = 'note';
+
+    // Map: which templates belong to which type
+    const TYPE_TEMPLATE_MAP = {
+        note: ['blank', 'meeting', 'reading'],
+        idea: ['idea'],
+        todo: ['todo', 'weekly'],
+        journal: ['journal']
+    };
+
+    global.selectNoteType = function(type) {
+        selectedNoteType = type;
+        document.querySelectorAll('.notes-type-item').forEach(function(el) {
+            el.classList.toggle('active', el.dataset.type === type);
+        });
+        renderTemplateGrid(type);
+    };
+
     global.showNewNoteModal = function() {
         const modal = document.getElementById('notesNewModal');
         if (!modal) return;
-        renderTemplateGrid();
+        selectedNoteType = 'note';
+        document.querySelectorAll('.notes-type-item').forEach(function(el) {
+            el.classList.toggle('active', el.dataset.type === 'note');
+        });
+        renderTemplateGrid('note');
         modal.classList.remove('notes-hidden');
         modal.style.display = 'flex';
     };
@@ -476,22 +560,32 @@
         }
     };
 
-    function renderTemplateGrid() {
+    function renderTemplateGrid(type) {
         const grid = document.getElementById('notesTemplateGrid');
+        const label = document.getElementById('notesTemplateLabel');
         if (!grid) return;
-        const icons = { blank: '📄', meeting: '🤝', reading: '📖', weekly: '📅', todo: '✅' };
+        const allowedKeys = TYPE_TEMPLATE_MAP[type || selectedNoteType] || [];
+        // For types with only one template, create directly
+        if (allowedKeys.length <= 1) {
+            if (label) label.style.display = 'none';
+            grid.innerHTML = '<button type="button" class="btn-primary" style="width:100%;padding:10px;" onclick="createNoteFromTemplate(\'' + (allowedKeys[0] || 'blank') + '\')">\u521b\u5efa ' + (TYPE_LABELS[type || selectedNoteType] || '') + '</button>';
+            return;
+        }
+        if (label) label.style.display = '';
+        const icons = { blank: '\ud83d\udcc4', meeting: '\ud83e\udd1d', reading: '\ud83d\udcd6', weekly: '\ud83d\udcc5', todo: '\u2705', idea: '\ud83d\udca1', journal: '\ud83d\udcd4' };
         fetch('/api/notes/templates')
             .then(r => r.json())
             .then(data => {
-                grid.innerHTML = Object.entries(data.templates).map(([key, val]) => `
+                const filtered = Object.entries(data.templates).filter(([key]) => allowedKeys.includes(key));
+                grid.innerHTML = filtered.map(([key, val]) => `
                     <div class="notes-template-item" onclick="createNoteFromTemplate('${key}')">
-                        <span class="template-icon">${icons[key] || '📝'}</span>
+                        <span class="template-icon">${icons[key] || '\ud83d\udcdd'}</span>
                         <span class="template-name">${escapeHtml(val.name)}</span>
                     </div>
                 `).join('');
             })
             .catch(() => {
-                grid.innerHTML = '<div style="color:var(--dim);font-size:13px;">加载模板失败</div>';
+                grid.innerHTML = '<div style="color:var(--dim);font-size:13px;">\u52a0\u8f7d\u6a21\u677f\u5931\u8d25</div>';
             });
     }
 
@@ -499,12 +593,12 @@
         hideNewNoteModal();
         const titleInput = document.getElementById('notesNewTitle');
         let title = titleInput ? titleInput.value.trim() : '';
-        if (!title) title = '未命名';
+        if (!title) title = '\u672a\u547d\u540d';
         if (!currentNotesPath && notesPaths.length > 0) {
             currentNotesPath = notesPaths[0].path;
         }
         if (!currentNotesPath) {
-            showToast('请先配置笔记路径', 'error');
+            showToast('\u8bf7\u5148\u914d\u7f6e\u7b14\u8bb0\u8def\u5f84', 'error');
             return;
         }
         const now = new Date();
@@ -524,12 +618,93 @@
             const data = await resp.json();
             if (data.error) { showToast(data.error, 'error'); return; }
             if (titleInput) titleInput.value = '';
-            showToast('笔记已创建', 'success');
+            showToast('\u7b14\u8bb0\u5df2\u521b\u5efa', 'success');
             await loadNotes();
             await openNote(fileName);
         } catch (e) {
-            showToast('创建失败: ' + e.message, 'error');
+            showToast('\u521b\u5efa\u5931\u8d25: ' + e.message, 'error');
         }
+    };
+
+    // ========== Formatting Helpers ==========
+    function wrapSelection(cm, before, after) {
+        if (!cm) return;
+        if (cm.somethingSelected()) {
+            var sel = cm.getSelection();
+            cm.replaceSelection(before + sel + (after || before));
+        } else {
+            var cursor = cm.getCursor();
+            cm.replaceRange(before + (after || before), cursor);
+            cm.setCursor({line: cursor.line, ch: cursor.ch + before.length});
+        }
+        cm.focus();
+    }
+
+    function prefixLine(cm, prefix) {
+        if (!cm) return;
+        var cursor = cm.getCursor();
+        var line = cm.getLine(cursor.line);
+        cm.replaceRange(prefix + line, {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+        cm.setCursor({line: cursor.line, ch: cursor.ch + prefix.length});
+        cm.focus();
+    }
+
+    global.editorBold = function() { wrapSelection(notesEditor, '**'); };
+    global.editorItalic = function() { wrapSelection(notesEditor, '*'); };
+    global.editorStrikethrough = function() { wrapSelection(notesEditor, '~~'); };
+    global.editorHeading = function() {
+        if (!notesEditor) return;
+        var cursor = notesEditor.getCursor();
+        var line = notesEditor.getLine(cursor.line);
+        var hMatch = line.match(/^(#{1,6})\s/);
+        if (hMatch) {
+            if (hMatch[1].length >= 6) {
+                // Remove heading
+                notesEditor.replaceRange(line.replace(/^#{1,6}\s/, ''), {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+            } else {
+                notesEditor.replaceRange('#' + line, {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+            }
+        } else {
+            notesEditor.replaceRange('## ' + line, {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+        }
+        notesEditor.focus();
+    };
+    global.editorLink = function() {
+        if (!notesEditor) return;
+        if (notesEditor.somethingSelected()) {
+            var sel = notesEditor.getSelection();
+            notesEditor.replaceSelection('[' + sel + '](url)');
+        } else {
+            var cursor = notesEditor.getCursor();
+            notesEditor.replaceRange('[text](url)', cursor);
+            notesEditor.setCursor({line: cursor.line, ch: cursor.ch + 1});
+        }
+        notesEditor.focus();
+    };
+    global.editorCode = function() {
+        if (!notesEditor) return;
+        if (notesEditor.somethingSelected()) {
+            var sel = notesEditor.getSelection();
+            if (sel.includes('\n')) {
+                notesEditor.replaceSelection('```\n' + sel + '\n```');
+            } else {
+                notesEditor.replaceSelection('`' + sel + '`');
+            }
+        } else {
+            var cursor = notesEditor.getCursor();
+            notesEditor.replaceRange('`code`', cursor);
+            notesEditor.setCursor({line: cursor.line, ch: cursor.ch + 1});
+        }
+        notesEditor.focus();
+    };
+    global.editorList = function() { prefixLine(notesEditor, '- '); };
+    global.editorCheckbox = function() { prefixLine(notesEditor, '- [ ] '); };
+    global.editorQuote = function() { prefixLine(notesEditor, '> '); };
+    global.editorDivider = function() {
+        if (!notesEditor) return;
+        var cursor = notesEditor.getCursor();
+        notesEditor.replaceRange('\n---\n', {line: cursor.line, ch: notesEditor.getLine(cursor.line).length});
+        notesEditor.focus();
     };
 
     // ========== Editor ==========
@@ -553,7 +728,65 @@
                 'Cmd-S': function() { global.saveNotesFile(); },
                 'Tab': function(cm) {
                     cm.replaceSelection('    ', 'end');
-                }
+                },
+                'Enter': function(cm) {
+                    var cursor = cm.getCursor();
+                    var line = cm.getLine(cursor.line);
+                    // Ordered list: 1. 2. etc
+                    var olMatch = line.match(/^(\s*)(\d+)\.\s(.*)$/);
+                    if (olMatch) {
+                        if (olMatch[3].trim() === '') {
+                            // Empty item — exit list
+                            cm.replaceRange('\n', {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+                            return;
+                        }
+                        var nextNum = parseInt(olMatch[2], 10) + 1;
+                        cm.replaceSelection('\n' + olMatch[1] + nextNum + '. ');
+                        return;
+                    }
+                    // Checkbox: - [ ] or - [x]
+                    var cbMatch = line.match(/^(\s*)- \[[ x]\]\s(.*)$/i);
+                    if (cbMatch) {
+                        if (cbMatch[2].trim() === '') {
+                            cm.replaceRange('\n', {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+                            return;
+                        }
+                        cm.replaceSelection('\n' + cbMatch[1] + '- [ ] ');
+                        return;
+                    }
+                    // Unordered list: - or *
+                    var ulMatch = line.match(/^(\s*)([-*])\s(.*)$/);
+                    if (ulMatch) {
+                        if (ulMatch[3].trim() === '') {
+                            cm.replaceRange('\n', {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+                            return;
+                        }
+                        cm.replaceSelection('\n' + ulMatch[1] + ulMatch[2] + ' ');
+                        return;
+                    }
+                    // Blockquote: >
+                    var bqMatch = line.match(/^(\s*>\s)(.*)$/);
+                    if (bqMatch) {
+                        if (bqMatch[2].trim() === '') {
+                            cm.replaceRange('\n', {line: cursor.line, ch: 0}, {line: cursor.line, ch: line.length});
+                            return;
+                        }
+                        cm.replaceSelection('\n' + bqMatch[1]);
+                        return;
+                    }
+                    // Default enter
+                    cm.replaceSelection('\n');
+                },
+                'Ctrl-B': function() { global.editorBold(); },
+                'Cmd-B': function() { global.editorBold(); },
+                'Ctrl-I': function() { global.editorItalic(); },
+                'Cmd-I': function() { global.editorItalic(); },
+                'Ctrl-K': function() { global.editorLink(); },
+                'Cmd-K': function() { global.editorLink(); },
+                'Ctrl-Shift-C': function() { global.editorCode(); },
+                'Cmd-Shift-C': function() { global.editorCode(); },
+                'Ctrl-Shift-X': function() { global.editorStrikethrough(); },
+                'Cmd-Shift-X': function() { global.editorStrikethrough(); }
             }
         });
         notesEditor.setValue(content || '');
@@ -620,15 +853,16 @@
         // Convert checkboxes to interactive ones
         let lineIndex = 0;
         const lines = content.split('\n');
-        html = html.replace(/<li><input type="checkbox"(?: disabled)?( checked)?>\s*/g, function(match, checked) {
-            // Find the corresponding line number
+        html = html.replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/g, function(match) {
+            var isChecked = /checked/.test(match);
+            // Find the corresponding line number in full content
             while (lineIndex < lines.length && !lines[lineIndex].match(/^\s*- \[[ x]\]/i)) {
                 lineIndex++;
             }
-            const ln = lineIndex;
+            var ln = lineIndex;
             lineIndex++;
-            const checkedAttr = checked ? ' checked' : '';
-            return `<li><input type="checkbox"${checkedAttr} onchange="toggleNoteTodo(${ln})" data-line="${ln}"> `;
+            var checkedAttr = isChecked ? ' checked' : '';
+            return '<li><input type="checkbox"' + checkedAttr + ' onchange="toggleNoteTodo(' + ln + ')" data-line="' + ln + '"> ';
         });
         container.innerHTML = '<div class="markdown-body">' + html + '</div>';
         // Highlight code blocks

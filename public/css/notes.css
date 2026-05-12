@@ -146,16 +146,54 @@
     background: var(--bg-secondary);
 }
 .notes-editor-header span { font-size: 12px; color: var(--text-secondary); }
+.notes-editor-title {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 300px; padding: 2px 4px; border-radius: 4px;
+    transition: background 0.15s;
+}
+.notes-editor-title:hover { background: var(--item-hover); }
+.notes-editor-title-edit {
+    font-size: 12px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.notes-editor-title-edit:hover { opacity: 1; }
 .notes-save-status { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 3px; }
 .notes-save-status.saved { color: var(--success); }
 .notes-save-status.saving { color: var(--warning); }
 .notes-save-status.modified { color: var(--danger); }
+/* Editor toolbar */
+.notes-editor-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 4px 8px; border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary); flex-shrink: 0; flex-wrap: wrap;
+}
+.toolbar-btn {
+    background: none; border: 1px solid transparent; color: var(--text-secondary);
+    width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.15s; flex-shrink: 0;
+}
+.toolbar-btn:hover { background: var(--item-hover); color: var(--text); border-color: var(--border); }
+.toolbar-btn:active { background: var(--accent-subtle); color: var(--accent); }
+.toolbar-btn b { font-weight: 700; }
+.toolbar-btn i { font-style: italic; }
+.toolbar-btn s { text-decoration: line-through; }
+.toolbar-sep {
+    width: 1px; height: 18px; background: var(--border); margin: 0 4px; flex-shrink: 0;
+}
 .notes-editor-wrap {
     flex: 1; overflow: hidden; display: flex; flex-direction: column;
 }
 .notes-editor-wrap .CodeMirror {
     flex: 1; height: auto; font-family: 'SF Mono', Monaco, Consolas, monospace;
     font-size: 13px; line-height: 1.6;
+}
+/* Editor footer (word count) */
+.notes-editor-footer {
+    display: flex; align-items: center; padding: 4px 12px;
+    border-top: 1px solid var(--border); background: var(--bg-secondary);
+    font-size: 11px; color: var(--dim); flex-shrink: 0;
 }
 
 /* Preview area */
@@ -240,7 +278,7 @@
     max-height: 280px; overflow-y: auto; margin: 12px 0;
 }
 .notes-dir-browser-modal { max-width: 480px; }
-.notes-new-modal { max-width: 400px; }
+.notes-new-modal { max-width: 440px; }
 .notes-input-full { width: 100%; }
 .notes-modal-spacer { margin-bottom: 12px; }
 .notes-modal-spacer-small { margin-bottom: 8px; }
@@ -320,6 +358,23 @@
     padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none;
 }
 .dir-browser-name input:focus { border-color: var(--accent); }
+
+/* Note type selector */
+.notes-type-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px; padding: 8px 0; margin-bottom: 8px;
+}
+.notes-type-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 10px 6px; border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+    background: var(--item);
+}
+.notes-type-item:hover { border-color: var(--accent); background: var(--accent-subtle); }
+.notes-type-item.active { border-color: var(--accent); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent); }
+.notes-type-item .type-icon { font-size: 22px; }
+.notes-type-item .type-name { font-size: 12px; color: var(--text-secondary); }
+.notes-type-item.active .type-name { color: var(--accent); font-weight: 600; }
 
 /* Template selector */
 .notes-template-grid {

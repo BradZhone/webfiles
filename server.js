@@ -2177,7 +2177,9 @@ const NOTE_TEMPLATES = {
     meeting: { name: '会议记录', content: '---\ntype: note\ntags: [meeting]\ncreated: {{date}}\n---\n\n# 会议记录 - {{title}}\n\n## 参会人员\n\n- \n\n## 议题\n\n### 1. \n\n### 2. \n\n## 待办事项\n\n- [ ] \n\n## 备注\n\n' },
     reading: { name: '读书笔记', content: '---\ntype: note\ntags: [reading]\ncreated: {{date}}\n---\n\n# 《{{title}}》读书笔记\n\n## 基本信息\n\n- 作者：\n- 出版社：\n- 阅读日期：{{date}}\n\n## 核心观点\n\n1. \n\n## 精彩摘录\n\n> \n\n## 个人感悟\n\n' },
     weekly: { name: '周计划', content: '---\ntype: todo\ntags: [weekly]\ncreated: {{date}}\n---\n\n# 周计划 - {{title}}\n\n## 本周目标\n\n- [ ] \n\n## 每日计划\n\n### 周一\n- [ ] \n\n### 周二\n- [ ] \n\n### 周三\n- [ ] \n\n### 周四\n- [ ] \n\n### 周五\n- [ ] \n\n## 本周回顾\n\n' },
-    todo: { name: 'TODO 列表', content: '---\ntype: todo\ntags: [todo]\ncreated: {{date}}\n---\n\n# {{title}}\n\n## 待办\n\n- [ ] \n- [ ] \n- [ ] \n\n## 已完成\n\n' }
+    todo: { name: 'TODO 列表', content: '---\ntype: todo\ntags: [todo]\ncreated: {{date}}\n---\n\n# {{title}}\n\n## 待办\n\n- [ ] \n- [ ] \n- [ ] \n\n## 已完成\n\n' },
+    idea: { name: '想法/灵感', content: '---\ntype: idea\ntags: []\ncreated: {{date}}\n---\n\n# {{title}}\n\n💡 ' },
+    journal: { name: '日记', content: '---\ntype: journal\ntags: [日记]\ncreated: {{date}}\n---\n\n# {{date}} 日记\n\n## 今日记录\n\n' }
 };
 
 // GET /api/notes/templates - Get available templates
@@ -2257,8 +2259,10 @@ function scanNotes(notesPath, typeFilter, tagFilter) {
                     if (typeFilter && typeFilter !== 'all' && type !== typeFilter) continue;
                     if (tagFilter && !tags.includes(tagFilter)) continue;
                     const stats = fs.statSync(fullPath);
+                    const title = (metadata && metadata.title) || entry.name.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '');
                     notes.push({
                         name: entry.name,
+                        title,
                         path: fullPath,
                         relativePath: path.relative(notesPath, fullPath),
                         type,
@@ -2371,6 +2375,48 @@ app.delete('/api/notes/delete', requireAuth, (req, res) => {
         fs.unlinkSync(resolved);
         notesCache.clear();
         res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /api/notes/rename - Rename a note (update title in frontmatter + rename file)
+app.post('/api/notes/rename', requireAuth, (req, res) => {
+    const { path: notesPath, file, newTitle } = req.body;
+    if (!notesPath || !file || !newTitle) return res.status(400).json({ error: '缺少参数' });
+    const resolved = path.resolve(path.join(notesPath, file));
+    if (!resolved.startsWith(path.resolve(notesPath)) || !resolved.startsWith(HOME_DIR)) {
+        return res.status(403).json({ error: '路径不合法' });
+    }
+    try {
+        if (!fs.existsSync(resolved)) return res.status(404).json({ error: '文件不存在' });
+        let content = fs.readFileSync(resolved, 'utf-8');
+        // Update frontmatter title
+        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        if (fmMatch) {
+            let fm = fmMatch[1];
+            if (/^title:\s*.*/m.test(fm)) {
+                fm = fm.replace(/^title:\s*.*$/m, 'title: ' + newTitle);
+            } else {
+                fm = 'title: ' + newTitle + '\n' + fm;
+            }
+            content = '---\n' + fm + '\n---' + content.slice(fmMatch[0].length);
+        }
+        // Also update first H1 if it exists
+        content = content.replace(/^(# ).+$/m, '$1' + newTitle);
+        fs.writeFileSync(resolved, content, 'utf-8');
+        // Rename file
+        const sanitized = newTitle.replace(/[\/\\:*?"<>|]/g, '_');
+        const datePrefix = path.basename(file, '.md').match(/^(\d{4}-\d{2}-\d{2}-)/);
+        const newFileName = (datePrefix ? datePrefix[1] : '') + sanitized + '.md';
+        const newFilePath = path.join(path.dirname(resolved), newFileName);
+        let finalRelativePath = file;
+        if (newFilePath !== resolved && !fs.existsSync(newFilePath)) {
+            fs.renameSync(resolved, newFilePath);
+            finalRelativePath = path.relative(path.resolve(notesPath), newFilePath);
+        }
+        notesCache.clear();
+        res.json({ success: true, newRelativePath: finalRelativePath, newFileName: path.basename(newFilePath) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

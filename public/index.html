@@ -587,9 +587,7 @@
                         <select id="notesPathDropdown" onchange="switchNotesPath(this.value)" title="切换笔记目录">
                             <option value="">选择笔记目录...</option>
                         </select>
-                        <button type="button" class="notes-path-add-btn" onclick="showDirBrowser()" title="添加路径">+</button>
                         <button type="button" class="notes-path-manage-btn" onclick="showNotesPathManager()" title="管理路径">⚙️</button>
-                        <button type="button" class="notes-path-remove-btn" onclick="removeCurrentNotesPath()" title="移除当前路径">✕</button>
                     </div>
                     <div class="notes-search">
                         <input type="text" id="notesSearchInput" placeholder="搜索笔记..." oninput="onNotesSearch(this.value)" onkeypress="if(event.key==='Enter')doNotesSearch()">
@@ -623,13 +621,31 @@
                     <div id="notesContentBody" class="notes-content-body">
                         <!-- Editor -->
                         <div id="notesEditorHeader" class="notes-editor-header notes-hidden">
-                            <span>编辑模式 — Ctrl+S 保存</span>
+                            <span class="notes-editor-title" id="notesEditorTitle" onclick="startRenameNote()" title="点击重命名"></span>
+                            <span class="notes-editor-title-edit" id="notesEditorTitleEdit" onclick="startRenameNote()" title="重命名">✏️</span>
                             <span id="notesSaveStatus" class="notes-save-status saved">✓ 已保存</span>
                             <button type="button" class="notes-header-btn notes-save-btn" onclick="saveNotesFile()">💾 保存</button>
                             <button type="button" class="notes-header-btn notes-delete-btn" onclick="deleteNotesFile()">🗑️ 删除</button>
                         </div>
                         <div id="notesEditorContainer" class="notes-editor-container notes-hidden">
+                            <div class="notes-editor-toolbar" id="notesEditorToolbar">
+                                <button type="button" class="toolbar-btn" onclick="editorBold()" title="加粗 (Ctrl+B)"><b>B</b></button>
+                                <button type="button" class="toolbar-btn" onclick="editorItalic()" title="斜体 (Ctrl+I)"><i>I</i></button>
+                                <button type="button" class="toolbar-btn" onclick="editorStrikethrough()" title="删除线 (Ctrl+Shift+X)"><s>S</s></button>
+                                <span class="toolbar-sep"></span>
+                                <button type="button" class="toolbar-btn" onclick="editorHeading()" title="标题">H</button>
+                                <button type="button" class="toolbar-btn" onclick="editorLink()" title="链接 (Ctrl+K)">🔗</button>
+                                <button type="button" class="toolbar-btn" onclick="editorCode()" title="代码 (Ctrl+Shift+C)">&lt;/&gt;</button>
+                                <span class="toolbar-sep"></span>
+                                <button type="button" class="toolbar-btn" onclick="editorList()" title="列表">•</button>
+                                <button type="button" class="toolbar-btn" onclick="editorCheckbox()" title="复选框">☑</button>
+                                <button type="button" class="toolbar-btn" onclick="editorQuote()" title="引用">❝</button>
+                                <button type="button" class="toolbar-btn" onclick="editorDivider()" title="分割线">—</button>
+                            </div>
                             <div id="notesEditorWrap" class="notes-editor-wrap"></div>
+                            <div class="notes-editor-footer" id="notesEditorFooter">
+                                <span id="notesWordCount">字数: 0 | 词数: 0 | 行数: 0</span>
+                            </div>
                         </div>
                         <!-- Preview -->
                         <div id="notesPreviewBody" class="notes-preview-container notes-hidden">
@@ -653,9 +669,9 @@
         <div class="modal notes-manage-modal">
             <h3>⚙️ 笔记路径管理</h3>
             <div id="notesPathManagerList" class="notes-path-manager-list"></div>
-            <div class="modal-btns notes-modal-actions-top">
+            <div class="modal-btns notes-modal-actions-top" style="justify-content:space-between;">
+                <button type="button" class="btn-secondary" onclick="hideNotesPathManager(); showDirBrowser()">➕ 添加路径</button>
                 <button type="button" class="btn-primary" onclick="hideNotesPathManager()">完成</button>
-            </div>
         </div>
     </div>
 
@@ -681,7 +697,14 @@
         <div class="modal notes-new-modal">
             <h3>📝 新建笔记</h3>
             <input type="text" id="notesNewTitle" class="notes-input-full notes-modal-spacer" placeholder="笔记标题">
-            <div class="notes-field-label notes-modal-spacer-small">选择模板</div>
+            <div class="notes-field-label notes-modal-spacer-small">选择类型</div>
+            <div class="notes-type-grid" id="notesTypeGrid">
+                <div class="notes-type-item active" data-type="note" onclick="selectNoteType('note')"><span class="type-icon">📝</span><span class="type-name">笔记</span></div>
+                <div class="notes-type-item" data-type="idea" onclick="selectNoteType('idea')"><span class="type-icon">💡</span><span class="type-name">想法</span></div>
+                <div class="notes-type-item" data-type="todo" onclick="selectNoteType('todo')"><span class="type-icon">✅</span><span class="type-name">待办</span></div>
+                <div class="notes-type-item" data-type="journal" onclick="selectNoteType('journal')"><span class="type-icon">📔</span><span class="type-name">日记</span></div>
+            </div>
+            <div class="notes-field-label notes-modal-spacer-small" id="notesTemplateLabel">选择模板</div>
             <div class="notes-template-grid" id="notesTemplateGrid"></div>
             <div class="modal-btns notes-modal-actions-top">
                 <button type="button" class="btn-secondary" onclick="hideNewNoteModal()">取消</button>
