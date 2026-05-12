@@ -2902,6 +2902,70 @@ app.get('/api/vault/lint-all', requireAuth, (req, res) => {
     res.json({ vault, files: results, totalFiles: results.length, totalIssues: results.reduce((s,r)=>s+r.issues.length,0), totalFixable: results.reduce((s,r)=>s+r.fixable,0) });
 });
 
+// ========== Vault Git API ==========
+
+// GET /api/vault/git/status — Git status for a vault
+app.get('/api/vault/git/status', requireAuth, (req, res) => {
+  const vault = req.query.vault;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  const status = runGitInVault(vaultPath, 'status --porcelain');
+  const remote = runGitInVault(vaultPath, 'remote -v');
+  const branch = runGitInVault(vaultPath, 'branch --show-current');
+  const log = runGitInVault(vaultPath, 'log --oneline -5');
+  
+  res.json({
+    vault: vaultPath,
+    branch: branch.output || 'unknown',
+    remote: remote.output || 'none',
+    changes: status.success ? status.output.split('\n').filter(Boolean) : [],
+    hasChanges: status.success && status.output.trim().length > 0,
+    recentCommits: log.success ? log.output.split('\n').filter(Boolean) : []
+  });
+});
+
+// POST /api/vault/git/push — Add all, commit, and push
+app.post('/api/vault/git/push', requireAuth, (req, res) => {
+  const { vault, message } = req.body;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  // Step 1: git add all
+  const addResult = runGitInVault(vaultPath, 'add -A');
+  if (!addResult.success) return res.json({ success: false, step: 'add', error: addResult.error });
+  
+  // Step 2: check if there are changes to commit
+  const diffResult = runGitInVault(vaultPath, 'diff --cached --stat');
+  if (!diffResult.output || !diffResult.output.trim()) {
+    return res.json({ success: true, message: 'Nothing to commit' });
+  }
+  
+  // Step 3: git commit
+  const commitMsg = message || `Update knowledge base (${new Date().toISOString().split('T')[0]})`;
+  const commitResult = runGitInVault(vaultPath, `commit -m "${commitMsg.replace(/"/g, '\\"')}"`);
+  if (!commitResult.success) return res.json({ success: false, step: 'commit', error: commitResult.error });
+  
+  // Step 4: git push
+  const pushResult = runGitInVault(vaultPath, 'push');
+  if (!pushResult.success) return res.json({ success: false, step: 'push', error: pushResult.error });
+  
+  res.json({ success: true, commit: commitResult.output, push: pushResult.output });
+});
+
+// POST /api/vault/git/pull — Pull latest changes
+app.post('/api/vault/git/pull', requireAuth, (req, res) => {
+  const { vault } = req.body;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  const result = runGitInVault(vaultPath, 'pull');
+  res.json(result);
+});
+
 // ========== Quick Note API ==========
 
 // GET /api/quicknote/config — get quicknote path
@@ -3561,6 +3625,50 @@ const aiTools = {
         return { error: e.message };
       }
     }
+  }),
+  git_status: tool({
+    description: '查看知识库的 Git 状态 / Get git status of vault',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path (auto-detected if omitted)') }),
+    execute: async ({ vault }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const status = runGitInVault(resolvedVault, 'status --porcelain');
+        const branch = runGitInVault(resolvedVault, 'branch --show-current');
+        const log = runGitInVault(resolvedVault, 'log --oneline -5');
+        return { 
+          branch: branch.output, 
+          changes: status.output ? status.output.split('\n').filter(Boolean) : [],
+          hasChanges: !!(status.output && status.output.trim()),
+          recentCommits: log.output ? log.output.split('\n').filter(Boolean) : []
+        };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+  git_push: tool({
+    description: '将知识库变更提交并推送到远端仓库 / Git add, commit and push vault changes',
+    inputSchema: z.object({ 
+      vault: z.string().optional(),
+      message: z.string().optional().describe('Commit message (auto-generated if omitted)')
+    }),
+    execute: async ({ vault, message }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const addResult = runGitInVault(resolvedVault, 'add -A');
+        if (!addResult.success) return { error: 'git add failed: ' + addResult.error };
+        
+        const diffResult = runGitInVault(resolvedVault, 'diff --cached --stat');
+        if (!diffResult.output || !diffResult.output.trim()) return { message: 'Nothing to commit, working tree clean' };
+        
+        const commitMsg = message || 'Update knowledge base (' + new Date().toISOString().split('T')[0] + ')';
+        const commitResult = runGitInVault(resolvedVault, 'commit -m "' + commitMsg.replace(/"/g, '\\"') + '"');
+        if (!commitResult.success) return { error: 'git commit failed: ' + commitResult.error };
+        
+        const pushResult = runGitInVault(resolvedVault, 'push');
+        if (!pushResult.success) return { error: 'git push failed: ' + pushResult.error };
+        
+        return { success: true, commit: commitResult.output, push: pushResult.output };
+      } catch (e) { return { error: e.message }; }
+    }
   })
 };
 
@@ -3605,6 +3713,21 @@ function loadConversation(id) {
 
 function saveConversation(conv) {
   fs.writeFileSync(path.join(CONV_DIR, `${conv.id}.json`), JSON.stringify(conv, null, 2));
+}
+
+// Git helper for vault operations
+function runGitInVault(vaultPath, command) {
+  try {
+    const result = require('child_process').execSync(`git ${command}`, { 
+      cwd: vaultPath, 
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    });
+    return { success: true, output: result.trim() };
+  } catch (e) {
+    return { success: false, error: e.stderr?.trim() || e.message };
+  }
 }
 
 function summarizeToolResult(result) {
@@ -3715,6 +3838,51 @@ app.get('/api/ai/conversations/:id', requireAuth, (req, res) => {
   const conv = loadConversation(req.params.id);
   if (!conv) return res.status(404).json({ error: 'Not found' });
   res.json(conv);
+});
+
+// POST /api/ai/conversations/:id/rollback — Remove last message pair
+app.post('/api/ai/conversations/:id/rollback', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+  
+  // Remove last assistant + user message pair
+  if (conv.messages.length >= 2) {
+    // Check if last is assistant, second-to-last is user
+    const last = conv.messages[conv.messages.length - 1];
+    const secondLast = conv.messages[conv.messages.length - 2];
+    if (last.role === 'assistant' && secondLast.role === 'user') {
+      conv.messages.pop(); // remove assistant
+      conv.messages.pop(); // remove user
+    } else {
+      // Just remove last one
+      conv.messages.pop();
+    }
+  } else if (conv.messages.length === 1) {
+    conv.messages.pop();
+  }
+  
+  conv.updated = new Date().toISOString();
+  saveConversation(conv);
+  res.json({ success: true, messageCount: conv.messages.length });
+});
+
+// PUT /api/ai/conversations/:id — Rename conversation
+app.put('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+  if (req.body.title) conv.title = req.body.title;
+  conv.updated = new Date().toISOString();
+  saveConversation(conv);
+  res.json({ success: true });
+});
+
+// DELETE /api/ai/conversations — Clear all conversations
+app.delete('/api/ai/conversations', requireAuth, (req, res) => {
+  const files = fs.readdirSync(CONV_DIR).filter(f => f.endsWith('.json'));
+  for (const f of files) {
+    fs.unlinkSync(path.join(CONV_DIR, f));
+  }
+  res.json({ success: true, deleted: files.length });
 });
 
 // DELETE /api/ai/conversations/:id — Delete conversation

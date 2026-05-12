@@ -2,6 +2,7 @@
     var currentConvId = null;
     var isStreaming = false;
     var panelExpanded = false;
+    var abortController = null;
 
     // === Panel Control ===
     global.toggleAIChat = function() {
@@ -35,22 +36,9 @@
 
     global.newAIConversation = function() {
         currentConvId = null;
-        var container = document.getElementById('aiChatMessages');
-        if (container) {
-            container.innerHTML =
-                '<div class="ai-chat-welcome">' +
-                    '<div class="ai-welcome-icon">🤖</div>' +
-                    '<p>我是你的 AI 助手，可以帮你：</p>' +
-                    '<ul>' +
-                        '<li>📖 查看和搜索笔记/知识库</li>' +
-                        '<li>✏️ 编辑、整理文档格式和内容</li>' +
-                        '<li>📝 撰写新文档</li>' +
-                        '<li>❓ 回答关于你文档的问题</li>' +
-                    '</ul>' +
-                '</div>';
-        }
-        var select = document.getElementById('aiConversationSelect');
-        if (select) select.value = '';
+        clearMessages();
+        showWelcome();
+        updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
         updateContextBar();
     };
 
@@ -76,8 +64,9 @@
         var contentEl = assistantDiv.querySelector('.ai-msg-content');
         var toolsEl = assistantDiv.querySelector('.ai-msg-tools');
 
+        abortController = new AbortController();
         isStreaming = true;
-        updateSendButton();
+        updateStreamingUI();
 
         var fullText = '';
 
@@ -91,7 +80,8 @@
             var resp = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: abortController.signal
             });
 
             if (!resp.ok) {
@@ -135,10 +125,9 @@
                         } else if (evt.type === 'done') {
                             if (evt.conversationId) {
                                 currentConvId = evt.conversationId;
-                                var select = document.getElementById('aiConversationSelect');
-                                if (select) select.value = currentConvId;
                             }
-                            loadConversationList();
+                            if (evt.title) updateTitle(evt.title);
+                            loadConversationListPanel();
                         } else if (evt.type === 'error') {
                             contentEl.innerHTML += '<div class="ai-error">' + escapeHtml(evt.message || evt.error || '未知错误') + '</div>';
                         }
@@ -159,10 +148,15 @@
             }
 
         } catch (err) {
-            contentEl.innerHTML = '<div class="ai-error">连接失败: ' + escapeHtml(err.message) + '</div>';
+            if (err.name === 'AbortError') {
+                if (!fullText) contentEl.innerHTML = '<span class="ai-done">\u5df2\u505c\u6b62</span>';
+            } else {
+                contentEl.innerHTML = '<div class="ai-error">\u8fde\u63a5\u5931\u8d25: ' + escapeHtml(err.message) + '</div>';
+            }
         } finally {
             isStreaming = false;
-            updateSendButton();
+            abortController = null;
+            updateStreamingUI();
         }
     };
 
@@ -216,11 +210,12 @@
         var div = document.createElement('div');
         div.className = 'ai-msg ai-msg-' + role;
         div.innerHTML =
-            '<div class="ai-msg-avatar">' + (role === 'user' ? '👤' : '🤖') + '</div>' +
+            '<div class="ai-msg-avatar">' + (role === 'user' ? '\ud83d\udc64' : '\ud83e\udd16') + '</div>' +
             '<div class="ai-msg-body">' +
                 '<div class="ai-msg-tools"></div>' +
-                '<div class="ai-msg-content">' + (content ? renderMarkdown(content) : '<span class="ai-typing">思考中</span>') + '</div>' +
-            '</div>';
+                '<div class="ai-msg-content">' + (content ? renderMarkdown(content) : '<span class="ai-typing">\u601d\u8003\u4e2d</span>') + '</div>' +
+            '</div>' +
+            (role === 'assistant' ? '<button class="ai-msg-rollback" onclick="rollbackLastMessage()" title="\u64a4\u56de\u6b64\u8f6e\u5bf9\u8bdd">\u21a9</button>' : '');
         container.appendChild(div);
         scrollToBottom();
         return div;
@@ -292,26 +287,15 @@
             if (!container) return;
             container.innerHTML = '';
             (conv.messages || []).forEach(function(m) { appendMessage(m.role, m.content); });
+            updateTitle(conv.title || '\u65e0\u6807\u9898');
         } catch (e) {
-            if (typeof showToast === 'function') showToast('加载对话失败', 'error');
+            if (typeof showToast === 'function') showToast('\u52a0\u8f7d\u5bf9\u8bdd\u5931\u8d25', 'error');
         }
     };
 
     async function loadConversationList() {
-        try {
-            var resp = await fetch('/api/ai/conversations');
-            var data = await resp.json();
-            var select = document.getElementById('aiConversationSelect');
-            if (!select) return;
-            select.innerHTML = '<option value="">新对话</option>';
-            (data.conversations || []).slice(0, 20).forEach(function(c) {
-                var opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = (c.title || '无标题').slice(0, 20);
-                if (c.id === currentConvId) opt.selected = true;
-                select.appendChild(opt);
-            });
-        } catch (e) { /* ignore */ }
+        // Legacy compat: still try to populate select if it exists
+        loadConversationListPanel();
     }
 
     // === Context Bar ===
@@ -387,9 +371,11 @@
         if (el) el.scrollTop = el.scrollHeight;
     }
 
-    function updateSendButton() {
-        var btn = document.getElementById('aiSendBtn');
-        if (btn) btn.disabled = isStreaming;
+    function updateStreamingUI() {
+        var sendBtn = document.getElementById('aiSendBtn');
+        var stopBtn = document.getElementById('aiStopBtn');
+        if (sendBtn) sendBtn.style.display = isStreaming ? 'none' : 'flex';
+        if (stopBtn) stopBtn.style.display = isStreaming ? 'flex' : 'none';
     }
 
     async function checkAIConfig() {
@@ -398,6 +384,131 @@
             var config = await resp.json();
             if (!config.configured) global.showAISettings();
         } catch (e) {}
+    }
+
+    // === Abort/Stop Streaming ===
+    global.stopAIStream = function() {
+        if (abortController) {
+            abortController.abort();
+            abortController = null;
+        }
+        isStreaming = false;
+        updateStreamingUI();
+    };
+
+    // === Rollback Last Message ===
+    global.rollbackLastMessage = async function() {
+        if (!currentConvId) return;
+        if (!confirm('\u64a4\u56de\u4e0a\u4e00\u8f6e\u5bf9\u8bdd\uff1f')) return;
+        try {
+            var resp = await fetch('/api/ai/conversations/' + currentConvId + '/rollback', { method: 'POST' });
+            var data = await resp.json();
+            if (data.success) {
+                await global.loadAIConversation(currentConvId);
+                if (typeof showToast === 'function') showToast('\u5df2\u64a4\u56de', 'success');
+            }
+        } catch(e) { if (typeof showToast === 'function') showToast('\u64a4\u56de\u5931\u8d25', 'error'); }
+    };
+
+    // === Conversation List Panel ===
+    global.toggleAIConvList = function() {
+        var list = document.getElementById('aiConvList');
+        if (!list) return;
+        if (list.style.display === 'none') {
+            list.style.display = 'flex';
+            loadConversationListPanel();
+        } else {
+            list.style.display = 'none';
+        }
+    };
+
+    async function loadConversationListPanel() {
+        try {
+            var resp = await fetch('/api/ai/conversations');
+            var data = await resp.json();
+            var container = document.getElementById('aiConvListItems');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!data.conversations || data.conversations.length === 0) {
+                container.innerHTML = '<div class="ai-conv-empty">\u6682\u65e0\u5bf9\u8bdd\u8bb0\u5f55</div>';
+                return;
+            }
+
+            data.conversations.forEach(function(conv) {
+                var div = document.createElement('div');
+                div.className = 'ai-conv-item' + (conv.id === currentConvId ? ' active' : '');
+                div.innerHTML =
+                    '<div class="ai-conv-item-main" onclick="loadAIConversation(\'' + conv.id + '\'); toggleAIConvList();">' +
+                        '<span class="ai-conv-item-title">' + escapeHtml(conv.title || '\u65e0\u6807\u9898') + '</span>' +
+                        '<span class="ai-conv-item-meta">' + (conv.messageCount || 0) + '\u6761 \u00b7 ' + formatRelativeTime(conv.updated) + '</span>' +
+                    '</div>' +
+                    '<button class="ai-conv-item-delete" onclick="deleteConversation(\'' + conv.id + '\')" title="\u5220\u9664">\u2715</button>';
+                container.appendChild(div);
+            });
+        } catch(e) {}
+    }
+
+    // === Delete Conversation ===
+    global.deleteConversation = async function(id) {
+        try {
+            await fetch('/api/ai/conversations/' + id, { method: 'DELETE' });
+            if (id === currentConvId) {
+                currentConvId = null;
+                clearMessages();
+                showWelcome();
+                updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
+            }
+            loadConversationListPanel();
+            if (typeof showToast === 'function') showToast('\u5df2\u5220\u9664', 'success');
+        } catch(e) {}
+    };
+
+    // === Clear All Conversations ===
+    global.clearAllConversations = async function() {
+        if (!confirm('\u6e05\u7a7a\u6240\u6709\u5bf9\u8bdd\u8bb0\u5f55\uff1f')) return;
+        try {
+            await fetch('/api/ai/conversations', { method: 'DELETE' });
+            currentConvId = null;
+            clearMessages();
+            showWelcome();
+            updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
+            loadConversationListPanel();
+            if (typeof showToast === 'function') showToast('\u5df2\u6e05\u7a7a', 'success');
+        } catch(e) {}
+    };
+
+    // === UI Helpers ===
+    function updateTitle(title) {
+        var el = document.getElementById('aiChatTitle');
+        if (el) el.textContent = title;
+    }
+
+    function clearMessages() {
+        var container = document.getElementById('aiChatMessages');
+        if (container) container.innerHTML = '';
+    }
+
+    function showWelcome() {
+        var container = document.getElementById('aiChatMessages');
+        if (!container) return;
+        container.innerHTML = '<div class="ai-chat-welcome">' +
+            '<div class="ai-welcome-icon">\ud83e\udd16</div>' +
+            '<p>\u6211\u662f\u4f60\u7684 AI \u52a9\u624b\uff0c\u53ef\u4ee5\u5e2e\u4f60\uff1a</p>' +
+            '<ul><li>\ud83d\udcd6 \u67e5\u770b\u548c\u641c\u7d22\u7b14\u8bb0/\u77e5\u8bc6\u5e93</li><li>\u270f\ufe0f \u7f16\u8f91\u3001\u6574\u7406\u6587\u6863\u683c\u5f0f\u548c\u5185\u5bb9</li><li>\ud83d\udcdd \u64b0\u5199\u65b0\u6587\u6863</li><li>\u2753 \u56de\u7b54\u5173\u4e8e\u4f60\u6587\u6863\u7684\u95ee\u9898</li><li>\ud83d\udce6 Git \u63a8\u9001\u77e5\u8bc6\u5e93\u5230\u8fdc\u7aef</li></ul>' +
+            '</div>';
+    }
+
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        var diff = Date.now() - new Date(dateStr).getTime();
+        var mins = Math.floor(diff / 60000);
+        if (mins < 1) return '\u521a\u521a';
+        if (mins < 60) return mins + '\u5206\u949f\u524d';
+        var hours = Math.floor(mins / 60);
+        if (hours < 24) return hours + '\u5c0f\u65f6\u524d';
+        var days = Math.floor(hours / 24);
+        return days + '\u5929\u524d';
     }
 
     // Init when DOM is ready

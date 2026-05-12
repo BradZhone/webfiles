@@ -1083,13 +1083,25 @@
     <!-- AI Chat Panel -->
     <div class="ai-chat-panel" id="aiChatPanel" style="display:none;">
         <div class="ai-chat-header">
-            <span class="ai-chat-title">🤖 AI 助手</span>
+            <button class="ai-header-btn" onclick="toggleAIConvList()" title="对话列表">☰</button>
+            <span class="ai-chat-title" id="aiChatTitle">🤖 新对话</span>
             <div class="ai-chat-header-actions">
-                <button onclick="newAIConversation()" title="新对话" class="ai-header-btn">➕</button>
-                <select id="aiConversationSelect" onchange="loadAIConversation(this.value)" title="历史对话"></select>
                 <button onclick="showAISettings()" title="设置" class="ai-header-btn">⚙️</button>
                 <button onclick="toggleAIChatSize()" title="展开/收起" class="ai-header-btn" id="aiExpandBtn">□</button>
                 <button onclick="toggleAIChat()" title="关闭" class="ai-header-btn">✕</button>
+            </div>
+        </div>
+        <!-- Conversation list overlay inside the panel -->
+        <div class="ai-conv-list" id="aiConvList" style="display:none;">
+            <div class="ai-conv-list-header">
+                <span>对话历史</span>
+                <button class="ai-header-btn" onclick="clearAllConversations()" title="清空所有">🗑️</button>
+            </div>
+            <div class="ai-conv-list-items" id="aiConvListItems">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="ai-conv-list-footer">
+                <button class="ai-conv-new-btn" onclick="newAIConversation(); toggleAIConvList();">➕ 新对话</button>
             </div>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages">
@@ -1108,7 +1120,7 @@
         <div class="ai-chat-input-area">
             <textarea id="aiChatInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
             <button class="ai-send-btn" onclick="sendAIMessage()" id="aiSendBtn" title="发送">↑</button>
-        </div>
+            <button class="ai-stop-btn" onclick="stopAIStream()" id="aiStopBtn" style="display:none;" title="停止">■</button>
     </div>
 
     <!-- AI Settings Modal -->

@@ -81,17 +81,7 @@
     color: var(--text);
 }
 
-#aiConversationSelect {
-    background: var(--item);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-size: 11px;
-    padding: 2px 4px;
-    max-width: 100px;
-    cursor: pointer;
-    outline: none;
-}
+/* (removed: old #aiConversationSelect styles) */
 
 /* --- Messages Area --- */
 .ai-chat-messages {
@@ -457,3 +447,71 @@
         height: 100%;
     }
 }
+
+/* --- Conversation List Panel --- */
+.ai-conv-list {
+    position: absolute; top: 41px; left: 0; right: 0; bottom: 0;
+    background: var(--bg);
+    z-index: 10;
+    display: flex; flex-direction: column;
+}
+.ai-conv-list-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600;
+}
+.ai-conv-list-items {
+    flex: 1; overflow-y: auto; padding: 6px;
+}
+.ai-conv-item {
+    display: flex; align-items: center; gap: 4px;
+    border-radius: 6px; margin-bottom: 2px;
+}
+.ai-conv-item:hover { background: var(--item-hover); }
+.ai-conv-item.active { background: var(--accent-subtle); }
+.ai-conv-item-main {
+    flex: 1; padding: 8px 10px; cursor: pointer; min-width: 0;
+}
+.ai-conv-item-title {
+    display: block; font-size: 13px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ai-conv-item-meta {
+    display: block; font-size: 11px; color: var(--dim); margin-top: 2px;
+}
+.ai-conv-item-delete {
+    background: none; border: none; color: var(--dim); cursor: pointer;
+    padding: 4px 8px; font-size: 12px; border-radius: 4px;
+    opacity: 0; transition: opacity 0.15s;
+}
+.ai-conv-item:hover .ai-conv-item-delete { opacity: 1; }
+.ai-conv-item-delete:hover { color: var(--danger); background: var(--item); }
+.ai-conv-empty { text-align: center; padding: 24px; color: var(--dim); font-size: 13px; }
+.ai-conv-list-footer {
+    padding: 8px; border-top: 1px solid var(--border);
+}
+.ai-conv-new-btn {
+    width: 100%; padding: 8px; background: var(--item);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 13px; cursor: pointer;
+}
+.ai-conv-new-btn:hover { background: var(--item-hover); }
+
+/* --- Stop Button --- */
+.ai-stop-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--danger); color: #fff; border: none;
+    cursor: pointer; font-size: 12px;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+.ai-stop-btn:hover { opacity: 0.8; }
+
+/* --- Rollback Button --- */
+.ai-msg-rollback {
+    background: none; border: none; color: var(--dim);
+    cursor: pointer; font-size: 12px; padding: 2px 6px;
+    border-radius: 4px; opacity: 0; transition: opacity 0.15s;
+    margin-left: 4px;
+}
+.ai-msg:hover .ai-msg-rollback { opacity: 0.7; }
+.ai-msg-rollback:hover { color: var(--warning); opacity: 1 !important; background: var(--item); }
