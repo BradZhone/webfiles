@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="css/terminal.css">
     <link rel="stylesheet" href="css/vault.css">
     <link rel="stylesheet" href="css/notes.css">
+    <link rel="stylesheet" href="css/ai-chat.css">
 </head>
 <body>
     <!-- 拖拽上传区域 -->
@@ -63,6 +64,7 @@
             <button class="stats-boost-btn" onclick="togglePrivacyMode()" id="privacyBtn" title="隐私模式">🔓</button>
             <button class="stats-boost-btn" onclick="runSystemBoost()" id="boostBtn" title="一键加速">🚀</button>
             <button class="stats-boost-btn" onclick="toggleQuickNote()" id="quickNoteBtn" title="速记">📝</button>
+            <button class="stats-ai-btn" onclick="toggleAIChat()" title="AI 助手">🤖</button>
         </div>
     </div>
 
@@ -1032,6 +1034,7 @@
     <script src="js/quicknote.js"></script>
     <script src="js/app.js"></script>
     <script src="js/privacy.js"></script>
+    <script src="js/ai-chat.js"></script>
 
     <!-- Privacy Mode Decoy Overlay -->
     <div id="privacyOverlay" class="privacy-overlay">
@@ -1076,5 +1079,76 @@
         </div>
         <div class="quicknote-recent" id="quickNoteRecent"></div>
     </div>
+
+    <!-- AI Chat Panel -->
+    <div class="ai-chat-panel" id="aiChatPanel" style="display:none;">
+        <div class="ai-chat-header">
+            <button class="ai-header-btn" onclick="toggleAIConvList()" title="对话列表">☰</button>
+            <span class="ai-chat-title" id="aiChatTitle">🤖 新对话</span>
+            <div class="ai-chat-header-actions">
+                <button onclick="showAISettings()" title="设置" class="ai-header-btn">⚙️</button>
+                <button onclick="toggleAIChatSize()" title="展开/收起" class="ai-header-btn" id="aiExpandBtn">□</button>
+                <button onclick="toggleAIChat()" title="关闭" class="ai-header-btn">✕</button>
+            </div>
+        </div>
+        <!-- Conversation list overlay inside the panel -->
+        <div class="ai-conv-list" id="aiConvList" style="display:none;">
+            <div class="ai-conv-list-header">
+                <span>对话历史</span>
+                <button class="ai-header-btn" onclick="clearAllConversations()" title="清空所有">🗑️</button>
+            </div>
+            <div class="ai-conv-list-items" id="aiConvListItems">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="ai-conv-list-footer">
+                <button class="ai-conv-new-btn" onclick="newAIConversation(); toggleAIConvList();">➕ 新对话</button>
+            </div>
+        </div>
+        <div class="ai-chat-messages" id="aiChatMessages">
+            <div class="ai-chat-welcome">
+                <div class="ai-welcome-icon">🤖</div>
+                <p>我是你的 AI 助手，可以帮你：</p>
+                <ul>
+                    <li>📖 查看和搜索笔记/知识库</li>
+                    <li>✏️ 编辑、整理文档格式和内容</li>
+                    <li>📝 撰写新文档</li>
+                    <li>❓ 回答关于你文档的问题</li>
+                </ul>
+            </div>
+        </div>
+        <div class="ai-chat-context" id="aiChatContext"></div>
+        <div class="ai-chat-input-area">
+            <textarea id="aiChatInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
+            <button class="ai-send-btn" onclick="sendAIMessage()" id="aiSendBtn" title="发送">↑</button>
+            <button class="ai-stop-btn" onclick="stopAIStream()" id="aiStopBtn" style="display:none;" title="停止">■</button>
+    </div>
+
+    <!-- AI Settings Modal -->
+    <div class="modal-overlay" id="aiSettingsModal" style="display:none;">
+        <div class="modal" style="max-width:420px;">
+            <h3>🤖 AI 设置</h3>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">API Base URL</label>
+                <input type="text" id="aiBaseUrlInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="https://api.z.ai/api/coding/paas/v4">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">API Key</label>
+                <input type="password" id="aiApiKeyInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="输入 API Key...">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">模型</label>
+                <input type="text" id="aiModelInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="glm-5.1" value="glm-5.1">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">Exa API Key (联网搜索)</label>
+                <input type="password" id="aiExaKeyInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="输入 Exa API Key... (可选)">
+            </div>
+            <div class="modal-btns" style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn-secondary" onclick="hideAISettings()">取消</button>
+                <button class="btn-primary" onclick="saveAISettings()">保存</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

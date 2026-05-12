@@ -1,0 +1,598 @@
+;(function AIChatModule(global) {
+    var currentConvId = null;
+    var isStreaming = false;
+    var panelExpanded = false;
+    var abortController = null;
+
+    // === Panel Control ===
+    global.toggleAIChat = function() {
+        var panel = document.getElementById('aiChatPanel');
+        if (!panel) return;
+        if (panel.style.display === 'none' || !panel.style.display) {
+            panel.style.display = 'flex';
+            updateContextBar();
+            loadConversationList();
+            checkAIConfig();
+            var input = document.getElementById('aiChatInput');
+            if (input) input.focus();
+        } else {
+            panel.style.display = 'none';
+        }
+    };
+
+    global.toggleAIChatSize = function() {
+        var panel = document.getElementById('aiChatPanel');
+        var btn = document.getElementById('aiExpandBtn');
+        if (!panel) return;
+        panelExpanded = !panelExpanded;
+        if (panelExpanded) {
+            panel.classList.add('ai-chat-expanded');
+            if (btn) btn.textContent = '▫';
+        } else {
+            panel.classList.remove('ai-chat-expanded');
+            if (btn) btn.textContent = '□';
+        }
+    };
+
+    global.newAIConversation = function() {
+        currentConvId = null;
+        clearMessages();
+        showWelcome();
+        updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
+        updateContextBar();
+    };
+
+    // === Send Message ===
+    global.sendAIMessage = async function() {
+        var input = document.getElementById('aiChatInput');
+        if (!input) return;
+        var text = input.value.trim();
+        if (!text || isStreaming) return;
+
+        // Clear input and reset height
+        input.value = '';
+        input.style.height = 'auto';
+
+        // Append user message
+        appendMessage('user', text);
+
+        // Collect context
+        var context = getCurrentContext();
+
+        // Create assistant placeholder
+        var assistantDiv = appendMessage('assistant', '');
+        var contentEl = assistantDiv.querySelector('.ai-msg-content');
+        var toolsEl = assistantDiv.querySelector('.ai-msg-tools');
+
+        abortController = new AbortController();
+        isStreaming = true;
+        updateStreamingUI();
+
+        var fullText = '';
+
+        try {
+            var body = {
+                message: text,
+                context: context
+            };
+            if (currentConvId) body.conversationId = currentConvId;
+
+            var resp = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: abortController.signal
+            });
+
+            if (!resp.ok) {
+                var errText = await resp.text();
+                contentEl.innerHTML = '<div class="ai-error">请求失败: ' + escapeHtml(errText || resp.statusText) + '</div>';
+                isStreaming = false;
+                updateSendButton();
+                return;
+            }
+
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line.startsWith('data: ')) continue;
+                    var jsonStr = line.slice(6);
+                    if (jsonStr === '[DONE]') continue;
+
+                    try {
+                        var evt = JSON.parse(jsonStr);
+
+                        if (evt.type === 'text' || evt.type === 'content') {
+                            fullText += (evt.content || evt.text || '');
+                            contentEl.innerHTML = renderMarkdown(fullText);
+                            scrollToBottom();
+                        } else if (evt.type === 'tool_call') {
+                            appendToolCall(toolsEl, evt.name || evt.tool, evt.arguments || evt.args);
+                            scrollToBottom();
+                        } else if (evt.type === 'tool_result') {
+                            if (evt.result && typeof evt.result === 'object' && evt.result.needsApproval) {
+                                appendApprovalBlock(toolsEl, evt.name || evt.tool, evt.result);
+                            } else {
+                                updateToolResult(toolsEl, evt.name || evt.tool);
+                            }
+                        } else if (evt.type === 'done') {
+                            if (evt.conversationId) {
+                                currentConvId = evt.conversationId;
+                            }
+                            if (evt.title) updateTitle(evt.title);
+                            loadConversationListPanel();
+                        } else if (evt.type === 'error') {
+                            contentEl.innerHTML += '<div class="ai-error">' + escapeHtml(evt.message || evt.error || '未知错误') + '</div>';
+                        }
+                    } catch (parseErr) {
+                        // Skip unparseable lines
+                    }
+                }
+            }
+
+            // If no text was received, show a fallback
+            if (!fullText && !contentEl.querySelector('.ai-error')) {
+                var hasToolCalls = toolsEl && toolsEl.querySelectorAll('.ai-tool-call').length > 0;
+                if (hasToolCalls) {
+                    contentEl.innerHTML = '<span class="ai-done">操作已完成</span>';
+                } else {
+                    contentEl.innerHTML = '<span class="ai-typing">AI 未返回内容，请重试</span>';
+                }
+            }
+
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                if (!fullText) contentEl.innerHTML = '<span class="ai-done">\u5df2\u505c\u6b62</span>';
+            } else {
+                contentEl.innerHTML = '<div class="ai-error">\u8fde\u63a5\u5931\u8d25: ' + escapeHtml(err.message) + '</div>';
+            }
+        } finally {
+            isStreaming = false;
+            abortController = null;
+            updateStreamingUI();
+        }
+    };
+
+    // === Context Detection ===
+    function getCurrentContext() {
+        return {
+            currentView: detectView(),
+            currentFile: detectFile(),
+            currentVault: detectVault(),
+            currentNotesPath: detectNotesPath()
+        };
+    }
+
+    function detectView() {
+        if (document.getElementById('vaultView') && document.getElementById('vaultView').classList.contains('active')) return 'vault';
+        if (document.getElementById('notesView') && document.getElementById('notesView').classList.contains('active')) return 'notes';
+        if (document.getElementById('editorView') && document.getElementById('editorView').classList.contains('active')) return 'editor';
+        if (document.getElementById('terminalView') && document.getElementById('terminalView').classList.contains('active')) return 'terminal';
+        return 'files';
+    }
+
+    function detectFile() {
+        // Try vault current file
+        var vaultFile = document.querySelector('.vault-tree-item.active');
+        if (vaultFile) return vaultFile.dataset && vaultFile.dataset.path ? vaultFile.dataset.path : vaultFile.textContent;
+        // Try editor activeFilePath
+        if (typeof activeFilePath !== 'undefined' && activeFilePath) return activeFilePath;
+        // Try notes current note
+        var notesTitle = document.getElementById('notesEditorTitle');
+        if (notesTitle && notesTitle.textContent) return notesTitle.textContent;
+        return null;
+    }
+
+    function detectVault() {
+        var select = document.getElementById('vaultSelector');
+        return select ? select.value || null : null;
+    }
+
+    function detectNotesPath() {
+        var select = document.getElementById('notesPathDropdown');
+        return select ? select.value || null : null;
+    }
+
+    // === Message Rendering ===
+    function appendMessage(role, content) {
+        var container = document.getElementById('aiChatMessages');
+        if (!container) return null;
+        var welcome = container.querySelector('.ai-chat-welcome');
+        if (welcome) welcome.remove();
+
+        var div = document.createElement('div');
+        div.className = 'ai-msg ai-msg-' + role;
+        div.innerHTML =
+            '<div class="ai-msg-avatar">' + (role === 'user' ? '\ud83d\udc64' : '\ud83e\udd16') + '</div>' +
+            '<div class="ai-msg-body">' +
+                '<div class="ai-msg-tools"></div>' +
+                '<div class="ai-msg-content">' + (content ? renderMarkdown(content) : '<span class="ai-typing">\u601d\u8003\u4e2d</span>') + '</div>' +
+            '</div>' +
+            (role === 'assistant' ? '<button class="ai-msg-rollback" onclick="rollbackLastMessage()" title="\u64a4\u56de\u6b64\u8f6e\u5bf9\u8bdd">\u21a9</button>' : '');
+        container.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    function renderMarkdown(text) {
+        if (typeof marked !== 'undefined') {
+            try { return marked.parse(text); } catch (e) { /* fallback below */ }
+        }
+        return escapeHtml(text).replace(/\n/g, '<br>');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function appendToolCall(toolsEl, name, args) {
+        if (!toolsEl) return;
+        var icons = {
+            get_vault_overview: '🗺️', search_content: '🔍', read_outline: '📋',
+            read_section: '📄', read_full: '📖', edit_section: '✏️',
+            write_new_file: '📝', rename_note: '✏️', lint_fix: '🔧',
+            get_graph_neighborhood: '🕸️', list_notes: '📋', get_tags: '🏷️',
+            get_todos: '✅', edit_metadata: '⚙️', quick_capture: '📌',
+            insert_section: '➕',
+            file_delete: '🗑️', file_rename: '✏️', file_move: '📦', file_copy: '📋',
+            read_annotations: '📌', add_annotation: '📝',
+            search_files: '🔎',
+            system_stats: '📊',
+            compress_files: '📦', extract_archive: '📂',
+            run_command: '💻'
+        };
+        var labels = {
+            get_vault_overview: '查看知识库', search_content: '搜索',
+            read_outline: '读取大纲', read_section: '读取章节',
+            read_full: '读取全文', edit_section: '编辑章节',
+            write_new_file: '创建文件', rename_note: '重命名',
+            lint_fix: '修复格式', get_graph_neighborhood: '查看关系',
+            list_notes: '列出笔记', get_tags: '获取标签',
+            get_todos: '获取待办', edit_metadata: '修改属性',
+            quick_capture: '快速记录', insert_section: '插入章节',
+            file_delete: '删除文件', file_rename: '重命名', file_move: '移动文件', file_copy: '复制文件',
+            read_annotations: '读取批注', add_annotation: '添加批注',
+            search_files: '搜索文件',
+            system_stats: '系统状态',
+            compress_files: '压缩', extract_archive: '解压',
+            run_command: '执行命令'
+        };
+        var div = document.createElement('div');
+        div.className = 'ai-tool-call';
+        div.dataset.tool = name;
+        div.innerHTML = '<span class="ai-tool-icon">' + (icons[name] || '🔧') + '</span>' +
+            '<span class="ai-tool-name">' + (labels[name] || name) + '</span>' +
+            '<span class="ai-tool-status">⏳</span>';
+        toolsEl.appendChild(div);
+        toolsEl.style.display = 'flex';
+    }
+
+    function updateToolResult(toolsEl, name) {
+        if (!toolsEl) return;
+        var calls = toolsEl.querySelectorAll('.ai-tool-call');
+        for (var i = calls.length - 1; i >= 0; i--) {
+            if (calls[i].dataset.tool === name && calls[i].querySelector('.ai-tool-status').textContent === '⏳') {
+                calls[i].querySelector('.ai-tool-status').textContent = '✓';
+                calls[i].classList.add('ai-tool-done');
+                break;
+            }
+        }
+    }
+
+    function appendApprovalBlock(toolsEl, toolName, result) {
+        if (!toolsEl) return;
+        var div = document.createElement('div');
+        div.className = 'ai-approval-block';
+        div.innerHTML =
+            '<div class="ai-approval-warning">⚠️ ' + escapeHtml(result.reason || '危险操作需要确认') + '</div>' +
+            '<code class="ai-approval-command">' + escapeHtml(result.command || '') + '</code>' +
+            '<div class="ai-approval-actions"></div>';
+
+        var actionsDiv = div.querySelector('.ai-approval-actions');
+
+        var approveBtn = document.createElement('button');
+        approveBtn.className = 'ai-approve-btn';
+        approveBtn.textContent = '✅ 授权执行';
+        approveBtn.onclick = function() { global.approveCommand(approveBtn, toolName, { command: result.command, cwd: result.cwd }, currentConvId); };
+        actionsDiv.appendChild(approveBtn);
+
+        var rejectBtn = document.createElement('button');
+        rejectBtn.className = 'ai-reject-btn';
+        rejectBtn.textContent = '🚫 拒绝';
+        rejectBtn.onclick = function() { global.rejectCommand(div); };
+        actionsDiv.appendChild(rejectBtn);
+
+        toolsEl.appendChild(div);
+        toolsEl.style.display = 'block';
+    }
+
+    // === Command Approval ===
+    global.approveCommand = async function(btn, toolName, args, convId) {
+        btn.disabled = true;
+        btn.textContent = '执行中...';
+        try {
+            var resp = await fetch('/api/ai/approve-tool', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversationId: convId, toolName: toolName, args: args })
+            });
+            var data = await resp.json();
+            if (data.success) {
+                btn.textContent = '✅ 已执行';
+                btn.classList.add('ai-approved');
+                var resultEl = document.createElement('div');
+                resultEl.className = 'ai-approval-result';
+                resultEl.textContent = data.result && (data.result.output || data.result.message) || '执行完成';
+                btn.parentNode.parentNode.appendChild(resultEl);
+            } else {
+                btn.textContent = '❌ 失败';
+                btn.title = data.error || 'Unknown error';
+            }
+        } catch(e) {
+            btn.textContent = '❌ 网络错误';
+        }
+    };
+
+    global.rejectCommand = function(container) {
+        container.innerHTML = '<span class="ai-rejected">🚫 已拒绝</span>';
+    };
+
+    // === Conversation Management ===
+    global.loadAIConversation = async function(id) {
+        if (!id) { global.newAIConversation(); return; }
+        try {
+            var resp = await fetch('/api/ai/conversations/' + id);
+            if (!resp.ok) throw new Error('Failed to load');
+            var conv = await resp.json();
+            currentConvId = id;
+            var container = document.getElementById('aiChatMessages');
+            if (!container) return;
+            container.innerHTML = '';
+            (conv.messages || []).forEach(function(m) { appendMessage(m.role, m.content); });
+            updateTitle(conv.title || '\u65e0\u6807\u9898');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('\u52a0\u8f7d\u5bf9\u8bdd\u5931\u8d25', 'error');
+        }
+    };
+
+    async function loadConversationList() {
+        // Legacy compat: still try to populate select if it exists
+        loadConversationListPanel();
+    }
+
+    // === Context Bar ===
+    function updateContextBar() {
+        var bar = document.getElementById('aiChatContext');
+        if (!bar) return;
+        var ctx = getCurrentContext();
+        if (ctx.currentFile) {
+            var name = typeof ctx.currentFile === 'string' ? ctx.currentFile.split('/').pop() : '';
+            bar.innerHTML = '<span class="ai-context-badge">📎 ' + escapeHtml(name) + '</span>';
+            bar.style.display = 'flex';
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    // === Settings ===
+    global.showAISettings = async function() {
+        try {
+            var resp = await fetch('/api/ai/config');
+            var config = await resp.json();
+            document.getElementById('aiBaseUrlInput').value = config.baseUrl || 'https://api.z.ai/api/coding/paas/v4';
+            document.getElementById('aiModelInput').value = config.model || 'glm-5.1';
+            var exaInput = document.getElementById('aiExaKeyInput');
+            if (exaInput) exaInput.placeholder = config.hasExa ? '已配置（留空保持当前）' : '输入 Exa API Key... (可选)';
+            // Don't prefill API key for security
+        } catch (e) {}
+        document.getElementById('aiSettingsModal').style.display = 'flex';
+    };
+
+    global.hideAISettings = function() {
+        document.getElementById('aiSettingsModal').style.display = 'none';
+    };
+
+    global.saveAISettings = async function() {
+        var apiKey = document.getElementById('aiApiKeyInput').value;
+        var model = document.getElementById('aiModelInput').value;
+        var baseUrl = document.getElementById('aiBaseUrlInput').value;
+        var exaApiKey = document.getElementById('aiExaKeyInput').value;
+        try {
+            await fetch('/api/ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: apiKey || undefined, model: model, baseUrl: baseUrl, exaApiKey: exaApiKey || undefined })
+            });
+            global.hideAISettings();
+            if (typeof showToast === 'function') showToast('AI 配置已保存', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('保存失败', 'error');
+        }
+    };
+
+    // === Input Handling ===
+    global.autoResizeAIInput = function(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    };
+
+    function initInputHandlers() {
+        var input = document.getElementById('aiChatInput');
+        if (!input) return;
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                global.sendAIMessage();
+            }
+        });
+        input.addEventListener('input', function() {
+            global.autoResizeAIInput(this);
+        });
+    }
+
+    // === Utilities ===
+    function scrollToBottom() {
+        var el = document.getElementById('aiChatMessages');
+        if (el) el.scrollTop = el.scrollHeight;
+    }
+
+    function updateStreamingUI() {
+        var sendBtn = document.getElementById('aiSendBtn');
+        var stopBtn = document.getElementById('aiStopBtn');
+        if (sendBtn) sendBtn.style.display = isStreaming ? 'none' : 'flex';
+        if (stopBtn) stopBtn.style.display = isStreaming ? 'flex' : 'none';
+    }
+
+    async function checkAIConfig() {
+        try {
+            var resp = await fetch('/api/ai/config');
+            var config = await resp.json();
+            if (!config.configured) global.showAISettings();
+        } catch (e) {}
+    }
+
+    // === Abort/Stop Streaming ===
+    global.stopAIStream = function() {
+        if (abortController) {
+            abortController.abort();
+            abortController = null;
+        }
+        isStreaming = false;
+        updateStreamingUI();
+    };
+
+    // === Rollback Last Message ===
+    global.rollbackLastMessage = async function() {
+        if (!currentConvId) return;
+        if (!confirm('\u64a4\u56de\u4e0a\u4e00\u8f6e\u5bf9\u8bdd\uff1f')) return;
+        try {
+            var resp = await fetch('/api/ai/conversations/' + currentConvId + '/rollback', { method: 'POST' });
+            var data = await resp.json();
+            if (data.success) {
+                await global.loadAIConversation(currentConvId);
+                if (typeof showToast === 'function') showToast('\u5df2\u64a4\u56de', 'success');
+            }
+        } catch(e) { if (typeof showToast === 'function') showToast('\u64a4\u56de\u5931\u8d25', 'error'); }
+    };
+
+    // === Conversation List Panel ===
+    global.toggleAIConvList = function() {
+        var list = document.getElementById('aiConvList');
+        if (!list) return;
+        if (list.style.display === 'none') {
+            list.style.display = 'flex';
+            loadConversationListPanel();
+        } else {
+            list.style.display = 'none';
+        }
+    };
+
+    async function loadConversationListPanel() {
+        try {
+            var resp = await fetch('/api/ai/conversations');
+            var data = await resp.json();
+            var container = document.getElementById('aiConvListItems');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!data.conversations || data.conversations.length === 0) {
+                container.innerHTML = '<div class="ai-conv-empty">\u6682\u65e0\u5bf9\u8bdd\u8bb0\u5f55</div>';
+                return;
+            }
+
+            data.conversations.forEach(function(conv) {
+                var div = document.createElement('div');
+                div.className = 'ai-conv-item' + (conv.id === currentConvId ? ' active' : '');
+                div.innerHTML =
+                    '<div class="ai-conv-item-main" onclick="loadAIConversation(\'' + conv.id + '\'); toggleAIConvList();">' +
+                        '<span class="ai-conv-item-title">' + escapeHtml(conv.title || '\u65e0\u6807\u9898') + '</span>' +
+                        '<span class="ai-conv-item-meta">' + (conv.messageCount || 0) + '\u6761 \u00b7 ' + formatRelativeTime(conv.updated) + '</span>' +
+                    '</div>' +
+                    '<button class="ai-conv-item-delete" onclick="deleteConversation(\'' + conv.id + '\')" title="\u5220\u9664">\u2715</button>';
+                container.appendChild(div);
+            });
+        } catch(e) {}
+    }
+
+    // === Delete Conversation ===
+    global.deleteConversation = async function(id) {
+        try {
+            await fetch('/api/ai/conversations/' + id, { method: 'DELETE' });
+            if (id === currentConvId) {
+                currentConvId = null;
+                clearMessages();
+                showWelcome();
+                updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
+            }
+            loadConversationListPanel();
+            if (typeof showToast === 'function') showToast('\u5df2\u5220\u9664', 'success');
+        } catch(e) {}
+    };
+
+    // === Clear All Conversations ===
+    global.clearAllConversations = async function() {
+        if (!confirm('\u6e05\u7a7a\u6240\u6709\u5bf9\u8bdd\u8bb0\u5f55\uff1f')) return;
+        try {
+            await fetch('/api/ai/conversations', { method: 'DELETE' });
+            currentConvId = null;
+            clearMessages();
+            showWelcome();
+            updateTitle('\ud83e\udd16 \u65b0\u5bf9\u8bdd');
+            loadConversationListPanel();
+            if (typeof showToast === 'function') showToast('\u5df2\u6e05\u7a7a', 'success');
+        } catch(e) {}
+    };
+
+    // === UI Helpers ===
+    function updateTitle(title) {
+        var el = document.getElementById('aiChatTitle');
+        if (el) el.textContent = title;
+    }
+
+    function clearMessages() {
+        var container = document.getElementById('aiChatMessages');
+        if (container) container.innerHTML = '';
+    }
+
+    function showWelcome() {
+        var container = document.getElementById('aiChatMessages');
+        if (!container) return;
+        container.innerHTML = '<div class="ai-chat-welcome">' +
+            '<div class="ai-welcome-icon">\ud83e\udd16</div>' +
+            '<p>\u6211\u662f\u4f60\u7684 AI \u52a9\u624b\uff0c\u53ef\u4ee5\u5e2e\u4f60\uff1a</p>' +
+            '<ul><li>\ud83d\udcd6 \u67e5\u770b\u548c\u641c\u7d22\u7b14\u8bb0/\u77e5\u8bc6\u5e93</li><li>\u270f\ufe0f \u7f16\u8f91\u3001\u6574\u7406\u6587\u6863\u683c\u5f0f\u548c\u5185\u5bb9</li><li>\ud83d\udcdd \u64b0\u5199\u65b0\u6587\u6863</li><li>\u2753 \u56de\u7b54\u5173\u4e8e\u4f60\u6587\u6863\u7684\u95ee\u9898</li><li>\ud83d\udce6 Git \u63a8\u9001\u77e5\u8bc6\u5e93\u5230\u8fdc\u7aef</li></ul>' +
+            '</div>';
+    }
+
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        var diff = Date.now() - new Date(dateStr).getTime();
+        var mins = Math.floor(diff / 60000);
+        if (mins < 1) return '\u521a\u521a';
+        if (mins < 60) return mins + '\u5206\u949f\u524d';
+        var hours = Math.floor(mins / 60);
+        if (hours < 24) return hours + '\u5c0f\u65f6\u524d';
+        var days = Math.floor(hours / 24);
+        return days + '\u5929\u524d';
+    }
+
+    // Init when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initInputHandlers);
+    } else {
+        initInputHandlers();
+    }
+
+})(window);

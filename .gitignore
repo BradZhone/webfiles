@@ -48,3 +48,6 @@ server.pid
 # Playwright
 test-results/
 playwright-report/
+
+# AI conversations
+.conversations/

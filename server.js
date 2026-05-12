@@ -15,6 +15,10 @@ const unzipper = require('unzipper');
 const bcrypt = require('bcryptjs');
 const tar = require('tar');
 const rateLimit = require('express-rate-limit');
+const { streamText, tool, generateText, stepCountIs } = require('ai');
+const { createOpenAI } = require('@ai-sdk/openai');
+const { z } = require('zod');
+const Exa = require('exa-js').default;
 const helmet = require('helmet');
 
 const app = express();
@@ -1715,12 +1719,14 @@ function extractWikiLinksWithContext(content) {
   const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
   const links = [];
   let match;
-  while ((match = regex.exec(content)) !== null) {
+  match = regex.exec(content);
+  while (match !== null) {
     const target = match[1].trim();
     const start = Math.max(0, match.index - 30);
     const end = Math.min(content.length, match.index + match[0].length + 30);
     const context = content.substring(start, end).replace(/\n/g, ' ').trim();
     links.push({ target, context });
+    match = regex.exec(content);
   }
   return links;
 }
@@ -2897,6 +2903,70 @@ app.get('/api/vault/lint-all', requireAuth, (req, res) => {
     res.json({ vault, files: results, totalFiles: results.length, totalIssues: results.reduce((s,r)=>s+r.issues.length,0), totalFixable: results.reduce((s,r)=>s+r.fixable,0) });
 });
 
+// ========== Vault Git API ==========
+
+// GET /api/vault/git/status — Git status for a vault
+app.get('/api/vault/git/status', requireAuth, (req, res) => {
+  const vault = req.query.vault;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  const status = runGitInVault(vaultPath, 'status --porcelain');
+  const remote = runGitInVault(vaultPath, 'remote -v');
+  const branch = runGitInVault(vaultPath, 'branch --show-current');
+  const log = runGitInVault(vaultPath, 'log --oneline -5');
+  
+  res.json({
+    vault: vaultPath,
+    branch: branch.output || 'unknown',
+    remote: remote.output || 'none',
+    changes: status.success ? status.output.split('\n').filter(Boolean) : [],
+    hasChanges: status.success && status.output.trim().length > 0,
+    recentCommits: log.success ? log.output.split('\n').filter(Boolean) : []
+  });
+});
+
+// POST /api/vault/git/push — Add all, commit, and push
+app.post('/api/vault/git/push', requireAuth, (req, res) => {
+  const { vault, message } = req.body;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  // Step 1: git add all
+  const addResult = runGitInVault(vaultPath, 'add -A');
+  if (!addResult.success) return res.json({ success: false, step: 'add', error: addResult.error });
+  
+  // Step 2: check if there are changes to commit
+  const diffResult = runGitInVault(vaultPath, 'diff --cached --stat');
+  if (!diffResult.output || !diffResult.output.trim()) {
+    return res.json({ success: true, message: 'Nothing to commit' });
+  }
+  
+  // Step 3: git commit
+  const commitMsg = message || `Update knowledge base (${new Date().toISOString().split('T')[0]})`;
+  const commitResult = runGitInVault(vaultPath, `commit -m "${commitMsg.replace(/"/g, '\\"')}"`);
+  if (!commitResult.success) return res.json({ success: false, step: 'commit', error: commitResult.error });
+  
+  // Step 4: git push
+  const pushResult = runGitInVault(vaultPath, 'push');
+  if (!pushResult.success) return res.json({ success: false, step: 'push', error: pushResult.error });
+  
+  res.json({ success: true, commit: commitResult.output, push: pushResult.output });
+});
+
+// POST /api/vault/git/pull — Pull latest changes
+app.post('/api/vault/git/pull', requireAuth, (req, res) => {
+  const { vault } = req.body;
+  const config = loadConfigFile();
+  const vaultPath = vault || (config.vaultPaths && config.vaultPaths[0]);
+  if (!vaultPath) return res.status(400).json({ error: 'No vault specified' });
+  
+  const result = runGitInVault(vaultPath, 'pull');
+  res.json(result);
+});
+
 // ========== Quick Note API ==========
 
 // GET /api/quicknote/config — get quicknote path
@@ -3021,6 +3091,1202 @@ app.get('/api/quicknote/recent', requireAuth, (req, res) => {
         recent.sort((a, b) => new Date(b.modified) - new Date(a.modified));
     } catch {}
     res.json({ notes: recent.slice(0, 10) });
+});
+
+// ========== AI Assistant ==========
+
+const CONV_DIR = path.join(__dirname, '.conversations');
+if (!fs.existsSync(CONV_DIR)) fs.mkdirSync(CONV_DIR, { recursive: true });
+
+function getAIConfig() {
+  const config = loadConfigFile();
+  return config.ai || {};
+}
+
+function getAIModel() {
+  const ai = getAIConfig();
+  if (!ai.apiKey) throw new Error('AI API Key not configured');
+  const provider = createOpenAI({
+    baseURL: ai.baseUrl || 'https://api.z.ai/api/coding/paas/v4',
+    apiKey: ai.apiKey,
+    compatibility: 'compatible'
+  });
+  return provider.chat(ai.model || 'glm-5.1');
+}
+
+function getExaClient() {
+  const ai = getAIConfig();
+  if (!ai.exaApiKey) return null;
+  return new Exa(ai.exaApiKey);
+}
+
+// VaultIndex — AI-friendly knowledge graph index
+class VaultIndex {
+  constructor() { this.cache = new Map(); this.ttl = 5 * 60 * 1000; }
+
+  _scan(vaultPath) {
+    const cached = this.cache.get(vaultPath);
+    if (cached && Date.now() - cached.time < this.ttl) return cached.data;
+    const files = scanVault(vaultPath);
+    const fileIndex = new Map();
+    const tagIndex = new Map();
+    const linkIndex = new Map(); // target -> [{source, context}]
+    for (const f of files) {
+      fileIndex.set(f.relativePath, f);
+      for (const tag of f.tags) {
+        if (!tagIndex.has(tag)) tagIndex.set(tag, []);
+        tagIndex.get(tag).push(f.relativePath);
+      }
+      for (const link of (f.linksWithContext || [])) {
+        const target = link.target;
+        if (!linkIndex.has(target)) linkIndex.set(target, []);
+        linkIndex.get(target).push({ source: f.relativePath, context: link.context });
+      }
+    }
+    const data = { files, fileIndex, tagIndex, linkIndex };
+    this.cache.set(vaultPath, { data, time: Date.now() });
+    return data;
+  }
+
+  getOverview(vaultPath) {
+    const { files, tagIndex, linkIndex } = this._scan(vaultPath);
+    const folderMap = new Map();
+    for (const f of files) {
+      const folder = path.dirname(f.relativePath) || '.';
+      folderMap.set(folder, (folderMap.get(folder) || 0) + 1);
+    }
+    const folders = [...folderMap.entries()].map(([folder, fileCount]) => ({ folder, fileCount })).sort((a, b) => b.fileCount - a.fileCount);
+    const tags = [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length, sampleFiles: paths.slice(0, 3) })).sort((a, b) => b.count - a.count).slice(0, 20);
+    const hubFiles = files.map(f => {
+      const inLinks = linkIndex.get(f.basename) || [];
+      return { file: f.relativePath, inLinks: inLinks.length, outLinks: f.links.length, tags: f.tags, summary: f.metadata?.title || f.basename };
+    }).sort((a, b) => (b.inLinks + b.outLinks) - (a.inLinks + a.outLinks)).slice(0, 10);
+    const recentFiles = files.slice().sort((a, b) => {
+      try { return fs.statSync(path.join(vaultPath, b.relativePath)).mtimeMs - fs.statSync(path.join(vaultPath, a.relativePath)).mtimeMs; } catch { return 0; }
+    }).slice(0, 10).map(f => ({ file: f.relativePath, tags: f.tags }));
+    return { stats: { totalFiles: files.length, totalLinks: [...linkIndex.values()].reduce((s, a) => s + a.length, 0), totalTags: tagIndex.size }, folders, tags, hubFiles, recentFiles };
+  }
+
+  getNeighborhood(vaultPath, file, depth = 1) {
+    const { fileIndex, tagIndex, linkIndex } = this._scan(vaultPath);
+    const center = fileIndex.get(file);
+    if (!center) return { error: 'File not found in index' };
+    const outgoing = (center.linksWithContext || []).map(l => ({ file: l.target, context: l.context }));
+    const incoming = (linkIndex.get(center.basename) || []).filter(l => l.source !== file);
+    const sameTagFiles = [];
+    for (const tag of center.tags) {
+      for (const f of (tagIndex.get(tag) || [])) {
+        if (f !== file && !sameTagFiles.find(x => x.file === f)) {
+          sameTagFiles.push({ file: f, sharedTags: [tag] });
+        }
+      }
+    }
+    const dir = path.dirname(file);
+    const siblings = [...fileIndex.keys()].filter(k => path.dirname(k) === dir && k !== file).slice(0, 10);
+    return { center: { file, title: center.metadata?.title || center.basename, tags: center.tags }, directLinks: { outgoing, incoming }, sameTagFiles: sameTagFiles.slice(0, 10), siblings };
+  }
+}
+const vaultIndex = new VaultIndex();
+
+// Section operations
+function splitSections(content) {
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const frontmatter = fmMatch ? fmMatch[0] : '';
+  const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+  const lines = body.split('\n');
+  const sections = [];
+  let current = { index: 0, heading: null, level: 0, lines: [] };
+  for (const line of lines) {
+    const m = line.match(/^(#{1,6})\s+(.+)/);
+    if (m && current.lines.length > 0) {
+      sections.push(current);
+      current = { index: sections.length, heading: m[2].trim(), level: m[1].length, lines: [] };
+    }
+    current.lines.push(line);
+  }
+  sections.push(current);
+  return { frontmatter, sections };
+}
+
+function buildDocOutline(content) {
+  const { metadata } = parseFrontmatter(content);
+  const { sections } = splitSections(content);
+  const body = content.replace(/^---[\s\S]*?---\n*/, '');
+  const chineseChars = (body.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishWords = (body.match(/[a-zA-Z]+/g) || []).length;
+  const totalWords = chineseChars + englishWords;
+  return {
+    metadata,
+    wordCount: totalWords,
+    sections: sections.map(s => ({
+      index: s.index,
+      level: s.level,
+      heading: s.heading,
+      wordCount: s.lines.join(' ').replace(/\s+/g, ' ').trim().split(/\s+/).length,
+      preview: s.lines.find(l => l.trim() && !l.match(/^#{1,6}\s/) && !l.startsWith('```'))?.trim().slice(0, 100) || ''
+    }))
+  };
+}
+
+function editSectionContent(content, sectionIndex, newContent) {
+  const { frontmatter, sections } = splitSections(content);
+  if (sectionIndex < 0 || sectionIndex >= sections.length) throw new Error('Invalid section index');
+  sections[sectionIndex].lines = newContent.split('\n');
+  return frontmatter + sections.map(s => s.lines.join('\n')).join('\n');
+}
+
+function insertSectionContent(content, afterIndex, newContent) {
+  const { frontmatter, sections } = splitSections(content);
+  if (afterIndex < 0 || afterIndex >= sections.length) throw new Error('Invalid section index');
+  sections.splice(afterIndex + 1, 0, { index: -1, heading: null, level: 0, lines: newContent.split('\n') });
+  return frontmatter + sections.map(s => s.lines.join('\n')).join('\n');
+}
+
+function editFileMetadata(content, updates) {
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fmMatch) return `---\n${Object.entries(updates).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n${content}`;
+  let fm = fmMatch[1];
+  for (const [key, value] of Object.entries(updates)) {
+    const regex = new RegExp(`^${key}:.*$`, 'm');
+    const replacement = `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`;
+    if (regex.test(fm)) {
+      fm = fm.replace(regex, replacement);
+    } else {
+      fm += '\n' + replacement;
+    }
+  }
+  return `---\n${fm}\n---` + content.slice(fmMatch[0].length);
+}
+
+// AI file path resolver
+function resolveAIFilePath(args) {
+  let base;
+  if (args.vault) base = resolveVaultPath(args.vault);
+  else if (args.notesPath) base = resolveNotesPath(args.notesPath);
+  else {
+    // Auto-detect: try vault first, then notes
+    const config = loadConfigFile();
+    if (config.vaultPaths && config.vaultPaths.length > 0) base = config.vaultPaths[0];
+    else if (config.notesPaths && config.notesPaths.length > 0) base = config.notesPaths[0].path;
+    else throw new Error('No vault or notes path configured');
+  }
+  const resolved = path.resolve(path.join(base, args.file));
+  if (!resolved.startsWith(path.resolve(base)) || !resolved.startsWith(HOME_DIR)) {
+    throw new Error('Path not allowed');
+  }
+  return resolved;
+}
+
+// Smart vault path resolution — model doesn't need to know exact filesystem paths
+function resolveVaultPath(requestedVault) {
+  const config = loadConfigFile();
+  const vaultPaths = config.vaultPaths || [];
+
+  // If exact match, use it
+  if (requestedVault && vaultPaths.includes(requestedVault)) return requestedVault;
+
+  // If partial match (name or last segment)
+  if (requestedVault) {
+    const match = vaultPaths.find(p =>
+      p.endsWith('/' + requestedVault) ||
+      path.basename(p) === requestedVault ||
+      p.toLowerCase().includes(requestedVault.toLowerCase())
+    );
+    if (match) return match;
+  }
+
+  // Default to first configured vault
+  if (vaultPaths.length > 0) return vaultPaths[0];
+
+  throw new Error('No vault configured');
+}
+
+function resolveNotesPath(requestedPath) {
+  const config = loadConfigFile();
+  const notesPaths = config.notesPaths || [];
+
+  if (requestedPath) {
+    const match = notesPaths.find(p =>
+      p.path === requestedPath ||
+      p.name === requestedPath ||
+      p.path.toLowerCase().includes(requestedPath.toLowerCase())
+    );
+    if (match) return match.path;
+  }
+
+  if (notesPaths.length > 0) return notesPaths[0].path;
+  throw new Error('No notes path configured');
+}
+
+function clearAICaches() {
+  vaultCache.clear();
+  notesCache.clear();
+  vaultIndex.cache.clear();
+}
+
+// AI Tool Definitions
+const aiTools = {
+  get_vault_overview: tool({
+    description: '获取知识库概览 / Get vault overview: stats, folders, tags, hub files',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)') }),
+    execute: async ({ vault }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        return vaultIndex.getOverview(resolvedVault);
+      } catch (e) {
+        console.error('[AI Tool Error] get_vault_overview:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  get_graph_neighborhood: tool({
+    description: '获取文件的局部关系图 / Get local subgraph around a file',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), file: z.string().describe('Relative path in vault') }),
+    execute: async ({ vault, file }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        return vaultIndex.getNeighborhood(resolvedVault, file);
+      } catch (e) {
+        console.error('[AI Tool Error] get_graph_neighborhood:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  search_content: tool({
+    description: '全文搜索笔记和知识库 / Full-text search across notes and vaults',
+    inputSchema: z.object({ query: z.string(), vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
+    execute: async ({ query, vault, notesPath }) => {
+      try {
+        const results = [];
+        const q = query.toLowerCase();
+        // Resolve vault
+        try {
+          const resolvedVault = resolveVaultPath(vault);
+          const files = scanVault(resolvedVault);
+          for (const f of files) {
+            try {
+              const content = fs.readFileSync(f.path, 'utf-8');
+              const idx = content.toLowerCase().indexOf(q);
+              if (idx !== -1 || f.basename.toLowerCase().includes(q)) {
+                results.push({ file: f.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'vault' });
+              }
+            } catch {}
+          }
+        } catch {}
+        // Resolve notes
+        try {
+          const resolvedNotes = resolveNotesPath(notesPath);
+          const notes = scanNotes(resolvedNotes);
+          for (const note of notes) {
+            try {
+              const content = fs.readFileSync(note.path, 'utf-8');
+              const idx = content.toLowerCase().indexOf(q);
+              if (idx !== -1 || note.name.toLowerCase().includes(q)) {
+                results.push({ file: note.relativePath, snippet: content.substring(Math.max(0, idx - 40), idx + query.length + 80).replace(/\n/g, ' ').trim(), source: 'notes' });
+              }
+            } catch {}
+          }
+        } catch {}
+        return { query, results: results.slice(0, 20), total: results.length };
+      } catch (e) {
+        console.error('[AI Tool Error] search_content:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  list_notes: tool({
+    description: '列出笔记文件 / List notes with optional type/tag filter',
+    inputSchema: z.object({ notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), type: z.string().optional(), tag: z.string().optional() }),
+    execute: async ({ notesPath, type, tag }) => {
+      try {
+        const resolved = resolveNotesPath(notesPath);
+        const notes = scanNotes(resolved, type, tag);
+        return { notes: notes.slice(0, 30).map(n => ({ name: n.name, relativePath: n.relativePath, title: n.title, type: n.type, tags: n.tags, modified: n.modified })) };
+      } catch (e) {
+        console.error('[AI Tool Error] list_notes:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  read_outline: tool({
+    description: '读取文档结构大纲 / Read document structure outline without full content',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return buildDocOutline(content);
+      } catch (e) {
+        console.error('[AI Tool Error] read_outline:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  read_section: tool({
+    description: '读取文档某个章节 / Read one section by index',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), sectionIndex: z.number() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { sections } = splitSections(content);
+        if (args.sectionIndex < 0 || args.sectionIndex >= sections.length) return { error: 'Invalid section index' };
+        const s = sections[args.sectionIndex];
+        return { index: s.index, heading: s.heading, level: s.level, content: s.lines.join('\n') };
+      } catch (e) {
+        console.error('[AI Tool Error] read_section:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  read_full: tool({
+    description: '读取整个文件内容 / Read entire file content',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { metadata } = parseFrontmatter(content);
+        return { content, metadata, size: content.length };
+      } catch (e) {
+        console.error('[AI Tool Error] read_full:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  get_tags: tool({
+    description: '获取知识库所有标签 / Get all tags in vault',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)') }),
+    execute: async ({ vault }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const { tagIndex } = vaultIndex._scan(resolvedVault);
+        return { tags: [...tagIndex.entries()].map(([tag, paths]) => ({ tag, count: paths.length })).sort((a, b) => b.count - a.count) };
+      } catch (e) {
+        console.error('[AI Tool Error] get_tags:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  get_todos: tool({
+    description: '获取未完成的待办事项 / Get uncompleted todos across notes',
+    inputSchema: z.object({ notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
+    execute: async ({ notesPath }) => {
+      try {
+        const config = loadConfigFile();
+        const resolvedPath = notesPath ? resolveNotesPath(notesPath) : null;
+        const paths = resolvedPath ? [{ path: resolvedPath }] : (config.notesPaths || []);
+        const todos = [];
+        for (const np of paths) {
+          const resolved = path.resolve(np.path);
+          if (!resolved.startsWith(HOME_DIR)) continue;
+          const notes = scanNotes(resolved);
+          for (const note of notes) {
+            try {
+              const content = fs.readFileSync(note.path, 'utf-8');
+              const lines = content.split('\n');
+              lines.forEach((line, idx) => {
+                const m = line.match(/^\s*- \[ \]\s+(.+)/);
+                if (m) todos.push({ text: m[1].trim(), file: note.relativePath, line: idx });
+              });
+            } catch {}
+          }
+        }
+        return { todos: todos.slice(0, 50), total: todos.length };
+      } catch (e) {
+        console.error('[AI Tool Error] get_todos:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  edit_section: tool({
+    description: '替换文档中某个章节 / Replace a section by index',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), sectionIndex: z.number(), newContent: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = editSectionContent(content, args.sectionIndex, args.newContent);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] edit_section:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  insert_section: tool({
+    description: '在某个章节后插入内容 / Insert content after a section',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), afterIndex: z.number(), newContent: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = insertSectionContent(content, args.afterIndex, args.newContent);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] insert_section:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  edit_metadata: tool({
+    description: '修改文件 frontmatter / Modify file frontmatter metadata',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), updates: z.record(z.any()) }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const updated = editFileMetadata(content, args.updates);
+        fs.writeFileSync(filePath, updated, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] edit_metadata:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  write_new_file: tool({
+    description: '创建新文件 / Create a new markdown file',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), content: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        if (fs.existsSync(filePath)) return { error: 'File already exists' };
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, args.content, 'utf-8');
+        clearAICaches();
+        return { success: true, file: args.file };
+      } catch (e) {
+        console.error('[AI Tool Error] write_new_file:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  rename_note: tool({
+    description: '重命名笔记 / Rename a note file',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string(), newName: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const base = args.vault ? resolveVaultPath(args.vault) : resolveNotesPath(args.notesPath);
+        const newPath = path.resolve(path.join(base, args.newName));
+        if (!newPath.startsWith(path.resolve(base)) || !newPath.startsWith(HOME_DIR)) return { error: 'Path not allowed' };
+        if (fs.existsSync(newPath)) return { error: 'Target already exists' };
+        const dir = path.dirname(newPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.renameSync(filePath, newPath);
+        clearAICaches();
+        return { success: true, oldFile: args.file, newFile: args.newName };
+      } catch (e) {
+        console.error('[AI Tool Error] rename_note:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  lint_fix: tool({
+    description: '自动修复 Markdown 格式问题 / Auto-fix formatting issues',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path or name (auto-detected if omitted)'), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)'), file: z.string() }),
+    execute: async (args) => {
+      try {
+        const filePath = resolveAIFilePath(args);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { fixed, changes } = fixMarkdownFile(content, args.file);
+        if (changes.length > 0) {
+          fs.writeFileSync(filePath, fixed, 'utf-8');
+          clearAICaches();
+        }
+        return { file: args.file, changes, fixCount: changes.length };
+      } catch (e) {
+        console.error('[AI Tool Error] lint_fix:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  quick_capture: tool({
+    description: '速记一条笔记到 inbox / Quick capture a note to inbox',
+    inputSchema: z.object({ content: z.string(), tags: z.array(z.string()).optional(), notesPath: z.string().optional().describe('Notes path or name (auto-detected if omitted)') }),
+    execute: async ({ content, tags, notesPath }) => {
+      try {
+        const resolvedPath = resolveNotesPath(notesPath);
+        if (!resolvedPath.startsWith(HOME_DIR)) return { error: 'Access denied' };
+        const inboxFile = path.join(resolvedPath, 'inbox.md');
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+        const tagStr = tags && tags.length > 0 ? ' ' + tags.map(t => '#' + t).join(' ') : '';
+        const line = `- ${timestamp} ${content}${tagStr}\n`;
+        if (!fs.existsSync(inboxFile)) {
+          fs.writeFileSync(inboxFile, '---\ntype: note\ntags: [inbox]\ncreated: ' + now.toISOString().split('T')[0] + '\n---\n\n# Inbox\n\n' + line, 'utf-8');
+        } else {
+          fs.appendFileSync(inboxFile, line, 'utf-8');
+        }
+        clearAICaches();
+        return { success: true, timestamp };
+      } catch (e) {
+        console.error('[AI Tool Error] quick_capture:', e.message);
+        return { error: e.message };
+      }
+    }
+  }),
+  git_status: tool({
+    description: '查看知识库的 Git 状态 / Get git status of vault',
+    inputSchema: z.object({ vault: z.string().optional().describe('Vault path (auto-detected if omitted)') }),
+    execute: async ({ vault }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const status = runGitInVault(resolvedVault, 'status --porcelain');
+        const branch = runGitInVault(resolvedVault, 'branch --show-current');
+        const log = runGitInVault(resolvedVault, 'log --oneline -5');
+        return { 
+          branch: branch.output, 
+          changes: status.output ? status.output.split('\n').filter(Boolean) : [],
+          hasChanges: !!(status.output && status.output.trim()),
+          recentCommits: log.output ? log.output.split('\n').filter(Boolean) : []
+        };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+  git_push: tool({
+    description: '将知识库变更提交并推送到远端仓库 / Git add, commit and push vault changes',
+    inputSchema: z.object({ 
+      vault: z.string().optional(),
+      message: z.string().optional().describe('Commit message (auto-generated if omitted)')
+    }),
+    execute: async ({ vault, message }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const addResult = runGitInVault(resolvedVault, 'add -A');
+        if (!addResult.success) return { error: 'git add failed: ' + addResult.error };
+        
+        const diffResult = runGitInVault(resolvedVault, 'diff --cached --stat');
+        if (!diffResult.output || !diffResult.output.trim()) return { message: 'Nothing to commit, working tree clean' };
+        
+        const commitMsg = message || 'Update knowledge base (' + new Date().toISOString().split('T')[0] + ')';
+        const commitResult = runGitInVault(resolvedVault, 'commit -m "' + commitMsg.replace(/"/g, '\\"') + '"');
+        if (!commitResult.success) return { error: 'git commit failed: ' + commitResult.error };
+        
+        const pushResult = runGitInVault(resolvedVault, 'push');
+        if (!pushResult.success) return { error: 'git push failed: ' + pushResult.error };
+        
+        return { success: true, commit: commitResult.output, push: pushResult.output };
+      } catch (e) { return { error: e.message }; }
+    }
+  })
+  ,
+  web_search: tool({
+    description: '联网搜索 / Search the web for current information using Exa',
+    inputSchema: z.object({
+      query: z.string().describe('Search query - describe the ideal page, not just keywords'),
+      numResults: z.number().optional().describe('Number of results (default 5)'),
+      type: z.enum(['auto', 'neural', 'keyword']).optional().describe('Search type (default auto)')
+    }),
+    execute: async ({ query, numResults, type }) => {
+      try {
+        const exa = getExaClient();
+        if (!exa) return { error: 'Exa API key not configured. Please set it in AI settings.' };
+        const result = await exa.search(query, {
+          type: type || 'auto',
+          numResults: numResults || 5,
+          contents: { highlights: true, summary: true }
+        });
+        return {
+          results: (result.results || []).map(r => ({
+            title: r.title,
+            url: r.url,
+            summary: r.summary || '',
+            highlights: (r.highlights || []).slice(0, 2),
+            publishedDate: r.publishedDate
+          }))
+        };
+      } catch (e) {
+        console.error('[AI Tool Error] web_search:', e.message);
+        return { error: 'Search failed: ' + e.message };
+      }
+    }
+  }),
+
+  web_read: tool({
+    description: '读取网页内容 / Read and extract content from a URL',
+    inputSchema: z.object({
+      url: z.string().describe('URL to read'),
+    }),
+    execute: async ({ url }) => {
+      try {
+        const exa = getExaClient();
+        if (!exa) return { error: 'Exa API key not configured' };
+        const result = await exa.getContents([url], { text: { maxCharacters: 3000 } });
+        const page = result.results && result.results[0];
+        if (!page) return { error: 'Could not read URL' };
+        return {
+          title: page.title,
+          url: page.url,
+          text: page.text || '',
+          publishedDate: page.publishedDate
+        };
+      } catch (e) {
+        console.error('[AI Tool Error] web_read:', e.message);
+        return { error: 'Read failed: ' + e.message };
+      }
+    }
+  }),
+
+  // === Group 1: File Management ===
+  file_delete: tool({
+    description: '删除文件或目录 / Delete a file or directory. DANGEROUS: requires user confirmation for important files.',
+    inputSchema: z.object({
+      filePath: z.string().describe('Absolute path to delete'),
+      confirm: z.boolean().optional().describe('Must be true to actually delete')
+    }),
+    execute: async ({ filePath, confirm }) => {
+      try {
+        if (!isPathSafe(filePath, HOME_DIR)) return { error: 'Path not allowed' };
+        if (!fs.existsSync(filePath)) return { error: 'File not found' };
+        if (!confirm) return { needsConfirmation: true, message: `确认删除 ${path.basename(filePath)}？`, path: filePath };
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          fs.rmSync(filePath, { recursive: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
+        return { success: true, deleted: filePath };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_rename: tool({
+    description: '重命名或移动文件 / Rename or move a file',
+    inputSchema: z.object({
+      oldPath: z.string().describe('Current absolute path'),
+      newPath: z.string().describe('New absolute path')
+    }),
+    execute: async ({ oldPath, newPath }) => {
+      try {
+        if (!isPathSafe(oldPath, HOME_DIR) || !isPathSafe(newPath, HOME_DIR)) return { error: 'Path not allowed' };
+        if (!fs.existsSync(oldPath)) return { error: 'Source not found' };
+        fs.mkdirSync(path.dirname(newPath), { recursive: true });
+        fs.renameSync(oldPath, newPath);
+        return { success: true, from: oldPath, to: newPath };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_move: tool({
+    description: '移动文件到另一个目录 / Move files to a destination directory',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Array of absolute paths to move'),
+      dest: z.string().describe('Destination directory absolute path')
+    }),
+    execute: async ({ paths, dest }) => {
+      try {
+        if (!isPathSafe(dest, HOME_DIR)) return { error: 'Destination not allowed' };
+        fs.mkdirSync(dest, { recursive: true });
+        const results = [];
+        for (const p of paths) {
+          if (!isPathSafe(p, HOME_DIR) || !fs.existsSync(p)) { results.push({ path: p, error: 'not found or not allowed' }); continue; }
+          const target = path.join(dest, path.basename(p));
+          fs.renameSync(p, target);
+          results.push({ path: p, movedTo: target });
+        }
+        return { success: true, results };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_copy: tool({
+    description: '复制文件到另一个目录 / Copy files to a destination directory',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Array of absolute paths to copy'),
+      dest: z.string().describe('Destination directory absolute path')
+    }),
+    execute: async ({ paths, dest }) => {
+      try {
+        if (!isPathSafe(dest, HOME_DIR)) return { error: 'Destination not allowed' };
+        fs.mkdirSync(dest, { recursive: true });
+        const results = [];
+        for (const p of paths) {
+          if (!isPathSafe(p, HOME_DIR) || !fs.existsSync(p)) { results.push({ path: p, error: 'not found' }); continue; }
+          const target = path.join(dest, path.basename(p));
+          fs.cpSync(p, target, { recursive: true });
+          results.push({ path: p, copiedTo: target });
+        }
+        return { success: true, results };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 2: Annotations ===
+  read_annotations: tool({
+    description: '读取文件的批注和高亮 / Read annotations and highlights for a vault file',
+    inputSchema: z.object({
+      vault: z.string().optional(),
+      file: z.string().describe('Relative path in vault')
+    }),
+    execute: async ({ vault, file }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const annoFile = path.resolve(path.join(resolvedVault, '_notes', file.replace(/\.md$/, '.md')));
+        if (!fs.existsSync(annoFile)) return { annotations: [] };
+        const data = parseAnnotationMd(annoFile);
+        return { source: file, annotations: data.annotations };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  add_annotation: tool({
+    description: '为文件添加批注 / Add an annotation to a vault file',
+    inputSchema: z.object({
+      vault: z.string().optional(),
+      file: z.string().describe('Relative path in vault'),
+      text: z.string().describe('The highlighted text'),
+      note: z.string().describe('The annotation/comment'),
+      color: z.string().optional().describe('Highlight color (yellow/green/blue/pink, default yellow)')
+    }),
+    execute: async ({ vault, file, text, note, color }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const annoFile = path.resolve(path.join(resolvedVault, '_notes', file.replace(/\.md$/, '.md')));
+        fs.mkdirSync(path.dirname(annoFile), { recursive: true });
+        let data = { source: file, annotations: [] };
+        if (fs.existsSync(annoFile)) data = parseAnnotationMd(annoFile);
+        const annotation = {
+          id: 'ann-' + Date.now(),
+          text: text,
+          note: note,
+          color: color || 'yellow',
+          created: new Date().toISOString()
+        };
+        data.annotations.push(annotation);
+        writeAnnotationMd(annoFile, file, data.annotations);
+        return { success: true, annotation };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 3: File Search ===
+  search_files: tool({
+    description: '按文件名搜索文件 / Search files by name',
+    inputSchema: z.object({
+      query: z.string().describe('Search query (matches filename)'),
+      searchPath: z.string().optional().describe('Directory to search in (defaults to HOME)')
+    }),
+    execute: async ({ query, searchPath }) => {
+      try {
+        const basePath = searchPath && isPathSafe(searchPath, HOME_DIR) ? searchPath : HOME_DIR;
+        const results = [];
+        const q = query.toLowerCase();
+        function walk(dir, depth) {
+          if (depth > 5 || results.length > 20) return;
+          try {
+            const entries = fs.readdirSync(dir);
+            for (const entry of entries) {
+              if (entry.startsWith('.') || entry === 'node_modules') continue;
+              const fullPath = path.join(dir, entry);
+              const stat = fs.statSync(fullPath);
+              if (entry.toLowerCase().includes(q)) {
+                results.push({ name: entry, path: fullPath, isDir: stat.isDirectory(), size: stat.size, modified: stat.mtime });
+              }
+              if (stat.isDirectory()) walk(fullPath, depth + 1);
+            }
+          } catch {}
+        }
+        walk(basePath, 0);
+        return { results: results.slice(0, 20) };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 4: System Monitoring ===
+  system_stats: tool({
+    description: '获取系统状态 / Get system CPU, memory, disk usage',
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const cpus = os.cpus();
+        let totalIdle = 0, totalTick = 0;
+        cpus.forEach(cpu => { for (let t in cpu.times) totalTick += cpu.times[t]; totalIdle += cpu.times.idle; });
+        const cpuUsage = (((totalTick - totalIdle) / totalTick) * 100).toFixed(1);
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        let disk = {};
+        try {
+          const dfOut = require('child_process').execSync('df -B1 / | tail -1', { encoding: 'utf-8' });
+          const parts = dfOut.trim().split(/\s+/);
+          disk = { total: parseInt(parts[1]), used: parseInt(parts[2]), usage: ((parseInt(parts[2]) / parseInt(parts[1])) * 100).toFixed(1) + '%' };
+        } catch {}
+        return {
+          cpu: { usage: cpuUsage + '%', cores: cpus.length, loadAvg: os.loadavg().map(l => l.toFixed(2)) },
+          memory: { total: (totalMem / 1073741824).toFixed(1) + ' GB', used: (usedMem / 1073741824).toFixed(1) + ' GB', usage: ((usedMem / totalMem) * 100).toFixed(1) + '%' },
+          disk,
+          uptime: (os.uptime() / 3600).toFixed(1) + ' hours'
+        };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 5: Compression ===
+  compress_files: tool({
+    description: '压缩文件为zip / Compress files into a zip archive',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Absolute paths to compress'),
+      outputName: z.string().optional().describe('Output zip filename (default: archive.zip)')
+    }),
+    execute: async ({ paths, outputName }) => {
+      try {
+        const archiver = require('archiver');
+        const validPaths = paths.filter(p => isPathSafe(p, HOME_DIR) && fs.existsSync(p));
+        if (validPaths.length === 0) return { error: 'No valid paths to compress' };
+        const outDir = path.dirname(validPaths[0]);
+        const outFile = path.join(outDir, outputName || 'archive.zip');
+        const output = fs.createWriteStream(outFile);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        return new Promise((resolve) => {
+          output.on('close', () => resolve({ success: true, file: outFile, size: archive.pointer() }));
+          archive.on('error', (e) => resolve({ error: e.message }));
+          archive.pipe(output);
+          for (const p of validPaths) {
+            const stat = fs.statSync(p);
+            if (stat.isDirectory()) archive.directory(p, path.basename(p));
+            else archive.file(p, { name: path.basename(p) });
+          }
+          archive.finalize();
+        });
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  extract_archive: tool({
+    description: '解压zip文件 / Extract a zip archive',
+    inputSchema: z.object({
+      archivePath: z.string().describe('Path to zip file'),
+      dest: z.string().optional().describe('Destination directory (defaults to same directory)')
+    }),
+    execute: async ({ archivePath, dest }) => {
+      try {
+        if (!isPathSafe(archivePath, HOME_DIR) || !fs.existsSync(archivePath)) return { error: 'Archive not found' };
+        const destDir = dest || path.dirname(archivePath);
+        if (!isPathSafe(destDir, HOME_DIR)) return { error: 'Destination not allowed' };
+        const unzipper = require('unzipper');
+        await fs.createReadStream(archivePath).pipe(unzipper.Extract({ path: destDir })).promise();
+        return { success: true, extractedTo: destDir };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 6: Terminal Command Execution ===
+  run_command: tool({
+    description: '执行终端命令 / Execute a shell command. Dangerous commands (rm, kill, reboot, etc.) require user approval.',
+    inputSchema: z.object({
+      command: z.string().describe('Shell command to execute'),
+      cwd: z.string().optional().describe('Working directory (defaults to HOME)'),
+      approved: z.boolean().optional().describe('Set to true after user approves a dangerous command')
+    }),
+    execute: async ({ command, cwd, approved }) => {
+      try {
+        const workDir = cwd && isPathSafe(cwd, HOME_DIR) ? cwd : HOME_DIR;
+        const dangerousPatterns = [
+          /\brm\s/, /\brmdir\b/, /\bmkfs\b/, /\bdd\b/, /\bformat\b/,
+          /\bkill\b/, /\bkillall\b/, /\bpkill\b/,
+          /\breboot\b/, /\bshutdown\b/, /\bhalt\b/, /\bpoweroff\b/,
+          /\bchmod\s+777\b/, /\bchown\b/,
+          />[^>]/, // redirect overwrite (but not >>)
+          /\bsudo\b/,
+          /\bcurl\b.*\|\s*(bash|sh)\b/  // curl pipe to shell
+        ];
+        const isDangerous = dangerousPatterns.some(p => p.test(command));
+        if (isDangerous && !approved) {
+          return {
+            needsApproval: true,
+            command: command,
+            reason: '该命令可能具有破坏性，需要你的确认',
+            message: `⚠️ 危险命令需要授权: \`${command}\``
+          };
+        }
+        const { execSync } = require('child_process');
+        const output = execSync(command, {
+          cwd: workDir,
+          encoding: 'utf-8',
+          timeout: 30000,
+          maxBuffer: 1024 * 1024,
+          env: { ...process.env, HOME: HOME_DIR, PATH: process.env.PATH }
+        });
+        return {
+          success: true,
+          command: command,
+          output: output.trim().slice(0, 5000)
+        };
+      } catch (e) {
+        return {
+          success: false,
+          command: command,
+          exitCode: e.status,
+          error: (e.stderr || e.message || '').slice(0, 2000)
+        };
+      }
+    }
+  })
+};
+
+// System prompt builder
+function buildAISystemPrompt(context, aiConfig) {
+  let prompt = aiConfig.systemPrompt || `你是 WebFiles 的 AI 助手，可以查看和编辑用户的笔记和知识库。
+
+工作原则：
+- 先了解再动手：用 get_vault_overview 或 read_outline 了解全貌
+- 最小修改：优先用 edit_section 改一个章节，不要全篇重写
+- 长文档分段读：先 read_outline 看结构，再 read_section 读需要的部分
+- 保持格式规范：Markdown frontmatter 用 YAML 格式，标题层级连续
+- 操作后确认：修改文件后告诉用户改了什么
+- 如果用户问的是最新信息或你不确定的事实，使用 web_search 搜索互联网
+- 搜索后可以用 web_read 读取具体网页获取详细内容
+- 用中文回复
+
+重要提示：你可以直接调用工具而不需要指定 vault 或 notesPath 参数，系统会自动使用已配置的知识库和笔记目录。
+例如：直接调用 get_vault_overview() 即可查看知识库概览，无需传入路径。`;
+
+  if (context) {
+    prompt += '\n\n## 当前上下文\n';
+    if (context.currentView) prompt += `- 用户当前页面: ${context.currentView}\n`;
+    if (context.currentFile) prompt += `- 正在查看: ${context.currentFile}\n`;
+    if (context.currentVault) prompt += `- 当前知识库: ${context.currentVault}\n`;
+    if (context.currentNotesPath) prompt += `- 当前笔记目录: ${context.currentNotesPath}\n`;
+  }
+  const config = loadConfigFile();
+  if (config.vaultPaths?.length) {
+    prompt += `\n## 可用知识库\n${config.vaultPaths.map(p => `- 路径: ${p} (名称: ${path.basename(p)})\n  使用工具时可传 vault="${p}" 或直接省略`).join('\n')}\n`;
+  }
+  if (config.notesPaths?.length) {
+    prompt += `\n## 可用笔记目录\n${config.notesPaths.map(p => `- 路径: ${p.path} (名称: ${p.name})\n  使用工具时可传 notesPath="${p.path}" 或直接省略`).join('\n')}\n`;
+  }
+  return prompt;
+}
+
+// Conversation helpers
+function loadConversation(id) {
+  const file = path.join(CONV_DIR, `${id}.json`);
+  if (!fs.existsSync(file)) return null;
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return null; }
+}
+
+function saveConversation(conv) {
+  fs.writeFileSync(path.join(CONV_DIR, `${conv.id}.json`), JSON.stringify(conv, null, 2));
+}
+
+// Git helper for vault operations
+function runGitInVault(vaultPath, command) {
+  try {
+    const result = require('child_process').execSync(`git ${command}`, { 
+      cwd: vaultPath, 
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    });
+    return { success: true, output: result.trim() };
+  } catch (e) {
+    return { success: false, error: e.stderr?.trim() || e.message };
+  }
+}
+
+function summarizeToolResult(result) {
+  const str = typeof result === 'string' ? result : JSON.stringify(result);
+  return str.length > 200 ? str.slice(0, 200) + '...' : str;
+}
+
+// POST /api/ai/chat — Core chat endpoint with SSE streaming
+app.post('/api/ai/chat', requireAuth, async (req, res) => {
+  try {
+    const { message, conversationId, context } = req.body;
+    if (!message) return res.status(400).json({ error: 'Missing message' });
+    const model = getAIModel();
+    const aiConfig = getAIConfig();
+
+    // Load or create conversation
+    let conv;
+    if (conversationId) {
+      conv = loadConversation(conversationId);
+    }
+    if (!conv) {
+      conv = { id: crypto.randomBytes(8).toString('hex'), title: message.slice(0, 50), messages: [], created: new Date().toISOString(), updated: new Date().toISOString() };
+    }
+    conv.messages.push({ role: 'user', content: message });
+    conv.updated = new Date().toISOString();
+
+    // SSE headers
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+
+    const systemPrompt = buildAISystemPrompt(context, aiConfig);
+    const aiMessages = conv.messages.map(m => ({ role: m.role, content: m.content }));
+
+    let fullText = '';
+    let hadToolCalls = false;
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages: aiMessages,
+      tools: aiTools,
+      stopWhen: stepCountIs(15),
+      maxTokens: 4096,
+      onStepFinish: (step) => {
+        console.log('[AI Step]', {
+          hasText: !!step.text,
+          toolCalls: step.toolCalls?.length || 0,
+          toolResults: step.toolResults?.length || 0,
+          finishReason: step.finishReason
+        });
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          hadToolCalls = true;
+          for (const tc of step.toolCalls) {
+            res.write(`data: ${JSON.stringify({ type: 'tool_call', name: tc.toolName, args: tc.args })}\n\n`);
+          }
+        }
+        if (step.toolResults && step.toolResults.length > 0) {
+          for (const tr of step.toolResults) {
+            res.write(`data: ${JSON.stringify({ type: 'tool_result', name: tr.toolName, result: summarizeToolResult(tr.result) })}\n\n`);
+          }
+        }
+      }
+    });
+
+    for await (const chunk of result.textStream) {
+      fullText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
+    }
+
+    // If no text generated but tool calls happened, send fallback
+    if (!fullText && hadToolCalls) {
+      fullText = '[AI 已完成工具调用但未生成回复文本]';
+      res.write(`data: ${JSON.stringify({ type: 'text', content: fullText })}\n\n`);
+    }
+
+    conv.messages.push({ role: 'assistant', content: fullText });
+    saveConversation(conv);
+    res.write(`data: ${JSON.stringify({ type: 'done', conversationId: conv.id })}\n\n`);
+    res.end();
+  } catch (e) {
+    console.error('[AI Chat Error]', e.message, e.stack);
+    if (!res.headersSent) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+    }
+    res.write(`data: ${JSON.stringify({ type: 'error', message: e.message || 'AI service error' })}\n\n`);
+    res.end();
+  }
+});
+
+// GET /api/ai/conversations — List conversations
+app.get('/api/ai/conversations', requireAuth, (req, res) => {
+  try {
+    const files = fs.readdirSync(CONV_DIR).filter(f => f.endsWith('.json'));
+    const list = [];
+    for (const file of files) {
+      try {
+        const conv = JSON.parse(fs.readFileSync(path.join(CONV_DIR, file), 'utf-8'));
+        list.push({ id: conv.id, title: conv.title, updated: conv.updated, messageCount: conv.messages.length });
+      } catch {}
+    }
+    list.sort((a, b) => new Date(b.updated) - new Date(a.updated));
+    res.json({ conversations: list });
+  } catch {
+    res.json({ conversations: [] });
+  }
+});
+
+// GET /api/ai/conversations/:id — Get conversation detail
+app.get('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+  res.json(conv);
+});
+
+// POST /api/ai/conversations/:id/rollback — Remove last message pair
+app.post('/api/ai/conversations/:id/rollback', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+  
+  // Remove last assistant + user message pair
+  if (conv.messages.length >= 2) {
+    // Check if last is assistant, second-to-last is user
+    const last = conv.messages[conv.messages.length - 1];
+    const secondLast = conv.messages[conv.messages.length - 2];
+    if (last.role === 'assistant' && secondLast.role === 'user') {
+      conv.messages.pop(); // remove assistant
+      conv.messages.pop(); // remove user
+    } else {
+      // Just remove last one
+      conv.messages.pop();
+    }
+  } else if (conv.messages.length === 1) {
+    conv.messages.pop();
+  }
+  
+  conv.updated = new Date().toISOString();
+  saveConversation(conv);
+  res.json({ success: true, messageCount: conv.messages.length });
+});
+
+// PUT /api/ai/conversations/:id — Rename conversation
+app.put('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const conv = loadConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+  if (req.body.title) conv.title = req.body.title;
+  conv.updated = new Date().toISOString();
+  saveConversation(conv);
+  res.json({ success: true });
+});
+
+// DELETE /api/ai/conversations — Clear all conversations
+app.delete('/api/ai/conversations', requireAuth, (req, res) => {
+  const files = fs.readdirSync(CONV_DIR).filter(f => f.endsWith('.json'));
+  for (const f of files) {
+    fs.unlinkSync(path.join(CONV_DIR, f));
+  }
+  res.json({ success: true, deleted: files.length });
+});
+
+// DELETE /api/ai/conversations/:id — Delete conversation
+app.delete('/api/ai/conversations/:id', requireAuth, (req, res) => {
+  const file = path.join(CONV_DIR, `${req.params.id}.json`);
+  if (fs.existsSync(file)) fs.unlinkSync(file);
+  res.json({ success: true });
+});
+
+// GET /api/ai/config — Get AI config (mask API key)
+app.get('/api/ai/config', requireAuth, (req, res) => {
+  const ai = getAIConfig();
+  res.json({
+    configured: !!ai.apiKey,
+    baseUrl: ai.baseUrl || 'https://api.z.ai/api/coding/paas/v4',
+    model: ai.model || 'glm-5.1',
+    keyPreview: ai.apiKey ? ai.apiKey.slice(0, 8) + '...' : null,
+    hasExa: !!ai.exaApiKey
+  });
+});
+
+// POST /api/ai/config — Save AI config
+app.post('/api/ai/config', requireAuth, (req, res) => {
+  const { apiKey, model, baseUrl, systemPrompt, exaApiKey } = req.body;
+  const config = loadConfigFile();
+  config.ai = { ...(config.ai || {}), ...( apiKey !== undefined && { apiKey }), ...(model !== undefined && { model }), ...(baseUrl !== undefined && { baseUrl }), ...(systemPrompt !== undefined && { systemPrompt }), ...(exaApiKey !== undefined && { exaApiKey }) };
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  res.json({ success: true });
+});
+
+// POST /api/ai/approve-tool — Re-execute a tool call with approval
+app.post('/api/ai/approve-tool', requireAuth, async (req, res) => {
+  const { conversationId, toolName, args } = req.body;
+  if (!conversationId || !toolName || !args) return res.status(400).json({ error: 'Missing fields' });
+  const toolDef = aiTools[toolName];
+  if (!toolDef) return res.status(404).json({ error: 'Tool not found' });
+  try {
+    const result = await toolDef.execute({ ...args, approved: true, confirm: true });
+    res.json({ success: true, result });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
 });
 
 // JSON error handler for API routes
