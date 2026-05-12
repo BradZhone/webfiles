@@ -18,6 +18,7 @@ const rateLimit = require('express-rate-limit');
 const { streamText, tool, generateText, stepCountIs } = require('ai');
 const { createOpenAI } = require('@ai-sdk/openai');
 const { z } = require('zod');
+const Exa = require('exa-js').default;
 const helmet = require('helmet');
 
 const app = express();
@@ -3113,6 +3114,12 @@ function getAIModel() {
   return provider.chat(ai.model || 'glm-5.1');
 }
 
+function getExaClient() {
+  const ai = getAIConfig();
+  if (!ai.exaApiKey) return null;
+  return new Exa(ai.exaApiKey);
+}
+
 // VaultIndex — AI-friendly knowledge graph index
 class VaultIndex {
   constructor() { this.cache = new Map(); this.ttl = 5 * 60 * 1000; }
@@ -3670,6 +3677,63 @@ const aiTools = {
       } catch (e) { return { error: e.message }; }
     }
   })
+  ,
+  web_search: tool({
+    description: '联网搜索 / Search the web for current information using Exa',
+    inputSchema: z.object({
+      query: z.string().describe('Search query - describe the ideal page, not just keywords'),
+      numResults: z.number().optional().describe('Number of results (default 5)'),
+      type: z.enum(['auto', 'neural', 'keyword']).optional().describe('Search type (default auto)')
+    }),
+    execute: async ({ query, numResults, type }) => {
+      try {
+        const exa = getExaClient();
+        if (!exa) return { error: 'Exa API key not configured. Please set it in AI settings.' };
+        const result = await exa.search(query, {
+          type: type || 'auto',
+          numResults: numResults || 5,
+          contents: { highlights: true, summary: true }
+        });
+        return {
+          results: (result.results || []).map(r => ({
+            title: r.title,
+            url: r.url,
+            summary: r.summary || '',
+            highlights: (r.highlights || []).slice(0, 2),
+            publishedDate: r.publishedDate
+          }))
+        };
+      } catch (e) {
+        console.error('[AI Tool Error] web_search:', e.message);
+        return { error: 'Search failed: ' + e.message };
+      }
+    }
+  }),
+
+  web_read: tool({
+    description: '读取网页内容 / Read and extract content from a URL',
+    inputSchema: z.object({
+      url: z.string().describe('URL to read'),
+    }),
+    execute: async ({ url }) => {
+      try {
+        const exa = getExaClient();
+        if (!exa) return { error: 'Exa API key not configured' };
+        const result = await exa.getContents([url], { text: { maxCharacters: 3000 } });
+        const page = result.results && result.results[0];
+        if (!page) return { error: 'Could not read URL' };
+        return {
+          title: page.title,
+          url: page.url,
+          text: page.text || '',
+          publishedDate: page.publishedDate
+        };
+      } catch (e) {
+        console.error('[AI Tool Error] web_read:', e.message);
+        return { error: 'Read failed: ' + e.message };
+      }
+    }
+  })
 };
 
 // System prompt builder
@@ -3682,6 +3746,8 @@ function buildAISystemPrompt(context, aiConfig) {
 - 长文档分段读：先 read_outline 看结构，再 read_section 读需要的部分
 - 保持格式规范：Markdown frontmatter 用 YAML 格式，标题层级连续
 - 操作后确认：修改文件后告诉用户改了什么
+- 如果用户问的是最新信息或你不确定的事实，使用 web_search 搜索互联网
+- 搜索后可以用 web_read 读取具体网页获取详细内容
 - 用中文回复
 
 重要提示：你可以直接调用工具而不需要指定 vault 或 notesPath 参数，系统会自动使用已配置的知识库和笔记目录。
@@ -3899,15 +3965,16 @@ app.get('/api/ai/config', requireAuth, (req, res) => {
     configured: !!ai.apiKey,
     baseUrl: ai.baseUrl || 'https://api.z.ai/api/coding/paas/v4',
     model: ai.model || 'glm-5.1',
-    keyPreview: ai.apiKey ? ai.apiKey.slice(0, 8) + '...' : null
+    keyPreview: ai.apiKey ? ai.apiKey.slice(0, 8) + '...' : null,
+    hasExa: !!ai.exaApiKey
   });
 });
 
 // POST /api/ai/config — Save AI config
 app.post('/api/ai/config', requireAuth, (req, res) => {
-  const { apiKey, model, baseUrl, systemPrompt } = req.body;
+  const { apiKey, model, baseUrl, systemPrompt, exaApiKey } = req.body;
   const config = loadConfigFile();
-  config.ai = { ...(config.ai || {}), ...( apiKey !== undefined && { apiKey }), ...(model !== undefined && { model }), ...(baseUrl !== undefined && { baseUrl }), ...(systemPrompt !== undefined && { systemPrompt }) };
+  config.ai = { ...(config.ai || {}), ...( apiKey !== undefined && { apiKey }), ...(model !== undefined && { model }), ...(baseUrl !== undefined && { baseUrl }), ...(systemPrompt !== undefined && { systemPrompt }), ...(exaApiKey !== undefined && { exaApiKey }) };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   res.json({ success: true });
 });

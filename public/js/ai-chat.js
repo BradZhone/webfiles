@@ -319,6 +319,8 @@
             var config = await resp.json();
             document.getElementById('aiBaseUrlInput').value = config.baseUrl || 'https://api.z.ai/api/coding/paas/v4';
             document.getElementById('aiModelInput').value = config.model || 'glm-5.1';
+            var exaInput = document.getElementById('aiExaKeyInput');
+            if (exaInput) exaInput.placeholder = config.hasExa ? '已配置（留空保持当前）' : '输入 Exa API Key... (可选)';
             // Don't prefill API key for security
         } catch (e) {}
         document.getElementById('aiSettingsModal').style.display = 'flex';
@@ -332,11 +334,12 @@
         var apiKey = document.getElementById('aiApiKeyInput').value;
         var model = document.getElementById('aiModelInput').value;
         var baseUrl = document.getElementById('aiBaseUrlInput').value;
+        var exaApiKey = document.getElementById('aiExaKeyInput').value;
         try {
             await fetch('/api/ai/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey: apiKey || undefined, model: model, baseUrl: baseUrl })
+                body: JSON.stringify({ apiKey: apiKey || undefined, model: model, baseUrl: baseUrl, exaApiKey: exaApiKey || undefined })
             });
             global.hideAISettings();
             if (typeof showToast === 'function') showToast('AI 配置已保存', 'success');

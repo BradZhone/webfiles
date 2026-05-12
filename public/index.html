@@ -1139,6 +1139,10 @@
                 <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">模型</label>
                 <input type="text" id="aiModelInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="glm-5.1" value="glm-5.1">
             </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px;">Exa API Key (联网搜索)</label>
+                <input type="password" id="aiExaKeyInput" style="width:100%;padding:8px;background:var(--item);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" placeholder="输入 Exa API Key... (可选)">
+            </div>
             <div class="modal-btns" style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn-secondary" onclick="hideAISettings()">取消</button>
                 <button class="btn-primary" onclick="saveAISettings()">保存</button>
