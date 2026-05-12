@@ -121,7 +121,11 @@
                             appendToolCall(toolsEl, evt.name || evt.tool, evt.arguments || evt.args);
                             scrollToBottom();
                         } else if (evt.type === 'tool_result') {
-                            updateToolResult(toolsEl, evt.name || evt.tool);
+                            if (evt.result && typeof evt.result === 'object' && evt.result.needsApproval) {
+                                appendApprovalBlock(toolsEl, evt.name || evt.tool, evt.result);
+                            } else {
+                                updateToolResult(toolsEl, evt.name || evt.tool);
+                            }
                         } else if (evt.type === 'done') {
                             if (evt.conversationId) {
                                 currentConvId = evt.conversationId;
@@ -241,7 +245,13 @@
             write_new_file: '📝', rename_note: '✏️', lint_fix: '🔧',
             get_graph_neighborhood: '🕸️', list_notes: '📋', get_tags: '🏷️',
             get_todos: '✅', edit_metadata: '⚙️', quick_capture: '📌',
-            insert_section: '➕'
+            insert_section: '➕',
+            file_delete: '🗑️', file_rename: '✏️', file_move: '📦', file_copy: '📋',
+            read_annotations: '📌', add_annotation: '📝',
+            search_files: '🔎',
+            system_stats: '📊',
+            compress_files: '📦', extract_archive: '📂',
+            run_command: '💻'
         };
         var labels = {
             get_vault_overview: '查看知识库', search_content: '搜索',
@@ -251,7 +261,13 @@
             lint_fix: '修复格式', get_graph_neighborhood: '查看关系',
             list_notes: '列出笔记', get_tags: '获取标签',
             get_todos: '获取待办', edit_metadata: '修改属性',
-            quick_capture: '快速记录', insert_section: '插入章节'
+            quick_capture: '快速记录', insert_section: '插入章节',
+            file_delete: '删除文件', file_rename: '重命名', file_move: '移动文件', file_copy: '复制文件',
+            read_annotations: '读取批注', add_annotation: '添加批注',
+            search_files: '搜索文件',
+            system_stats: '系统状态',
+            compress_files: '压缩', extract_archive: '解压',
+            run_command: '执行命令'
         };
         var div = document.createElement('div');
         div.className = 'ai-tool-call';
@@ -274,6 +290,64 @@
             }
         }
     }
+
+    function appendApprovalBlock(toolsEl, toolName, result) {
+        if (!toolsEl) return;
+        var div = document.createElement('div');
+        div.className = 'ai-approval-block';
+        div.innerHTML =
+            '<div class="ai-approval-warning">⚠️ ' + escapeHtml(result.reason || '危险操作需要确认') + '</div>' +
+            '<code class="ai-approval-command">' + escapeHtml(result.command || '') + '</code>' +
+            '<div class="ai-approval-actions"></div>';
+
+        var actionsDiv = div.querySelector('.ai-approval-actions');
+
+        var approveBtn = document.createElement('button');
+        approveBtn.className = 'ai-approve-btn';
+        approveBtn.textContent = '✅ 授权执行';
+        approveBtn.onclick = function() { global.approveCommand(approveBtn, toolName, { command: result.command, cwd: result.cwd }, currentConvId); };
+        actionsDiv.appendChild(approveBtn);
+
+        var rejectBtn = document.createElement('button');
+        rejectBtn.className = 'ai-reject-btn';
+        rejectBtn.textContent = '🚫 拒绝';
+        rejectBtn.onclick = function() { global.rejectCommand(div); };
+        actionsDiv.appendChild(rejectBtn);
+
+        toolsEl.appendChild(div);
+        toolsEl.style.display = 'block';
+    }
+
+    // === Command Approval ===
+    global.approveCommand = async function(btn, toolName, args, convId) {
+        btn.disabled = true;
+        btn.textContent = '执行中...';
+        try {
+            var resp = await fetch('/api/ai/approve-tool', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversationId: convId, toolName: toolName, args: args })
+            });
+            var data = await resp.json();
+            if (data.success) {
+                btn.textContent = '✅ 已执行';
+                btn.classList.add('ai-approved');
+                var resultEl = document.createElement('div');
+                resultEl.className = 'ai-approval-result';
+                resultEl.textContent = data.result && (data.result.output || data.result.message) || '执行完成';
+                btn.parentNode.parentNode.appendChild(resultEl);
+            } else {
+                btn.textContent = '❌ 失败';
+                btn.title = data.error || 'Unknown error';
+            }
+        } catch(e) {
+            btn.textContent = '❌ 网络错误';
+        }
+    };
+
+    global.rejectCommand = function(container) {
+        container.innerHTML = '<span class="ai-rejected">🚫 已拒绝</span>';
+    };
 
     // === Conversation Management ===
     global.loadAIConversation = async function(id) {

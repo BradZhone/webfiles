@@ -3733,6 +3733,302 @@ const aiTools = {
         return { error: 'Read failed: ' + e.message };
       }
     }
+  }),
+
+  // === Group 1: File Management ===
+  file_delete: tool({
+    description: '删除文件或目录 / Delete a file or directory. DANGEROUS: requires user confirmation for important files.',
+    inputSchema: z.object({
+      filePath: z.string().describe('Absolute path to delete'),
+      confirm: z.boolean().optional().describe('Must be true to actually delete')
+    }),
+    execute: async ({ filePath, confirm }) => {
+      try {
+        if (!isPathSafe(filePath, HOME_DIR)) return { error: 'Path not allowed' };
+        if (!fs.existsSync(filePath)) return { error: 'File not found' };
+        if (!confirm) return { needsConfirmation: true, message: `确认删除 ${path.basename(filePath)}？`, path: filePath };
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          fs.rmSync(filePath, { recursive: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
+        return { success: true, deleted: filePath };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_rename: tool({
+    description: '重命名或移动文件 / Rename or move a file',
+    inputSchema: z.object({
+      oldPath: z.string().describe('Current absolute path'),
+      newPath: z.string().describe('New absolute path')
+    }),
+    execute: async ({ oldPath, newPath }) => {
+      try {
+        if (!isPathSafe(oldPath, HOME_DIR) || !isPathSafe(newPath, HOME_DIR)) return { error: 'Path not allowed' };
+        if (!fs.existsSync(oldPath)) return { error: 'Source not found' };
+        fs.mkdirSync(path.dirname(newPath), { recursive: true });
+        fs.renameSync(oldPath, newPath);
+        return { success: true, from: oldPath, to: newPath };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_move: tool({
+    description: '移动文件到另一个目录 / Move files to a destination directory',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Array of absolute paths to move'),
+      dest: z.string().describe('Destination directory absolute path')
+    }),
+    execute: async ({ paths, dest }) => {
+      try {
+        if (!isPathSafe(dest, HOME_DIR)) return { error: 'Destination not allowed' };
+        fs.mkdirSync(dest, { recursive: true });
+        const results = [];
+        for (const p of paths) {
+          if (!isPathSafe(p, HOME_DIR) || !fs.existsSync(p)) { results.push({ path: p, error: 'not found or not allowed' }); continue; }
+          const target = path.join(dest, path.basename(p));
+          fs.renameSync(p, target);
+          results.push({ path: p, movedTo: target });
+        }
+        return { success: true, results };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  file_copy: tool({
+    description: '复制文件到另一个目录 / Copy files to a destination directory',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Array of absolute paths to copy'),
+      dest: z.string().describe('Destination directory absolute path')
+    }),
+    execute: async ({ paths, dest }) => {
+      try {
+        if (!isPathSafe(dest, HOME_DIR)) return { error: 'Destination not allowed' };
+        fs.mkdirSync(dest, { recursive: true });
+        const results = [];
+        for (const p of paths) {
+          if (!isPathSafe(p, HOME_DIR) || !fs.existsSync(p)) { results.push({ path: p, error: 'not found' }); continue; }
+          const target = path.join(dest, path.basename(p));
+          fs.cpSync(p, target, { recursive: true });
+          results.push({ path: p, copiedTo: target });
+        }
+        return { success: true, results };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 2: Annotations ===
+  read_annotations: tool({
+    description: '读取文件的批注和高亮 / Read annotations and highlights for a vault file',
+    inputSchema: z.object({
+      vault: z.string().optional(),
+      file: z.string().describe('Relative path in vault')
+    }),
+    execute: async ({ vault, file }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const annoFile = path.resolve(path.join(resolvedVault, '_notes', file.replace(/\.md$/, '.md')));
+        if (!fs.existsSync(annoFile)) return { annotations: [] };
+        const data = parseAnnotationMd(annoFile);
+        return { source: file, annotations: data.annotations };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  add_annotation: tool({
+    description: '为文件添加批注 / Add an annotation to a vault file',
+    inputSchema: z.object({
+      vault: z.string().optional(),
+      file: z.string().describe('Relative path in vault'),
+      text: z.string().describe('The highlighted text'),
+      note: z.string().describe('The annotation/comment'),
+      color: z.string().optional().describe('Highlight color (yellow/green/blue/pink, default yellow)')
+    }),
+    execute: async ({ vault, file, text, note, color }) => {
+      try {
+        const resolvedVault = resolveVaultPath(vault);
+        const annoFile = path.resolve(path.join(resolvedVault, '_notes', file.replace(/\.md$/, '.md')));
+        fs.mkdirSync(path.dirname(annoFile), { recursive: true });
+        let data = { source: file, annotations: [] };
+        if (fs.existsSync(annoFile)) data = parseAnnotationMd(annoFile);
+        const annotation = {
+          id: 'ann-' + Date.now(),
+          text: text,
+          note: note,
+          color: color || 'yellow',
+          created: new Date().toISOString()
+        };
+        data.annotations.push(annotation);
+        writeAnnotationMd(annoFile, file, data.annotations);
+        return { success: true, annotation };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 3: File Search ===
+  search_files: tool({
+    description: '按文件名搜索文件 / Search files by name',
+    inputSchema: z.object({
+      query: z.string().describe('Search query (matches filename)'),
+      searchPath: z.string().optional().describe('Directory to search in (defaults to HOME)')
+    }),
+    execute: async ({ query, searchPath }) => {
+      try {
+        const basePath = searchPath && isPathSafe(searchPath, HOME_DIR) ? searchPath : HOME_DIR;
+        const results = [];
+        const q = query.toLowerCase();
+        function walk(dir, depth) {
+          if (depth > 5 || results.length > 20) return;
+          try {
+            const entries = fs.readdirSync(dir);
+            for (const entry of entries) {
+              if (entry.startsWith('.') || entry === 'node_modules') continue;
+              const fullPath = path.join(dir, entry);
+              const stat = fs.statSync(fullPath);
+              if (entry.toLowerCase().includes(q)) {
+                results.push({ name: entry, path: fullPath, isDir: stat.isDirectory(), size: stat.size, modified: stat.mtime });
+              }
+              if (stat.isDirectory()) walk(fullPath, depth + 1);
+            }
+          } catch {}
+        }
+        walk(basePath, 0);
+        return { results: results.slice(0, 20) };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 4: System Monitoring ===
+  system_stats: tool({
+    description: '获取系统状态 / Get system CPU, memory, disk usage',
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const cpus = os.cpus();
+        let totalIdle = 0, totalTick = 0;
+        cpus.forEach(cpu => { for (let t in cpu.times) totalTick += cpu.times[t]; totalIdle += cpu.times.idle; });
+        const cpuUsage = (((totalTick - totalIdle) / totalTick) * 100).toFixed(1);
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        let disk = {};
+        try {
+          const dfOut = require('child_process').execSync('df -B1 / | tail -1', { encoding: 'utf-8' });
+          const parts = dfOut.trim().split(/\s+/);
+          disk = { total: parseInt(parts[1]), used: parseInt(parts[2]), usage: ((parseInt(parts[2]) / parseInt(parts[1])) * 100).toFixed(1) + '%' };
+        } catch {}
+        return {
+          cpu: { usage: cpuUsage + '%', cores: cpus.length, loadAvg: os.loadavg().map(l => l.toFixed(2)) },
+          memory: { total: (totalMem / 1073741824).toFixed(1) + ' GB', used: (usedMem / 1073741824).toFixed(1) + ' GB', usage: ((usedMem / totalMem) * 100).toFixed(1) + '%' },
+          disk,
+          uptime: (os.uptime() / 3600).toFixed(1) + ' hours'
+        };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 5: Compression ===
+  compress_files: tool({
+    description: '压缩文件为zip / Compress files into a zip archive',
+    inputSchema: z.object({
+      paths: z.array(z.string()).describe('Absolute paths to compress'),
+      outputName: z.string().optional().describe('Output zip filename (default: archive.zip)')
+    }),
+    execute: async ({ paths, outputName }) => {
+      try {
+        const archiver = require('archiver');
+        const validPaths = paths.filter(p => isPathSafe(p, HOME_DIR) && fs.existsSync(p));
+        if (validPaths.length === 0) return { error: 'No valid paths to compress' };
+        const outDir = path.dirname(validPaths[0]);
+        const outFile = path.join(outDir, outputName || 'archive.zip');
+        const output = fs.createWriteStream(outFile);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        return new Promise((resolve) => {
+          output.on('close', () => resolve({ success: true, file: outFile, size: archive.pointer() }));
+          archive.on('error', (e) => resolve({ error: e.message }));
+          archive.pipe(output);
+          for (const p of validPaths) {
+            const stat = fs.statSync(p);
+            if (stat.isDirectory()) archive.directory(p, path.basename(p));
+            else archive.file(p, { name: path.basename(p) });
+          }
+          archive.finalize();
+        });
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  extract_archive: tool({
+    description: '解压zip文件 / Extract a zip archive',
+    inputSchema: z.object({
+      archivePath: z.string().describe('Path to zip file'),
+      dest: z.string().optional().describe('Destination directory (defaults to same directory)')
+    }),
+    execute: async ({ archivePath, dest }) => {
+      try {
+        if (!isPathSafe(archivePath, HOME_DIR) || !fs.existsSync(archivePath)) return { error: 'Archive not found' };
+        const destDir = dest || path.dirname(archivePath);
+        if (!isPathSafe(destDir, HOME_DIR)) return { error: 'Destination not allowed' };
+        const unzipper = require('unzipper');
+        await fs.createReadStream(archivePath).pipe(unzipper.Extract({ path: destDir })).promise();
+        return { success: true, extractedTo: destDir };
+      } catch (e) { return { error: e.message }; }
+    }
+  }),
+
+  // === Group 6: Terminal Command Execution ===
+  run_command: tool({
+    description: '执行终端命令 / Execute a shell command. Dangerous commands (rm, kill, reboot, etc.) require user approval.',
+    inputSchema: z.object({
+      command: z.string().describe('Shell command to execute'),
+      cwd: z.string().optional().describe('Working directory (defaults to HOME)'),
+      approved: z.boolean().optional().describe('Set to true after user approves a dangerous command')
+    }),
+    execute: async ({ command, cwd, approved }) => {
+      try {
+        const workDir = cwd && isPathSafe(cwd, HOME_DIR) ? cwd : HOME_DIR;
+        const dangerousPatterns = [
+          /\brm\s/, /\brmdir\b/, /\bmkfs\b/, /\bdd\b/, /\bformat\b/,
+          /\bkill\b/, /\bkillall\b/, /\bpkill\b/,
+          /\breboot\b/, /\bshutdown\b/, /\bhalt\b/, /\bpoweroff\b/,
+          /\bchmod\s+777\b/, /\bchown\b/,
+          />[^>]/, // redirect overwrite (but not >>)
+          /\bsudo\b/,
+          /\bcurl\b.*\|\s*(bash|sh)\b/  // curl pipe to shell
+        ];
+        const isDangerous = dangerousPatterns.some(p => p.test(command));
+        if (isDangerous && !approved) {
+          return {
+            needsApproval: true,
+            command: command,
+            reason: '该命令可能具有破坏性，需要你的确认',
+            message: `⚠️ 危险命令需要授权: \`${command}\``
+          };
+        }
+        const { execSync } = require('child_process');
+        const output = execSync(command, {
+          cwd: workDir,
+          encoding: 'utf-8',
+          timeout: 30000,
+          maxBuffer: 1024 * 1024,
+          env: { ...process.env, HOME: HOME_DIR, PATH: process.env.PATH }
+        });
+        return {
+          success: true,
+          command: command,
+          output: output.trim().slice(0, 5000)
+        };
+      } catch (e) {
+        return {
+          success: false,
+          command: command,
+          exitCode: e.status,
+          error: (e.stderr || e.message || '').slice(0, 2000)
+        };
+      }
+    }
   })
 };
 
@@ -3977,6 +4273,20 @@ app.post('/api/ai/config', requireAuth, (req, res) => {
   config.ai = { ...(config.ai || {}), ...( apiKey !== undefined && { apiKey }), ...(model !== undefined && { model }), ...(baseUrl !== undefined && { baseUrl }), ...(systemPrompt !== undefined && { systemPrompt }), ...(exaApiKey !== undefined && { exaApiKey }) };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   res.json({ success: true });
+});
+
+// POST /api/ai/approve-tool — Re-execute a tool call with approval
+app.post('/api/ai/approve-tool', requireAuth, async (req, res) => {
+  const { conversationId, toolName, args } = req.body;
+  if (!conversationId || !toolName || !args) return res.status(400).json({ error: 'Missing fields' });
+  const toolDef = aiTools[toolName];
+  if (!toolDef) return res.status(404).json({ error: 'Tool not found' });
+  try {
+    const result = await toolDef.execute({ ...args, approved: true, confirm: true });
+    res.json({ success: true, result });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
 });
 
 // JSON error handler for API routes
