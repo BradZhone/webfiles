@@ -168,18 +168,18 @@
     padding: 4px 8px; border-bottom: 1px solid var(--border);
     background: var(--bg-secondary); flex-shrink: 0; flex-wrap: wrap;
 }
-.toolbar-btn {
+.notes-toolbar-btn {
     background: none; border: 1px solid transparent; color: var(--text-secondary);
     width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; transition: all 0.15s; flex-shrink: 0;
 }
-.toolbar-btn:hover { background: var(--item-hover); color: var(--text); border-color: var(--border); }
-.toolbar-btn:active { background: var(--accent-subtle); color: var(--accent); }
-.toolbar-btn b { font-weight: 700; }
-.toolbar-btn i { font-style: italic; }
-.toolbar-btn s { text-decoration: line-through; }
-.toolbar-sep {
+.notes-toolbar-btn:hover { background: var(--item-hover); color: var(--text); border-color: var(--border); }
+.notes-toolbar-btn:active { background: var(--accent-subtle); color: var(--accent); }
+.notes-toolbar-btn b { font-weight: 700; }
+.notes-toolbar-btn i { font-style: italic; }
+.notes-toolbar-btn s { text-decoration: line-through; }
+.notes-toolbar-sep {
     width: 1px; height: 18px; background: var(--border); margin: 0 4px; flex-shrink: 0;
 }
 .notes-editor-wrap {
