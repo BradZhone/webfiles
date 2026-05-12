@@ -15,7 +15,7 @@ const unzipper = require('unzipper');
 const bcrypt = require('bcryptjs');
 const tar = require('tar');
 const rateLimit = require('express-rate-limit');
-const { streamText, tool, generateText } = require('ai');
+const { streamText, tool, generateText, stepCountIs } = require('ai');
 const { createOpenAI } = require('@ai-sdk/openai');
 const { z } = require('zod');
 const helmet = require('helmet');
@@ -3644,7 +3644,7 @@ app.post('/api/ai/chat', requireAuth, async (req, res) => {
       system: systemPrompt,
       messages: aiMessages,
       tools: aiTools,
-      maxSteps: 15,
+      stopWhen: stepCountIs(15),
       maxTokens: 4096,
       onStepFinish: (step) => {
         console.log('[AI Step]', {
